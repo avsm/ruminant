@@ -234,6 +234,15 @@ def init(
         raise typer.Exit(1)
 
 
+@app.command(help="Generate static HTML website from summaries")
+def website(
+    output_dir: Optional[str] = typer.Option("website", "--output", "-o", help="Output directory for website"),
+) -> None:
+    """Generate static HTML website from all summaries."""
+    from .commands.website import website_main
+    website_main(output_dir)
+
+
 @app.command()
 def config(
     show_keys: bool = typer.Option(False, "--show-keys", help="Show sensitive configuration (GitHub token)")
