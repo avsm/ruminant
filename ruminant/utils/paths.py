@@ -1,6 +1,5 @@
 """Path utilities for ruminant data directories."""
 
-import os
 from pathlib import Path
 from typing import Tuple
 

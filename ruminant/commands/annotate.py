@@ -290,12 +290,12 @@ def stats() -> None:
             info("No user cache found")
             return
         
-        info(f"User cache statistics:")
+        info("User cache statistics:")
         info(f"  Cached users: {cache_stats['count']}")
         info(f"  Total size: {cache_stats['size']:,} bytes ({cache_stats['size']/1024:.1f} KB)")
         
         if cache_stats["users"]:
-            info(f"\nSample cached users:")
+            info("\nSample cached users:")
             for user in cache_stats["users"]:
                 info(f"  @{user['username']} -> {user['name']}")
             

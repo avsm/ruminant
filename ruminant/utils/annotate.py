@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Dict, Optional, Set
 import uuid
 
-from ..config import get_github_token
 from .logging import warning, error, info
 
 

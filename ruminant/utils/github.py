@@ -1,11 +1,9 @@
 """GitHub API utilities adapted from the original gh-fetch.py."""
 
-import json
 import time
 import requests
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Any
-from dateutil.parser import parse
 
 from .dates import is_in_week_range
 from .logging import error, warning, info

@@ -3,7 +3,6 @@
 import json
 import typer
 from typing import Optional, List
-from pathlib import Path
 from datetime import datetime
 
 from ..config import load_config, get_github_token

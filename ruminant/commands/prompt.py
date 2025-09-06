@@ -3,7 +3,6 @@
 import json
 import typer
 from typing import Optional, List
-from pathlib import Path
 
 from ..config import load_config
 from ..utils.dates import get_last_complete_week, get_week_list, get_week_date_range, format_week_range

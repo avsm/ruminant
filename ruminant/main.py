@@ -6,7 +6,7 @@ from typing import Optional, List
 
 from .config import load_config, create_default_config, create_default_keys_file
 from .utils.logging import console, success, error, info, print_config_info
-from .commands import sync, prompt, summarize, annotate, report
+# Command modules are imported locally in each command function to avoid naming conflicts
 
 # Create the main Typer app
 app = typer.Typer(

@@ -7,8 +7,7 @@ from ..config import load_config
 from ..utils.dates import get_last_complete_week, get_week_list
 from ..utils.paths import parse_repo, get_report_file_path
 from ..utils.logging import (
-    success, error, warning, info, step, operation_summary,
-    print_repo_list, confirm_operation
+    success, error, warning, info, step, print_repo_list, confirm_operation
 )
 from .sync import sync_main
 from .prompt import prompt_main
@@ -67,7 +66,6 @@ def report_main(
         
         # Filter out weeks with existing reports if skip_existing is enabled
         if skip_existing:
-            original_week_list = week_list[:]
             weeks_to_process = []
             skipped_weeks = []
             
