@@ -34,6 +34,11 @@ def get_logs_dir() -> Path:
     return get_data_dir() / "logs"
 
 
+def get_weekly_summaries_dir() -> Path:
+    """Get the weekly summaries directory path."""
+    return get_data_dir() / "summary-weekly"
+
+
 def get_repo_cache_dir(repo: str) -> Path:
     """Get the cache directory for a specific repository."""
     owner, name = repo.split("/")
@@ -70,12 +75,12 @@ def get_prompt_file_path(repo: str, year: int, week: int) -> Path:
 
 def get_summary_file_path(repo: str, year: int, week: int) -> Path:
     """Get the summary file path for a specific repo and week."""
-    return get_repo_summaries_dir(repo) / f"week-{week:02d}-{year}.md"
+    return get_repo_summaries_dir(repo) / f"week-{week:02d}-{year}.json"
 
 
 def get_report_file_path(repo: str, year: int, week: int) -> Path:
     """Get the report file path for a specific repo and week."""
-    return get_repo_reports_dir(repo) / f"week-{week:02d}-{year}.md"
+    return get_repo_reports_dir(repo) / f"week-{week:02d}-{year}.json"
 
 
 def get_session_log_file_path(repo: str, year: int, week: int) -> Path:
@@ -93,6 +98,27 @@ def ensure_repo_dirs(repo: str) -> None:
     # Ensure logs directory for this repo
     owner, name = repo.split("/")
     (get_logs_dir() / owner / name).mkdir(parents=True, exist_ok=True)
+
+
+def get_aggregate_prompt_file_path(year: int, week: int) -> Path:
+    """Get the aggregate prompt file path for a specific week."""
+    return get_weekly_summaries_dir() / f"week-{week:02d}-{year}-prompt.txt"
+
+
+def get_aggregate_summary_file_path(year: int, week: int) -> Path:
+    """Get the aggregate summary file path for a specific week."""
+    return get_weekly_summaries_dir() / f"week-{week:02d}-{year}.json"
+
+
+def get_aggregate_session_log_file_path(year: int, week: int) -> Path:
+    """Get the aggregate session log file path for a specific week."""
+    return get_logs_dir() / "weekly" / f"week-{week:02d}-{year}-session.json"
+
+
+def ensure_aggregate_dirs() -> None:
+    """Ensure all directories exist for aggregate summaries."""
+    get_weekly_summaries_dir().mkdir(parents=True, exist_ok=True)
+    (get_logs_dir() / "weekly").mkdir(parents=True, exist_ok=True)
 
 
 def parse_repo(repo: str) -> Tuple[str, str]:

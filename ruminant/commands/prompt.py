@@ -8,7 +8,8 @@ from ..config import load_config
 from ..utils.dates import get_last_complete_week, get_week_list, get_week_date_range, format_week_range
 from ..utils.paths import (
     get_cache_file_path, get_prompt_file_path, get_summary_file_path,
-    ensure_repo_dirs, parse_repo
+    ensure_repo_dirs, parse_repo, get_aggregate_prompt_file_path,
+    get_aggregate_summary_file_path, ensure_aggregate_dirs
 )
 from ..utils.logging import (
     success, error, warning, info, step, summary_table, operation_summary,
@@ -70,14 +71,15 @@ DATA SUMMARY: The JSON file contains {issues_count} issues, {prs_count} PRs, {di
 
 The report should include the following sections:
 
-1. A concise summary of the overall activity and key themes
-2. The most important ongoing projects or initiatives based on the data
-3. Prioritized issues and PRs that need immediate attention
-4. Major discussions that should be highlighted
-5. Identify any emerging trends or patterns in development
-6. Good first issues for new contributors
+1. A concise summary of the overall activity and key themes (MUST use bullet points)
+2. The most important ongoing projects or initiatives based on the data (MUST use bullet points)
+3. Prioritized issues and PRs that need immediate attention (MUST use bullet points)
+4. Major discussions that should be highlighted (MUST use bullet points)
+5. Identify any emerging trends or patterns in development (MUST use bullet points)
+6. Good first issues for new contributors (MUST use bullet points)
 
 CRITICAL REQUIREMENTS:
+- ALL sections MUST use bullet point format (starting with "-" or "*") for consistency and readability
 - SKIP any section entirely if there is no meaningful content for it
 - DO NOT include placeholder text like "No discussions were recorded" or "There are no XYZ to report"
 - Only include sections that have actual, substantive content
@@ -94,9 +96,10 @@ LINKING REQUIREMENTS:
 - Even general observations should reference specific PRs/issues that support them
 
 FORMATTING INSTRUCTIONS:
+- ALL content MUST be organized using bullet points (starting with "-" or "*")
 - AVOID listing large numbers of PRs in sequence - instead, summarize them by theme with all relevant numbers
 - For groups of related PRs, summarize the theme and list ALL relevant PR/issue numbers in parentheses
-- Use bullet points effectively to organize information
+- Use bullet points effectively to organize information - this is MANDATORY for all sections
 - EVERY bullet point must have associated PR/issue numbers for reader follow-up
 
 Example of correct format:
@@ -116,27 +119,39 @@ NOTE: Every substantive point MUST include PR/issue numbers to allow readers to 
 
 ACTION REQUIRED:
 1. Read the GitHub activity data from the JSON file: {cache_file}
-2. Generate a markdown report with the following structure:
+2. Generate a JSON report with the following structure:
 
-# {week_range_str} - {repo} Activity Summary
+{{
+  "week": {week},
+  "year": {year},
+  "repo": "{repo}",
+  "week_range": "{week_range_str}",
+  "overall_activity": "Markdown content for overall activity summary (always include if there's any activity - MUST use bullet points - include key PR/issue numbers)",
+  "ongoing_projects": "Markdown content for key ongoing projects (only include if there are identifiable projects - MUST use bullet points - MUST include all relevant issue/PR references)",
+  "priority_items": "Markdown content for priority items (only include if there are items needing immediate attention - MUST use bullet points - include specific PR/issue numbers)",
+  "notable_discussions": "Markdown content for notable discussions (only include if there are actual significant discussions - MUST use bullet points - include discussion numbers if available)",
+  "emerging_trends": "Markdown content for emerging trends (only include if clear patterns are identifiable - MUST use bullet points - support with specific PR/issue examples)",
+  "good_first_issues": "Markdown content for good first issues (only include if there are actual good first issues available - MUST use bullet points - list all issue numbers)",
+  "contributors": "Markdown content for contributors (always include if there are any contributors - reference their specific contributions by PR/issue number)"
+}}
 
-Then include only the sections that have meaningful content, with PR/issue numbers for every bullet point:
-- ## Overall Activity Summary (always include if there's any activity - include key PR/issue numbers)
-- ## Key Ongoing Projects (only if there are identifiable projects - MUST include all relevant issue/PR references)
-- ## Priority Items (only if there are items needing immediate attention - include specific PR/issue numbers)
-- ## Notable Discussions (only if there are actual significant discussions - include discussion numbers if available)
-- ## Emerging Trends (only if clear patterns are identifiable - support with specific PR/issue examples)
-- ## Good First Issues (only if there are actual good first issues available - list all issue numbers)
-- ## Contributors (always include if there are any contributors - reference their specific contributions by PR/issue number)
+IMPORTANT JSON FORMATTING RULES:
+- Each section value should contain the markdown content that would have been in that section
+- ALL sections MUST use bullet points format (starting with "-" or "*") for better readability
+- If a section has no meaningful content, set its value to null (not an empty string)
+- The markdown content within each section should follow the same formatting rules (bullet points, PR/issue references, @mentions)
+- Ensure proper JSON escaping for special characters in the markdown content
+- The JSON must be valid and properly formatted
 
-3. Write the complete markdown report to: {summary_file}
+3. Write the complete JSON report to: {summary_file}
 4. Return a confirmation message that the file was written successfully
 
 Remember: 
-- Skip sections entirely if they would be empty or contain only filler text
-- EVERY bullet point must include relevant PR/issue numbers for reader follow-up
+- ALL sections MUST use bullet point format - this is mandatory for consistency
+- Set section values to null if they would be empty or contain only filler text
+- EVERY bullet point in the markdown content must include relevant PR/issue numbers for reader follow-up
 - Use GitHub MCP server tools if you need additional information about specific PRs/issues
-- The output file MUST be written with the complete markdown summary
+- The output file MUST be written with the complete JSON summary
 
 IMPORTANT: You must use the Read tool to load and analyze the data from {cache_file}"""
         
@@ -166,12 +181,159 @@ IMPORTANT: You must use the Read tool to load and analyze the data from {cache_f
         }
 
 
+def generate_aggregate_prompt(repositories: List[str], year: int, week: int, config) -> dict:
+    """Generate an aggregate Claude prompt for summarizing activity across all repositories."""
+    
+    # Get week date range
+    week_start, week_end = get_week_date_range(year, week)
+    week_range_str = format_week_range(year, week)
+    
+    # Check which repositories have summaries available
+    available_repos = []
+    missing_repos = []
+    for repo in repositories:
+        summary_file = get_summary_file_path(repo, year, week)
+        if summary_file.exists():
+            available_repos.append(repo)
+        else:
+            missing_repos.append(repo)
+    
+    if not available_repos:
+        return {
+            "success": False,
+            "details": f"No repository summaries found for week {week}/{year}",
+            "prompt_file": None,
+            "summary_file": None
+        }
+    
+    try:
+        # Get file paths
+        ensure_aggregate_dirs()
+        prompt_file = get_aggregate_prompt_file_path(year, week)
+        summary_file = get_aggregate_summary_file_path(year, week)
+        
+        # Build the list of summary files
+        summary_files_list = "\n".join([
+            f"- {get_summary_file_path(repo, year, week)}" 
+            for repo in available_repos
+        ])
+        
+        # Build the aggregate prompt
+        prompt = f"""You are a software development manager responsible for creating a high-level weekly summary across multiple GitHub repositories.
+
+Please analyze the weekly summaries for the following repositories covering the period {week_range_str} (week {week} of {year}):
+
+REPOSITORIES TO ANALYZE:
+{summary_files_list}
+
+YOUR TASK:
+1. Read and analyze ALL the repository summaries listed above using the Read tool
+2. Generate a comprehensive aggregate JSON summary that captures the week's activity across ALL repositories
+3. Write this summary to the file: {summary_file}
+
+The aggregate summary should synthesize information across all repositories to provide:
+- A unified view of development activity
+- Cross-repository patterns and themes
+- Overall project health and progress
+- Key achievements and challenges across the ecosystem
+
+CRITICAL REQUIREMENTS:
+- ALWAYS use full repository context for issues/PRs: owner/repo#number (e.g., ocaml/dune#1234)
+- Never use just #number alone - it's ambiguous across multiple repositories
+- Repository references use @owner/repo format when referring to the repo itself
+- ALL sections MUST use bullet point format for consistency
+- Synthesize information - don't just concatenate individual summaries
+- Identify cross-repository dependencies and interactions where applicable
+
+Generate a JSON report with the following structure:
+
+{{
+  "week": {week},
+  "year": {year},
+  "week_range": "{week_range_str}",
+  "repositories_included": {json.dumps(available_repos)},
+  "short_summary": "A 1-2 sentence SPECIFIC summary mentioning actual features/fixes/changes suitable for calendar previews (max 200 chars)",
+  "overall_activity": "Comprehensive markdown summary of activity across all repos (MUST use bullet points with specific PR/issue references)",
+  "key_achievements": "Major accomplishments and milestones across repos (MUST use bullet points with specific PR/issue references)",
+  "ongoing_initiatives": "Cross-repository projects and coordinated efforts (MUST use bullet points with specific PR/issue references)",
+  "priority_items": "Critical issues and PRs needing attention across repos (MUST use bullet points with specific PR/issue references)",
+  "notable_discussions": "Important discussions that affect multiple repos or the ecosystem (MUST use bullet points with discussion/issue references)",
+  "emerging_patterns": "Trends and patterns observed across repositories (MUST use bullet points with example PR/issue references)",
+  "ecosystem_health": "Overall assessment of the ecosystem's development health (MUST use bullet points with supporting PR/issue references)",
+  "contributors_spotlight": "Notable contributors and their cross-repository contributions"
+}}
+
+FORMATTING REQUIREMENTS:
+- short_summary: MUST be specific (e.g., "DWARF debugging in oxcaml, dune pkg parallelism fixes, LLVM backend progress" NOT "Active development across ecosystem")
+- short_summary: Avoid vague terms like "major", "significant", "active development" - use specific feature/fix names
+- short_summary: Keep under 200 characters, no markdown, suitable for calendar previews
+- Each other section should contain markdown with bullet points
+- EVERY bullet point should include relevant PR/issue references where possible to help readers navigate to specifics
+- Every repository reference must use @owner/repo format when referring to the repo itself
+- Every PR/issue reference MUST use full format: owner/repo#number (e.g., ocaml/dune#1234, NOT just #1234)
+- Include multiple PR/issue references per bullet point when describing related work
+- If a section has no meaningful content, set its value to null
+- Ensure proper JSON escaping for special characters
+
+SYNTHESIS GUIDELINES:
+- Look for common themes across repositories (e.g., "security improvements in @ocaml/dune and @ocaml/opam")
+- Identify dependencies (e.g., "ocaml/dune#123 blocked by ocaml/ocaml#456")
+- Highlight coordinated efforts (e.g., "LLVM backend work spans @oxcaml/oxcaml and @ocaml/ocaml")
+- Note ecosystem-wide impacts (e.g., "Breaking changes in @ocaml/ocaml affecting @ocaml/dune and @ocaml/merlin")
+- When referring to issues/PRs, ALWAYS use owner/repo#number format for clarity
+
+Remember:
+- You MUST read ALL the listed summary files before generating the aggregate
+- Focus on synthesis and patterns, not just listing individual repo activities
+- The short_summary is critical for calendar views - be SPECIFIC about actual changes/features
+- Good short_summary: "DWARF debug shapes, dune pkg Docker support, JSIR multi-file compilation, ARM64 assembler fix"
+- Bad short_summary: "Active development with significant improvements across the OCaml ecosystem"
+- All sections except short_summary MUST use bullet points
+- ALL issue/PR references must use owner/repo#number format (never just #number)
+- Write the complete JSON summary to: {summary_file}
+
+ACTION REQUIRED:
+1. Use the Read tool to load each repository summary file
+2. Analyze and synthesize the information across all repositories
+3. Generate the aggregate JSON summary following the structure above
+4. Write the JSON to the output file
+5. Return a confirmation message"""
+        
+        # Add note about missing repos if any
+        if missing_repos:
+            prompt += f"\n\nNOTE: The following repositories do not have summaries for this week and will not be included: {', '.join(missing_repos)}"
+        
+        # Save prompt to file
+        with open(prompt_file, 'w', encoding='utf-8') as f:
+            f.write(prompt)
+        
+        return {
+            "success": True,
+            "details": f"Aggregate prompt generated for {len(available_repos)} repositories",
+            "prompt_file": prompt_file,
+            "summary_file": summary_file,
+            "week_range": week_range_str,
+            "repositories": available_repos,
+            "missing": missing_repos
+        }
+        
+    except Exception as e:
+        error(f"Error generating aggregate prompt: {e}")
+        return {
+            "success": False,
+            "details": str(e),
+            "prompt_file": None,
+            "summary_file": None
+        }
+
+
 def prompt_main(
     repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
     weeks: int = typer.Option(1, "--weeks", help="Number of weeks to generate prompts for"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     show_paths: bool = typer.Option(False, "--show-paths", help="Show file paths that will be used"),
+    aggregate: bool = typer.Option(False, "--aggregate", help="Generate aggregate weekly summary across all repositories"),
 ) -> None:
     """Generate Claude prompts for weekly GitHub activity summaries."""
     
@@ -203,36 +365,72 @@ def prompt_main(
         else:
             target_year, target_week = get_last_complete_week()
         
-        # Get list of weeks to process
-        if weeks > 1:
-            week_list = get_week_list(weeks, target_year, target_week)
-            step(f"Generating prompts for {len(repositories_to_process)} repositories for {weeks} weeks")
-        else:
-            week_list = [(target_year, target_week)]
-            step(f"Generating prompts for {len(repositories_to_process)} repositories for week {target_week} of {target_year}")
-        
-        # Generate prompts for all repos and weeks
-        all_results = []
-        total_operations = len(repositories_to_process) * len(week_list)
-        current_operation = 0
-        
-        for repo in repositories_to_process:
+        # Handle aggregate mode
+        if aggregate:
+            # Get list of weeks to process
+            if weeks > 1:
+                week_list = get_week_list(weeks, target_year, target_week)
+                step(f"Generating aggregate prompts for {weeks} weeks")
+            else:
+                week_list = [(target_year, target_week)]
+                step(f"Generating aggregate prompt for week {target_week} of {target_year}")
+            
+            # Generate aggregate prompts for each week
+            all_results = []
+            total_operations = len(week_list)
+            current_operation = 0
+            
             for w_year, w_week in week_list:
                 current_operation += 1
-                info(f"[{current_operation}/{total_operations}] Generating prompt for {repo} week {w_week}/{w_year}")
+                info(f"[{current_operation}/{total_operations}] Generating aggregate prompt for week {w_week}/{w_year}")
                 
-                result = generate_prompt(repo, w_year, w_week, config)
+                result = generate_aggregate_prompt(repositories_to_process, w_year, w_week, config)
                 all_results.append(result)
                 
                 if result["success"]:
-                    success(f"Generated prompt: {result['prompt_file']}")
+                    success(f"Generated aggregate prompt: {result['prompt_file']}")
+                    if result.get("missing"):
+                        warning(f"Missing summaries for: {', '.join(result['missing'])}")
                     if show_paths:
                         paths = {
-                            "Cache file": result["cache_file"],
                             "Prompt file": result["prompt_file"],
                             "Summary file": result["summary_file"]
                         }
-                        print_file_paths(f"{repo} Week {w_week}/{w_year} Paths", paths)
+                        print_file_paths(f"Week {w_week}/{w_year} Aggregate Paths", paths)
+                else:
+                    error(f"Failed: {result['details']}")
+        else:
+            # Original per-repository logic
+            # Get list of weeks to process
+            if weeks > 1:
+                week_list = get_week_list(weeks, target_year, target_week)
+                step(f"Generating prompts for {len(repositories_to_process)} repositories for {weeks} weeks")
+            else:
+                week_list = [(target_year, target_week)]
+                step(f"Generating prompts for {len(repositories_to_process)} repositories for week {target_week} of {target_year}")
+            
+            # Generate prompts for all repos and weeks
+            all_results = []
+            total_operations = len(repositories_to_process) * len(week_list)
+            current_operation = 0
+            
+            for repo in repositories_to_process:
+                for w_year, w_week in week_list:
+                    current_operation += 1
+                    info(f"[{current_operation}/{total_operations}] Generating prompt for {repo} week {w_week}/{w_year}")
+                    
+                    result = generate_prompt(repo, w_year, w_week, config)
+                    all_results.append(result)
+                    
+                    if result["success"]:
+                        success(f"Generated prompt: {result['prompt_file']}")
+                        if show_paths:
+                            paths = {
+                                "Cache file": result["cache_file"],
+                                "Prompt file": result["prompt_file"],
+                                "Summary file": result["summary_file"]
+                            }
+                            print_file_paths(f"{repo} Week {w_week}/{w_year} Paths", paths)
         
         # Print summary
         successful_results = [r for r in all_results if r["success"]]

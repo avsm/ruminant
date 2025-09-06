@@ -19,6 +19,7 @@ class ClaudeConfig:
     """Claude CLI configuration."""
     command: str = "claude"
     args: List[str] = field(default_factory=lambda: ["-p"])
+    parallel_workers: int = 10
 
 
 @dataclass
@@ -94,6 +95,7 @@ def load_config() -> Config:
                 claude = data["claude"]
                 config.claude.command = claude.get("command", config.claude.command)
                 config.claude.args = claude.get("args", config.claude.args)
+                config.claude.parallel_workers = claude.get("parallel_workers", config.claude.parallel_workers)
             
             # Reporting config
             if "reporting" in data:
@@ -161,7 +163,8 @@ Highlight any breaking changes or major version updates."""
         },
         "claude": {
             "command": "claude",
-            "args": ["-p"]
+            "args": ["-p"],
+            "parallel_workers": 10
         },
         "reporting": {
             "default_weeks": 1,

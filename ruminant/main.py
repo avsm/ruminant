@@ -28,9 +28,13 @@ def sync(
     from .commands.sync import sync_main
     
     # Use config default if weeks not specified
+    # But if a specific week is given, default to 1 week
     if weeks is None:
-        config = load_config()
-        weeks = config.reporting.default_weeks
+        if week is not None:
+            weeks = 1
+        else:
+            config = load_config()
+            weeks = config.reporting.default_weeks
     
     sync_main(repos, weeks, year, week, force)
 
@@ -41,16 +45,21 @@ def prompt(
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     show_paths: bool = typer.Option(False, "--show-paths", help="Show file paths that will be used"),
+    aggregate: bool = typer.Option(False, "--aggregate", help="Generate aggregate weekly summary across all repositories"),
 ) -> None:
     """Generate Claude prompts for weekly GitHub activity summaries."""
     from .commands.prompt import prompt_main
     
     # Use config default if weeks not specified
+    # But if a specific week is given, default to 1 week
     if weeks is None:
-        config = load_config()
-        weeks = config.reporting.default_weeks
+        if week is not None:
+            weeks = 1
+        else:
+            config = load_config()
+            weeks = config.reporting.default_weeks
     
-    prompt_main(repos, weeks, year, week, show_paths)
+    prompt_main(repos, weeks, year, week, show_paths, aggregate)
 
 @app.command(help="Generate summaries using Claude CLI")
 def summarize(
@@ -60,16 +69,22 @@ def summarize(
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without running Claude CLI"),
+    parallel_workers: Optional[int] = typer.Option(None, "--parallel-workers", help="Number of parallel Claude instances (default from config)"),
+    aggregate: bool = typer.Option(False, "--aggregate", help="Generate aggregate weekly summary across all repositories"),
 ) -> None:
     """Generate summaries using Claude CLI."""
     from .commands.summarize import summarize_main
     
     # Use config default if weeks not specified
+    # But if a specific week is given, default to 1 week
     if weeks is None:
-        config = load_config()
-        weeks = config.reporting.default_weeks
+        if week is not None:
+            weeks = 1
+        else:
+            config = load_config()
+            weeks = config.reporting.default_weeks
     
-    summarize_main(repos, weeks, year, week, claude_args, dry_run)
+    summarize_main(repos, weeks, year, week, claude_args, dry_run, parallel_workers, aggregate)
 
 # Create annotate subcommands
 annotate_app = typer.Typer(help="Annotate reports with GitHub links")
@@ -123,9 +138,13 @@ def annotate_callback(
         from .commands.annotate import annotate_main
         
         # Use config default if weeks not specified
+        # But if a specific week is given, default to 1 week
         if weeks is None:
-            config = load_config()
-            weeks = config.reporting.default_weeks
+            if week is not None:
+                weeks = 1
+            else:
+                config = load_config()
+                weeks = config.reporting.default_weeks
         
         annotate_main(files, repos, weeks, year, week, in_place, all_summaries)
 
@@ -145,6 +164,7 @@ def report(
     skip_annotate: bool = typer.Option(False, "--skip-annotate", help="Skip the annotation step"),
     skip_existing: bool = typer.Option(False, "--skip-existing", help="Skip weeks that already have reports"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without executing"),
+    skip_aggregate: bool = typer.Option(False, "--skip-aggregate", help="Skip aggregate summary generation"),
 ) -> None:
     """Run the complete end-to-end reporting workflow."""
     from .commands.report import report_main
@@ -154,7 +174,7 @@ def report(
         config = load_config()
         weeks = config.reporting.default_weeks
     
-    report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_prompt, skip_summarize, skip_annotate, skip_existing, dry_run)
+    report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_prompt, skip_summarize, skip_annotate, skip_existing, dry_run, skip_aggregate)
 
 
 @app.command()

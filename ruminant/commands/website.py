@@ -1,33 +1,97 @@
-"""Website command for generating static HTML from summaries."""
+"""Website command for generating static HTML from JSON reports."""
 
 import json
 import re
-from datetime import datetime, date
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass
 from collections import defaultdict
 
 import typer
+import markdown2
 
 from ..config import load_config
-from ..utils.dates import get_week_date_range, format_week_range
+from ..utils.dates import format_week_range
 from ..utils.paths import get_data_dir
 from ..utils.logging import success, error, info, step
 
 
 @dataclass
-class SummaryData:
-    """Structured data from a summary file."""
+class ReportData:
+    """Structured data from a JSON report file."""
     org: str
     repo: str
     year: int
     week: int
-    date_range: str
-    title: str
-    content: str
+    week_range: str
+    overall_activity: Optional[str]
+    ongoing_projects: Optional[str]
+    priority_items: Optional[str]
+    notable_discussions: Optional[str]
+    emerging_trends: Optional[str]
+    good_first_issues: Optional[str]
+    contributors: Optional[str]
     file_path: Path
-    summary_text: str  # Brief summary for calendar view
+    
+    @property
+    def summary_text(self) -> str:
+        """Get a brief summary for calendar view."""
+        if self.overall_activity:
+            # Extract first sentence or truncate at 150 chars
+            text = self.overall_activity.strip()
+            # Remove markdown links for cleaner display
+            text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+            if len(text) > 150:
+                text = text[:147] + "..."
+            return text
+        return "Activity summary available"
+    
+    @property
+    def has_content(self) -> bool:
+        """Check if report has meaningful content."""
+        return any([
+            self.overall_activity,
+            self.ongoing_projects,
+            self.priority_items,
+            self.notable_discussions,
+            self.emerging_trends,
+            self.good_first_issues,
+            self.contributors
+        ])
+
+
+@dataclass
+class WeeklySummaryData:
+    """Structured data from a weekly aggregate summary JSON."""
+    year: int
+    week: int
+    week_range: str
+    repositories_included: List[str]
+    short_summary: Optional[str]
+    overall_activity: Optional[str]
+    key_achievements: Optional[str]
+    ongoing_initiatives: Optional[str]
+    priority_items: Optional[str]
+    notable_discussions: Optional[str]
+    emerging_patterns: Optional[str]
+    ecosystem_health: Optional[str]
+    contributors_spotlight: Optional[str]
+    file_path: Path
+    
+    @property
+    def has_content(self) -> bool:
+        """Check if summary has meaningful content."""
+        return any([
+            self.overall_activity,
+            self.key_achievements,
+            self.ongoing_initiatives,
+            self.priority_items,
+            self.notable_discussions,
+            self.emerging_patterns,
+            self.ecosystem_health,
+            self.contributors_spotlight
+        ])
 
 
 @dataclass
@@ -35,58 +99,108 @@ class WeekData:
     """All activity for a specific week."""
     year: int
     week: int
-    date_range: str
-    repos: Dict[str, SummaryData]  # repo_key -> SummaryData
-    total_activity: int = 0
+    week_range: str
+    repos: Dict[str, ReportData]  # repo_key -> ReportData
+    weekly_summary: Optional[WeeklySummaryData] = None
+    
+    @property
+    def activity_level(self) -> int:
+        """Calculate activity level based on content."""
+        level = 0
+        for repo in self.repos.values():
+            # Count non-empty sections
+            if repo.overall_activity:
+                level += 2
+            if repo.ongoing_projects:
+                level += 3
+            if repo.priority_items:
+                level += 3
+            if repo.contributors:
+                level += 1
+            if repo.emerging_trends:
+                level += 2
+        
+        # Add bonus for weekly summary
+        if self.weekly_summary and self.weekly_summary.has_content:
+            level += 5
+        
+        return level
 
 
-def parse_summary_file(file_path: Path) -> Optional[SummaryData]:
-    """Parse a single report markdown file."""
+def parse_weekly_summary(file_path: Path) -> Optional[WeeklySummaryData]:
+    """Parse a weekly aggregate summary JSON file."""
     try:
-        # Extract org, repo, year, week from path
-        # Expected: data/reports/{org}/{repo}/week-{week}-{year}.md
+        # Extract year, week from filename
+        # Expected: data/summary-weekly/week-{week}-{year}.json
+        filename = file_path.stem  # removes .json
+        if not filename.startswith('week-'):
+            return None
+        
+        # Parse week-NN-YYYY format
+        parts = filename.split('-')
+        if len(parts) != 3:
+            return None
+            
+        week = int(parts[1])
+        year = int(parts[2])
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        week_range = data.get('week_range', format_week_range(year, week))
+        
+        return WeeklySummaryData(
+            year=year,
+            week=week,
+            week_range=week_range,
+            repositories_included=data.get('repositories_included', []),
+            short_summary=data.get('short_summary'),
+            overall_activity=data.get('overall_activity'),
+            key_achievements=data.get('key_achievements'),
+            ongoing_initiatives=data.get('ongoing_initiatives'),
+            priority_items=data.get('priority_items'),
+            notable_discussions=data.get('notable_discussions'),
+            emerging_patterns=data.get('emerging_patterns'),
+            ecosystem_health=data.get('ecosystem_health'),
+            contributors_spotlight=data.get('contributors_spotlight'),
+            file_path=file_path
+        )
+        
+    except (ValueError, KeyError, json.JSONDecodeError) as e:
+        error(f"Error parsing weekly summary {file_path}: {e}")
+        return None
+
+
+def parse_json_report(file_path: Path) -> Optional[ReportData]:
+    """Parse a single JSON report file."""
+    try:
+        # Extract org, repo from path
+        # Expected: data/reports/{org}/{repo}/week-{week}-{year}.json
         parts = file_path.parts
         if len(parts) < 4 or not file_path.name.startswith('week-'):
             return None
             
         org = parts[-3]
-        repo = parts[-2]
+        repo_name = parts[-2]
         
-        # Parse week-{week}-{year}.md
-        week_match = re.match(r'week-(\d+)-(\d+)\.md', file_path.name)
-        if not week_match:
-            return None
-            
-        week = int(week_match.group(1))
-        year = int(week_match.group(2))
+        # Read JSON content
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         
-        # Read and parse content
-        content = file_path.read_text(encoding='utf-8')
-        
-        # Extract title (first line starting with #)
-        title_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
-        title = title_match.group(1) if title_match else f"{org}/{repo} Week {week} {year}"
-        
-        # Extract date range from title or generate it
-        date_range_match = re.search(r'(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})', title)
-        if date_range_match:
-            date_range = f"{date_range_match.group(1)} to {date_range_match.group(2)}"
-        else:
-            date_range = format_week_range(year, week)
-        
-        # Extract brief summary from "Overall Activity Summary" section
-        summary_text = extract_brief_summary(content)
-        
-        return SummaryData(
+        return ReportData(
             org=org,
-            repo=repo,
-            year=year,
-            week=week,
-            date_range=date_range,
-            title=title,
-            content=content,
-            file_path=file_path,
-            summary_text=summary_text
+            repo=repo_name,
+            year=data.get('year', 0),
+            week=data.get('week', 0),
+            week_range=data.get('week_range', ''),
+            overall_activity=data.get('overall_activity'),
+            ongoing_projects=data.get('ongoing_projects'),
+            priority_items=data.get('priority_items'),
+            notable_discussions=data.get('notable_discussions'),
+            emerging_trends=data.get('emerging_trends'),
+            good_first_issues=data.get('good_first_issues'),
+            contributors=data.get('contributors'),
+            file_path=file_path
         )
         
     except Exception as e:
@@ -94,95 +208,82 @@ def parse_summary_file(file_path: Path) -> Optional[SummaryData]:
         return None
 
 
-def extract_brief_summary(content: str) -> str:
-    """Extract a brief summary from the markdown content."""
-    # Look for "Overall Activity Summary" section
-    summary_match = re.search(
-        r'##\s+Overall Activity Summary\s*\n\n(.+?)(?=\n##|\n\n##|$)', 
-        content, 
-        re.DOTALL | re.IGNORECASE
-    )
-    
-    if summary_match:
-        summary = summary_match.group(1).strip()
-        # Take first sentence or up to 150 characters
-        first_sentence = re.split(r'[.!?]\s+', summary)[0]
-        if len(first_sentence) > 150:
-            first_sentence = first_sentence[:150] + "..."
-        return first_sentence
-    
-    # Fallback: look for any activity count in the content
-    activity_match = re.search(r'(\d+)\s+pull requests?', content, re.IGNORECASE)
-    if activity_match:
-        return f"{activity_match.group(1)} pull requests this week"
-    
-    return "Activity summary available"
-
-
-def collect_all_summaries(data_dir: Path) -> List[SummaryData]:
-    """Collect and parse all report files (post-processed with GitHub links)."""
-    summaries = []
+def collect_all_reports(data_dir: Path) -> Tuple[List[ReportData], List[WeeklySummaryData]]:
+    """Collect and parse all JSON report files and weekly summaries."""
+    reports = []
     reports_dir = data_dir / "reports"
     
-    if not reports_dir.exists():
-        return summaries
+    if reports_dir.exists():
+        # Find all .json files in reports directory
+        for report_file in reports_dir.rglob("*.json"):
+            report_data = parse_json_report(report_file)
+            if report_data and report_data.has_content:
+                reports.append(report_data)
     
-    # Find all .md files in reports directory (these have been annotated with GitHub links)
-    for report_file in reports_dir.rglob("*.md"):
-        summary_data = parse_summary_file(report_file)
-        if summary_data:
-            summaries.append(summary_data)
+    # Collect weekly summaries
+    weekly_summaries = []
+    summaries_dir = data_dir / "summary-weekly"
+    
+    if summaries_dir.exists():
+        # Find all .json files in summary-weekly directory
+        for summary_file in summaries_dir.glob("*.json"):
+            summary_data = parse_weekly_summary(summary_file)
+            if summary_data and summary_data.has_content:
+                weekly_summaries.append(summary_data)
     
     # Sort by year, week, org, repo
-    summaries.sort(key=lambda x: (x.year, x.week, x.org, x.repo))
-    return summaries
+    reports.sort(key=lambda x: (x.year, x.week, x.org, x.repo))
+    weekly_summaries.sort(key=lambda x: (x.year, x.week))
+    return reports, weekly_summaries
 
 
-def organize_by_weeks(summaries: List[SummaryData]) -> Dict[Tuple[int, int], WeekData]:
-    """Organize summaries by (year, week)."""
+def organize_by_weeks(reports: List[ReportData], weekly_summaries: List[WeeklySummaryData]) -> Dict[Tuple[int, int], WeekData]:
+    """Organize reports and weekly summaries by (year, week)."""
     weeks = {}
     
-    for summary in summaries:
+    for report in reports:
+        week_key = (report.year, report.week)
+        repo_key = f"{report.org}/{report.repo}"
+        
+        if week_key not in weeks:
+            weeks[week_key] = WeekData(
+                year=report.year,
+                week=report.week,
+                week_range=report.week_range,
+                repos={}
+            )
+        
+        weeks[week_key].repos[repo_key] = report
+    
+    # Add weekly summaries
+    for summary in weekly_summaries:
         week_key = (summary.year, summary.week)
-        repo_key = f"{summary.org}/{summary.repo}"
         
         if week_key not in weeks:
             weeks[week_key] = WeekData(
                 year=summary.year,
                 week=summary.week,
-                date_range=summary.date_range,
+                week_range=summary.week_range,
                 repos={}
             )
         
-        weeks[week_key].repos[repo_key] = summary
-    
-    # Calculate activity levels based on content length and activity indicators
-    for week_data in weeks.values():
-        total_activity = 0
-        for repo_summary in week_data.repos.values():
-            # Simple heuristic: content length + PR mentions
-            activity_score = len(repo_summary.content) // 1000  # 1 point per 1000 chars
-            pr_matches = re.findall(r'\d+\s+pull requests?', repo_summary.content, re.IGNORECASE)
-            if pr_matches:
-                activity_score += sum(int(re.search(r'(\d+)', match).group(1)) for match in pr_matches) // 10
-            total_activity += activity_score
-        week_data.total_activity = total_activity
+        weeks[week_key].weekly_summary = summary
     
     return weeks
 
 
-def get_all_repos(summaries: List[SummaryData]) -> Set[str]:
+def get_all_repos(reports: List[ReportData]) -> Set[str]:
     """Get all unique repository names."""
-    return set(f"{s.org}/{s.repo}" for s in summaries)
+    return set(f"{r.org}/{r.repo}" for r in reports)
 
 
 def generate_calendar_html(weeks_data: Dict[Tuple[int, int], WeekData], all_repos: Set[str]) -> str:
-    """Generate the main calendar HTML."""
+    """Generate the main calendar HTML with improved layout."""
     # Sort weeks chronologically
-    sorted_weeks = sorted(weeks_data.items())
+    sorted_weeks = sorted(weeks_data.items(), reverse=True)  # Most recent first
     
     if not sorted_weeks:
-        return "<p>No summaries found</p>"
+        return "<p>No reports found</p>"
     
     # Group weeks by year for better organization
     years = defaultdict(list)
@@ -192,50 +293,61 @@ def generate_calendar_html(weeks_data: Dict[Tuple[int, int], WeekData], all_repo
     html_parts = []
     
     # Generate calendar for each year
-    for year in sorted(years.keys()):
-        year_weeks = sorted(years[year])
+    for year in sorted(years.keys(), reverse=True):
+        year_weeks = sorted(years[year], reverse=True)
         
-        html_parts.append(f'<div class="year-section">')
+        html_parts.append('<div class="year-section">')
         html_parts.append(f'<h2 class="year-header">{year}</h2>')
         html_parts.append('<div class="calendar-grid">')
         
         for week_num, week_data in year_weeks:
             # Determine activity intensity class
-            activity_class = get_activity_class(week_data.total_activity)
+            activity_class = get_activity_class(week_data.activity_level)
             
-            # Create prev/next links
+            # Create navigation links
             prev_week, next_week = get_adjacent_weeks(sorted_weeks, (year, week_num))
-            nav_links = []
-            if prev_week:
-                nav_links.append(f'<a href="weeks/{prev_week[0]}-{prev_week[1]:02d}.html" class="nav-link">←</a>')
-            if next_week:
-                nav_links.append(f'<a href="weeks/{next_week[0]}-{next_week[1]:02d}.html" class="nav-link">→</a>')
             
-            nav_html = ' '.join(nav_links) if nav_links else ''
+            # Create summary content - prioritize weekly summary if available
+            summary_content = ''
+            if week_data.weekly_summary and week_data.weekly_summary.short_summary:
+                # Use the curated short summary from aggregate
+                summary_content = week_data.weekly_summary.short_summary
+                if len(summary_content) > 120:
+                    summary_content = summary_content[:117] + "..."
+            else:
+                # Fall back to individual repo summaries
+                repo_items = []
+                for repo in sorted(week_data.repos.keys())[:3]:  # Show fewer when no weekly summary
+                    report = week_data.repos[repo]
+                    summary = report.summary_text
+                    if len(summary) > 60:
+                        summary = summary[:57] + "..."
+                    repo_items.append(f'{repo}: {summary}')
+                
+                if len(week_data.repos) > 3:
+                    repo_items.append(f'+{len(week_data.repos) - 3} more repos')
+                
+                summary_content = ' • '.join(repo_items)
             
-            # Create repo activity summary
-            repo_summaries = []
-            for repo in sorted(week_data.repos.keys()):
-                repo_summary = week_data.repos[repo]
-                repo_summaries.append(f'<div class="repo-item"><span class="repo-name">{repo}</span>: {repo_summary.summary_text}</div>')
+            # Repo count indicator
+            repo_count_html = f'<span class="repo-count">{len(week_data.repos)} repos'
+            if week_data.weekly_summary:
+                repo_count_html += ' • 📊 Summary'
+            repo_count_html += '</span>'
             
-            repos_html = ''.join(repo_summaries)
-            
+            # Create week card
             html_parts.append(f'''
-            <div class="week-card {activity_class}" data-week="{year}-{week_num:02d}">
-                <div class="week-header">
-                    <div class="week-info">
-                        <div class="week-number">W{week_num}</div>
-                        <div class="week-dates">{week_data.date_range}</div>
+            <div class="week-card {activity_class}" data-week="{year}-{week_num:02d}" data-repos="{' '.join(week_data.repos.keys())}">
+                <a href="weeks/{year}-{week_num:02d}.html" class="week-link">
+                    <div class="week-header">
+                        <div class="week-number">Week {week_num}</div>
+                        <div class="week-dates">{week_data.week_range}</div>
                     </div>
-                    <div class="week-nav">{nav_html}</div>
-                </div>
-                <div class="week-content">
-                    <a href="weeks/{year}-{week_num:02d}.html" class="week-link">
-                        <div class="repo-count">{len(week_data.repos)} repos active</div>
-                        <div class="repos-preview">{repos_html}</div>
-                    </a>
-                </div>
+                    <div class="week-content">
+                        {repo_count_html}
+                        <div class="week-summary">{summary_content}</div>
+                    </div>
+                </a>
             </div>
             ''')
         
@@ -251,9 +363,9 @@ def get_activity_class(activity_level: int) -> str:
         return "activity-none"
     elif activity_level < 5:
         return "activity-low"
-    elif activity_level < 15:
+    elif activity_level < 10:
         return "activity-medium"
-    elif activity_level < 30:
+    elif activity_level < 20:
         return "activity-high"
     else:
         return "activity-very-high"
@@ -265,145 +377,279 @@ def get_adjacent_weeks(sorted_weeks: List[Tuple[Tuple[int, int], WeekData]], cur
     
     try:
         current_idx = week_keys.index(current_week)
-        prev_week = week_keys[current_idx - 1] if current_idx > 0 else None
-        next_week = week_keys[current_idx + 1] if current_idx < len(week_keys) - 1 else None
+        # Note: list is reverse sorted, so prev is actually next in list
+        prev_week = week_keys[current_idx + 1] if current_idx < len(week_keys) - 1 else None
+        next_week = week_keys[current_idx - 1] if current_idx > 0 else None
         return prev_week, next_week
     except ValueError:
         return None, None
 
 
+def format_markdown_section(content: Optional[str]) -> str:
+    """Convert markdown content to HTML using markdown2."""
+    if not content:
+        return ""
+    
+    # Configure markdown2 with useful extras
+    # - fenced-code-blocks: Support for ```code``` blocks
+    # - tables: Support for tables
+    # - strike: Support for ~~strikethrough~~
+    # - target-blank-links: Add target="_blank" to links automatically
+    # - nofollow: Add rel="noopener" for security
+    extras = [
+        "fenced-code-blocks",
+        "tables", 
+        "strike",
+        "target-blank-links",
+        "nofollow",
+        "code-friendly",
+        "cuddled-lists"
+    ]
+    
+    # Convert markdown to HTML
+    html = markdown2.markdown(content, extras=extras)
+    
+    # Post-process to ensure all external links open in new tab with security
+    # (markdown2's target-blank-links should handle this, but let's be sure)
+    html = re.sub(
+        r'<a href="(https?://[^"]+)"([^>]*)>',
+        r'<a href="\1" target="_blank" rel="noopener"\2>',
+        html
+    )
+    
+    # Ensure GitHub issue/PR links have proper attributes
+    html = re.sub(
+        r'<a href="(https://github\.com/[^"]+)"([^>]*)>',
+        r'<a href="\1" target="_blank" rel="noopener"\2>',
+        html
+    )
+    
+    return html
+
+
 def generate_week_detail_html(week_data: WeekData, prev_week: Optional[Tuple[int, int]], next_week: Optional[Tuple[int, int]]) -> str:
-    """Generate HTML for a specific week detail page."""
+    """Generate HTML for a specific week detail page with table of contents."""
     # Navigation
     nav_links = ['<a href="../index.html" class="nav-link">← Calendar</a>']
     if prev_week:
-        nav_links.append(f'<a href="{prev_week[0]}-{prev_week[1]:02d}.html" class="nav-link">← W{prev_week[1]} {prev_week[0]}</a>')
+        nav_links.append(f'<a href="{prev_week[0]}-{prev_week[1]:02d}.html" class="nav-link">← Week {prev_week[1]}</a>')
     if next_week:
-        nav_links.append(f'<a href="{next_week[0]}-{next_week[1]:02d}.html" class="nav-link">W{next_week[1]} {next_week[0]} →</a>')
+        nav_links.append(f'<a href="{next_week[0]}-{next_week[1]:02d}.html" class="nav-link">Week {next_week[1]} →</a>')
     
-    nav_html = ' '.join(nav_links)
+    nav_html = ' | '.join(nav_links)
     
+    # Generate table of contents
+    toc_items = []
+    
+    # Add weekly summary to TOC if available
+    if week_data.weekly_summary:
+        toc_items.append('<li><a href="#weekly-summary">📊 Weekly Summary</a></li>')
+    
+    for repo in sorted(week_data.repos.keys()):
+        repo_id = repo.replace('/', '-')
+        toc_items.append(f'<li><a href="#{repo_id}">{repo}</a></li>')
+    
+    toc_html = f'''
+    <div class="toc">
+        <h2>Contents</h2>
+        <ul>
+            {''.join(toc_items)}
+        </ul>
+    </div>
+    ''' if (len(week_data.repos) > 1 or week_data.weekly_summary) else ''
+    
+    # Weekly summary section
+    weekly_summary_html = ''
+    if week_data.weekly_summary:
+        summary = week_data.weekly_summary
+        summary_sections = []
+        
+        if summary.short_summary:
+            summary_sections.append(f'''
+            <div class="summary-highlight">
+                <p class="short-summary">{summary.short_summary}</p>
+            </div>
+            ''')
+        
+        if summary.overall_activity:
+            summary_sections.append(f'''
+            <div class="section">
+                <h3>Overall Activity</h3>
+                {format_markdown_section(summary.overall_activity)}
+            </div>
+            ''')
+        
+        if summary.key_achievements:
+            summary_sections.append(f'''
+            <div class="section">
+                <h3>Key Achievements</h3>
+                {format_markdown_section(summary.key_achievements)}
+            </div>
+            ''')
+        
+        if summary.ongoing_initiatives:
+            summary_sections.append(f'''
+            <div class="section">
+                <h3>Ongoing Initiatives</h3>
+                {format_markdown_section(summary.ongoing_initiatives)}
+            </div>
+            ''')
+        
+        if summary.priority_items:
+            summary_sections.append(f'''
+            <div class="section">
+                <h3>Priority Items</h3>
+                {format_markdown_section(summary.priority_items)}
+            </div>
+            ''')
+        
+        if summary.notable_discussions:
+            summary_sections.append(f'''
+            <div class="section">
+                <h3>Notable Discussions</h3>
+                {format_markdown_section(summary.notable_discussions)}
+            </div>
+            ''')
+        
+        if summary.emerging_patterns:
+            summary_sections.append(f'''
+            <div class="section">
+                <h3>Emerging Patterns</h3>
+                {format_markdown_section(summary.emerging_patterns)}
+            </div>
+            ''')
+        
+        if summary.ecosystem_health:
+            summary_sections.append(f'''
+            <div class="section">
+                <h3>Ecosystem Health</h3>
+                {format_markdown_section(summary.ecosystem_health)}
+            </div>
+            ''')
+        
+        if summary.contributors_spotlight:
+            summary_sections.append(f'''
+            <div class="section">
+                <h3>Contributors Spotlight</h3>
+                {format_markdown_section(summary.contributors_spotlight)}
+            </div>
+            ''')
+        
+        repos_included = ', '.join(summary.repositories_included) if summary.repositories_included else 'All repositories'
+        
+        weekly_summary_html = f'''
+        <section class="weekly-summary-section" id="weekly-summary">
+            <div class="weekly-summary-header">
+                <h2 class="weekly-summary-title">📊 Weekly Summary</h2>
+                <div class="summary-meta">
+                    <span class="repos-included">Covering: {repos_included}</span>
+                </div>
+            </div>
+            <div class="weekly-summary-content">
+                {''.join(summary_sections)}
+            </div>
+        </section>
+        '''
+
     # Repository sections
     repo_sections = []
     for repo in sorted(week_data.repos.keys()):
-        summary = week_data.repos[repo]
-        # Convert markdown to basic HTML (simplified)
-        content_html = markdown_to_html(summary.content)
+        report = week_data.repos[repo]
+        repo_id = repo.replace('/', '-')
+        
+        # Build content sections
+        sections = []
+        
+        if report.overall_activity:
+            sections.append(f'''
+            <div class="section">
+                <h3>Overall Activity</h3>
+                {format_markdown_section(report.overall_activity)}
+            </div>
+            ''')
+        
+        if report.ongoing_projects:
+            sections.append(f'''
+            <div class="section">
+                <h3>Ongoing Projects</h3>
+                {format_markdown_section(report.ongoing_projects)}
+            </div>
+            ''')
+        
+        if report.priority_items:
+            sections.append(f'''
+            <div class="section">
+                <h3>Priority Items</h3>
+                {format_markdown_section(report.priority_items)}
+            </div>
+            ''')
+        
+        if report.notable_discussions:
+            sections.append(f'''
+            <div class="section">
+                <h3>Notable Discussions</h3>
+                {format_markdown_section(report.notable_discussions)}
+            </div>
+            ''')
+        
+        if report.emerging_trends:
+            sections.append(f'''
+            <div class="section">
+                <h3>Emerging Trends</h3>
+                {format_markdown_section(report.emerging_trends)}
+            </div>
+            ''')
+        
+        if report.good_first_issues:
+            sections.append(f'''
+            <div class="section">
+                <h3>Good First Issues</h3>
+                {format_markdown_section(report.good_first_issues)}
+            </div>
+            ''')
+        
+        if report.contributors:
+            sections.append(f'''
+            <div class="section">
+                <h3>Contributors</h3>
+                {format_markdown_section(report.contributors)}
+            </div>
+            ''')
         
         repo_sections.append(f'''
-        <section class="repo-section">
+        <section class="repo-section" id="{repo_id}">
             <div class="repo-header">
-                <h2 class="repo-title">{repo}</h2>
-                <div class="repo-meta">
-                    <span class="file-path">{summary.file_path.name}</span>
-                </div>
+                <h2 class="repo-title">
+                    <a href="https://github.com/{repo}" target="_blank" rel="noopener">{repo}</a>
+                </h2>
             </div>
             <div class="repo-content">
-                {content_html}
+                {''.join(sections)}
             </div>
         </section>
         ''')
     
     return f'''
     <div class="week-detail">
-        <header class="week-header">
-            <h1>Week {week_data.week} {week_data.year}</h1>
+        <header class="page-header">
+            <h1>Week {week_data.week}, {week_data.year}</h1>
             <div class="week-meta">
-                <span class="date-range">{week_data.date_range}</span>
+                <span class="date-range">{week_data.week_range}</span>
                 <span class="repo-count">{len(week_data.repos)} repositories</span>
             </div>
+            <nav class="week-nav">
+                {nav_html}
+            </nav>
         </header>
         
-        <nav class="week-nav">
-            {nav_html}
-        </nav>
+        {toc_html}
         
         <main class="repos-container">
+            {weekly_summary_html}
             {''.join(repo_sections)}
         </main>
     </div>
     '''
-
-
-def markdown_to_html(markdown_content: str) -> str:
-    """Convert markdown to proper HTML."""
-    html = markdown_content
-    
-    # Headers
-    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
-    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
-    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
-    html = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html, flags=re.MULTILINE)
-    
-    # Bold and italic (handle nested cases properly)
-    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
-    html = re.sub(r'(?<!\*)\*([^*]+?)\*(?!\*)', r'<em>\1</em>', html)
-    
-    # Links with GitHub issues/PRs
-    html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank">\1</a>', html)
-    
-    # GitHub mentions (only if not already linked)
-    html = re.sub(r'(?<!\[)@([a-zA-Z0-9_-]+)(?!\])', r'<a href="https://github.com/\1" target="_blank">@\1</a>', html)
-    
-    # Issue/PR references - these should already be linked in reports, but handle plain ones too
-    # Don't convert if already inside a link
-    html = re.sub(r'(?<!\[)#(\d+)(?!\])', r'<a href="#" class="issue-ref">#\1</a>', html)
-    
-    # Code blocks (triple backticks)
-    html = re.sub(r'```(\w+)?\n(.*?)```', r'<pre><code class="\1">\2</code></pre>', html, flags=re.DOTALL)
-    
-    # Inline code
-    html = re.sub(r'`([^`]+)`', r'<code>\1</code>', html)
-    
-    # Process lists first, then paragraphs
-    lines = html.split('\n')
-    processed_lines = []
-    in_list = False
-    
-    for line in lines:
-        stripped = line.strip()
-        
-        # Handle list items
-        if stripped.startswith('- '):
-            if not in_list:
-                processed_lines.append('<ul>')
-                in_list = True
-            list_content = stripped[2:]  # Remove '- '
-            processed_lines.append(f'  <li>{list_content}</li>')
-        else:
-            if in_list:
-                processed_lines.append('</ul>')
-                in_list = False
-            processed_lines.append(line)
-    
-    if in_list:
-        processed_lines.append('</ul>')
-    
-    html = '\n'.join(processed_lines)
-    
-    # Convert paragraphs (split by double newlines, but preserve HTML blocks)
-    sections = html.split('\n\n')
-    html_sections = []
-    
-    for section in sections:
-        section = section.strip()
-        if not section:
-            continue
-        
-        # Skip if it's already HTML (starts with <)
-        if section.startswith('<'):
-            html_sections.append(section)
-        else:
-            # Convert to paragraph, but handle multi-line content
-            lines = section.split('\n')
-            if len(lines) == 1:
-                html_sections.append(f'<p>{section}</p>')
-            else:
-                # Multi-line content - join with <br> for line breaks
-                content = '<br>'.join(lines)
-                html_sections.append(f'<p>{content}</p>')
-    
-    return '\n\n'.join(html_sections)
 
 
 def generate_main_template() -> str:
@@ -421,7 +667,7 @@ def generate_main_template() -> str:
         <h1 class="project-title">{{project_name}}</h1>
         <div class="project-meta">
             <span class="description">{{project_description}}</span>
-            <span class="generated">Generated: {{generated_date}}</span>
+            <span class="generated">Updated: {{generated_date}}</span>
         </div>
         <div class="controls">
             <div class="filters">
@@ -431,12 +677,20 @@ def generate_main_template() -> str:
                     {{year_options}}
                 </select>
             </div>
+            <div class="stats">
+                <span class="stat-item">{{total_weeks}} weeks</span>
+                <span class="stat-item">{{total_repos}} repos</span>
+            </div>
         </div>
     </header>
     
     <main class="calendar-container">
         {{calendar_content}}
     </main>
+    
+    <footer class="main-footer">
+        <p>Generated by <a href="https://github.com/avsm/ruminant">Ruminant</a></p>
+    </footer>
     
     <script src="assets/script.js"></script>
 </body>
@@ -465,25 +719,25 @@ def generate_week_template() -> str:
 def website_main(
     output_dir: Optional[str] = typer.Option("website", "--output", "-o", help="Output directory for website"),
 ) -> None:
-    """Generate static HTML website from all summaries."""
+    """Generate static HTML website from JSON reports."""
     
     try:
         config = load_config()
         data_dir = get_data_dir()
         output_path = Path(output_dir)
         
-        step("Collecting and parsing report files...")
-        summaries = collect_all_summaries(data_dir)
+        step("Collecting and parsing JSON report files...")
+        reports, weekly_summaries = collect_all_reports(data_dir)
         
-        if not summaries:
-            error("No report files found. Run 'ruminant annotate' first to generate reports with GitHub links.")
+        if not reports and not weekly_summaries:
+            error("No JSON report files or weekly summaries found. Run 'ruminant annotate' and/or generate aggregate summaries first.")
             raise typer.Exit(1)
         
-        info(f"Found {len(summaries)} report files")
+        info(f"Found {len(reports)} report files and {len(weekly_summaries)} weekly summaries")
         
         step("Organizing data by weeks...")
-        weeks_data = organize_by_weeks(summaries)
-        all_repos = get_all_repos(summaries)
+        weeks_data = organize_by_weeks(reports, weekly_summaries)
+        all_repos = get_all_repos(reports)
         
         info(f"Organized {len(weeks_data)} weeks across {len(all_repos)} repositories")
         
@@ -503,16 +757,18 @@ def website_main(
         calendar_html = generate_calendar_html(weeks_data, all_repos)
         
         # Get years for filter dropdown
-        years = sorted(set(year for (year, week) in weeks_data.keys()))
+        years = sorted(set(year for (year, week) in weeks_data.keys()), reverse=True)
         year_options = '\n'.join(f'<option value="{year}">{year}</option>' for year in years)
         
         main_html = generate_main_template()
-        main_html = main_html.replace('{{title}}', f"{config.project_name} - Activity Calendar")
+        main_html = main_html.replace('{{title}}', f"{config.project_name} - Activity Dashboard")
         main_html = main_html.replace('{{project_name}}', config.project_name)
         main_html = main_html.replace('{{project_description}}', config.project_description)
         main_html = main_html.replace('{{generated_date}}', datetime.now().strftime('%Y-%m-%d %H:%M'))
         main_html = main_html.replace('{{calendar_content}}', calendar_html)
         main_html = main_html.replace('{{year_options}}', year_options)
+        main_html = main_html.replace('{{total_weeks}}', str(len(weeks_data)))
+        main_html = main_html.replace('{{total_repos}}', str(len(all_repos)))
         
         (output_path / "index.html").write_text(main_html)
         
@@ -526,7 +782,7 @@ def website_main(
             
             week_html = generate_week_detail_html(week_data, prev_week, next_week)
             week_template = generate_week_template()
-            week_page = week_template.replace('{{week_title}}', f"Week {week} {year} - {config.project_name}")
+            week_page = week_template.replace('{{week_title}}', f"Week {week}, {year} - {config.project_name}")
             week_page = week_page.replace('{{week_content}}', week_html)
             
             week_filename = f"{year}-{week:02d}.html"
@@ -542,8 +798,23 @@ def website_main(
 
 
 def generate_css() -> str:
-    """Generate compact but readable CSS."""
-    return '''/* Compact website styling */
+    """Generate improved CSS with better layout and typography."""
+    return '''/* Modern, clean website styling */
+:root {
+    --primary-color: #0066cc;
+    --secondary-color: #666;
+    --background: #f8f9fa;
+    --card-bg: #ffffff;
+    --border-color: #dee2e6;
+    --text-primary: #212529;
+    --text-secondary: #6c757d;
+    --activity-none: #f8f9fa;
+    --activity-low: #d1f2eb;
+    --activity-medium: #81e4cd;
+    --activity-high: #52d3aa;
+    --activity-very-high: #22c58b;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -551,391 +822,473 @@ def generate_css() -> str:
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-size: 12px;
-    line-height: 1.3;
-    background: #fafafa;
-    color: #333;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    background: var(--background);
+    color: var(--text-primary);
 }
 
+/* Main Header */
 .main-header {
-    background: #fff;
-    border-bottom: 1px solid #ddd;
-    padding: 12px 16px;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 1.5rem;
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
 }
 
 .project-title {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 4px;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--text-primary);
 }
 
 .project-meta {
-    font-size: 11px;
-    color: #666;
-    margin-bottom: 6px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
 }
 
 .controls {
     display: flex;
-    gap: 12px;
+    justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .filters {
     display: flex;
-    gap: 8px;
+    gap: 0.75rem;
+    align-items: center;
 }
 
 .filter-input, .filter-select {
-    font-size: 11px;
-    padding: 4px 6px;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    background: #fff;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    background: var(--card-bg);
+    transition: border-color 0.15s ease;
+}
+
+.filter-input:focus, .filter-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
 }
 
 .filter-input {
-    width: 140px;
+    width: 200px;
 }
 
-.filter-select {
-    width: 90px;
+.stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.875rem;
 }
 
+.stat-item {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Calendar Container */
 .calendar-container {
-    padding: 12px;
+    padding: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
 .year-section {
-    margin-bottom: 16px;
+    margin-bottom: 2rem;
 }
 
 .year-header {
-    font-size: 16px;
+    font-size: 1.25rem;
     font-weight: 600;
-    margin-bottom: 8px;
-    padding: 6px 0;
-    border-bottom: 1px solid #eee;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+    color: var(--text-primary);
 }
 
 .calendar-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
 }
 
+/* Week Cards */
 .week-card {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fff;
-    padding: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--card-bg);
     transition: all 0.2s ease;
+    overflow: hidden;
 }
 
 .week-card:hover {
-    border-color: #999;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .week-card.hidden {
     display: none;
 }
 
+.week-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    padding: 1rem;
+}
+
 .week-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 4px;
-    padding-bottom: 3px;
-    border-bottom: 1px solid #f0f0f0;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .week-number {
-    font-size: 13px;
+    font-size: 1.125rem;
     font-weight: 600;
-    font-family: monospace;
+    color: var(--text-primary);
 }
 
 .week-dates {
-    font-size: 10px;
-    color: #666;
-    font-family: monospace;
-}
-
-.week-nav {
-    display: flex;
-    gap: 3px;
-}
-
-.nav-link {
-    color: #666;
-    text-decoration: none;
-    font-size: 10px;
-    padding: 2px 4px;
-    border-radius: 3px;
-    background: #f8f8f8;
-    font-family: monospace;
-}
-
-.nav-link:hover {
-    background: #e8e8e8;
-    color: #333;
-}
-
-.week-link {
-    text-decoration: none;
-    color: inherit;
-    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
 }
 
 .repo-count {
-    font-size: 10px;
-    color: #666;
-    margin-bottom: 3px;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+    font-weight: 500;
 }
 
-.repos-preview {
-    max-height: 80px;
-    overflow: hidden;
+.repos-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
 .repo-item {
-    font-size: 10px;
-    margin-bottom: 2px;
-    line-height: 1.4;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .repo-name {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    color: var(--primary-color);
     font-weight: 500;
-    font-family: monospace;
-    color: #0066cc;
 }
 
-/* Activity intensity colors */
+.repo-item.more {
+    font-style: italic;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+/* Activity Colors */
 .activity-none {
-    background: #f8f8f8;
-    border-color: #e8e8e8;
+    background: var(--activity-none);
 }
 
 .activity-low {
-    background: #fff5f0;
-    border-color: #ffd4c4;
+    background: linear-gradient(135deg, #ffffff 0%, var(--activity-low) 100%);
 }
 
 .activity-medium {
-    background: #fff0e6;
-    border-color: #ffb899;
+    background: linear-gradient(135deg, #ffffff 0%, var(--activity-medium) 100%);
 }
 
 .activity-high {
-    background: #ffe6d9;
-    border-color: #ff9d6e;
+    background: linear-gradient(135deg, #ffffff 0%, var(--activity-high) 100%);
 }
 
 .activity-very-high {
-    background: #ffdbcc;
-    border-color: #ff8142;
+    background: linear-gradient(135deg, #ffffff 0%, var(--activity-very-high) 100%);
 }
 
-/* Week detail pages */
+/* Week Detail Pages */
 .week-page {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 12px;
+    padding: 1.5rem;
 }
 
-.week-detail .week-header {
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 12px;
-    margin-bottom: 12px;
+.page-header {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
 }
 
-.week-detail .week-header h1 {
-    font-size: 20px;
-    margin-bottom: 4px;
+.page-header h1 {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
 }
 
 .week-meta {
-    font-size: 11px;
-    color: #666;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
     display: flex;
-    gap: 16px;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .week-nav {
-    background: #f8f8f8;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 6px 12px;
-    margin-bottom: 12px;
     display: flex;
-    gap: 12px;
+    gap: 1rem;
+    font-size: 0.875rem;
 }
 
+.nav-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    background: var(--background);
+    transition: background-color 0.15s ease;
+}
+
+.nav-link:hover {
+    background: var(--border-color);
+}
+
+/* Table of Contents */
+.toc {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.toc h2 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+}
+
+.toc ul {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
+}
+
+.toc a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}
+
+.toc a:hover {
+    text-decoration: underline;
+}
+
+/* Repository Sections */
 .repos-container {
     display: grid;
-    gap: 12px;
+    gap: 1.5rem;
 }
 
 .repo-section {
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    background: var(--card-bg);
     overflow: hidden;
 }
 
 .repo-header {
-    background: #f8f8f8;
-    padding: 8px 12px;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    background: linear-gradient(135deg, var(--background) 0%, #ffffff 100%);
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .repo-title {
-    font-size: 14px;
+    font-size: 1.25rem;
     font-weight: 600;
-    font-family: monospace;
-    color: #0066cc;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
 }
 
-.repo-meta {
-    font-size: 10px;
-    color: #666;
-}
-
-.repo-content {
-    padding: 12px;
-    font-size: 11px;
-    line-height: 1.5;
-}
-
-.repo-content h1 {
-    font-size: 16px;
-    margin: 12px 0 6px 0;
-}
-
-.repo-content h2 {
-    font-size: 14px;
-    margin: 10px 0 4px 0;
-    color: #444;
-}
-
-.repo-content h3 {
-    font-size: 12px;
-    margin: 8px 0 4px 0;
-    color: #555;
-}
-
-.repo-content h4 {
-    font-size: 11px;
-    margin: 6px 0 3px 0;
-    color: #666;
-}
-
-.repo-content p {
-    margin-bottom: 8px;
-}
-
-.repo-content ul {
-    margin: 6px 0 6px 20px;
-}
-
-.repo-content li {
-    margin-bottom: 3px;
-}
-
-.repo-content code {
-    background: #f5f5f5;
-    border: 1px solid #e8e8e8;
-    border-radius: 2px;
-    padding: 1px 3px;
-    font-family: monospace;
-    font-size: 10px;
-}
-
-.repo-content pre {
-    background: #f8f8f8;
-    border: 1px solid #e8e8e8;
-    border-radius: 4px;
-    padding: 8px;
-    overflow-x: auto;
-    margin: 8px 0;
-}
-
-.repo-content pre code {
-    background: none;
-    border: none;
-    padding: 0;
-    font-size: 10px;
-}
-
-.repo-content a {
-    color: #0066cc;
+.repo-title a {
+    color: var(--primary-color);
     text-decoration: none;
 }
 
-.repo-content a:hover {
+.repo-title a:hover {
     text-decoration: underline;
 }
 
-.repo-content strong {
-    font-weight: 600;
+.repo-content {
+    padding: 1.5rem;
 }
 
+.section {
+    margin-bottom: 1.5rem;
+}
+
+.section:last-child {
+    margin-bottom: 0;
+}
+
+.section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.section p {
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.section ul {
+    margin: 0.75rem 0 0.75rem 1.5rem;
+}
+
+.section li {
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.section code {
+    background: var(--background);
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    padding: 0.125rem 0.25rem;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.875em;
+}
+
+.section pre {
+    background: var(--background);
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+
+.section pre code {
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.section a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.section a:hover {
+    text-decoration: underline;
+}
+
+.section strong {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Footer */
+.main-footer {
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    margin-top: 3rem;
+}
+
+.main-footer a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
     .calendar-grid {
         grid-template-columns: 1fr;
     }
     
-    .week-meta {
+    .controls {
         flex-direction: column;
-        gap: 2px;
+        align-items: stretch;
     }
     
-    .week-nav {
-        flex-wrap: wrap;
+    .filters {
+        width: 100%;
+    }
+    
+    .filter-input {
+        flex: 1;
+    }
+    
+    .toc ul {
+        grid-template-columns: 1fr;
     }
 }
 
+/* Print Styles */
 @media print {
-    .nav-link, .controls {
+    .nav-link, .controls, .main-footer {
         display: none;
     }
     
     .week-card {
         break-inside: avoid;
-        page-break-inside: avoid;
     }
     
     body {
-        font-size: 10px;
+        font-size: 11pt;
     }
 }
 
-.issue-ref {
-    color: #666;
-    font-family: monospace;
-    text-decoration: none;
-    font-size: 90%;
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.filter-count {
-    font-weight: normal;
-    color: #888;
+.week-card {
+    animation: fadeIn 0.3s ease;
 }'''
 
 
 def generate_javascript() -> str:
-    """Generate client-side filtering JavaScript."""
-    return '''// Client-side filtering and navigation
+    """Generate improved JavaScript with better filtering."""
+    return '''// Enhanced filtering and navigation
 document.addEventListener('DOMContentLoaded', function() {
     const repoFilter = document.getElementById('repo-filter');
     const yearFilter = document.getElementById('year-filter');
@@ -945,9 +1298,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const repoQuery = repoFilter?.value.toLowerCase() || '';
         const yearQuery = yearFilter?.value || '';
         
+        let visibleCount = 0;
+        
         weekCards.forEach(card => {
             const weekData = card.dataset.week || '';
-            const repoItems = card.querySelectorAll('.repo-item');
+            const repos = card.dataset.repos || '';
             
             let showCard = true;
             
@@ -958,52 +1313,41 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Repository filter
             if (repoQuery && showCard) {
-                const hasMatchingRepo = Array.from(repoItems).some(item => {
-                    return item.textContent.toLowerCase().includes(repoQuery);
-                });
-                
-                if (!hasMatchingRepo) {
+                if (!repos.toLowerCase().includes(repoQuery)) {
                     showCard = false;
                 }
             }
             
-            // Show/hide card
+            // Show/hide card with animation
             if (showCard) {
                 card.classList.remove('hidden');
+                card.style.animationDelay = `${visibleCount * 0.02}s`;
+                visibleCount++;
             } else {
                 card.classList.add('hidden');
             }
         });
         
-        // Update visible counts
-        updateVisibleCounts();
+        updateStats(visibleCount);
     }
     
-    function updateVisibleCounts() {
-        const visibleCards = document.querySelectorAll('.week-card:not(.hidden)');
-        const totalCards = weekCards.length;
-        
-        // Update header if it exists
-        const header = document.querySelector('.main-header');
-        if (header) {
-            let countSpan = header.querySelector('.filter-count');
-            if (!countSpan) {
-                countSpan = document.createElement('span');
-                countSpan.className = 'filter-count';
-                countSpan.style.fontSize = '9px';
-                countSpan.style.color = '#666';
-                countSpan.style.marginLeft = '8px';
-                
-                const controls = header.querySelector('.controls');
-                if (controls) {
-                    controls.appendChild(countSpan);
+    function updateStats(visibleCount) {
+        const stats = document.querySelector('.stats');
+        if (stats) {
+            const totalWeeks = weekCards.length;
+            if (visibleCount !== totalWeeks) {
+                let filterStat = stats.querySelector('.filter-stat');
+                if (!filterStat) {
+                    filterStat = document.createElement('span');
+                    filterStat.className = 'stat-item filter-stat';
+                    stats.appendChild(filterStat);
                 }
-            }
-            
-            if (visibleCards.length !== totalCards) {
-                countSpan.textContent = `Showing ${visibleCards.length} of ${totalCards} weeks`;
+                filterStat.textContent = `Showing ${visibleCount} of ${totalWeeks} weeks`;
             } else {
-                countSpan.textContent = '';
+                const filterStat = stats.querySelector('.filter-stat');
+                if (filterStat) {
+                    filterStat.remove();
+                }
             }
         }
     }
@@ -1011,11 +1355,45 @@ document.addEventListener('DOMContentLoaded', function() {
     // Attach event listeners
     if (repoFilter) {
         repoFilter.addEventListener('input', filterWeeks);
-        repoFilter.addEventListener('keyup', filterWeeks);
+        
+        // Add clear button
+        if (repoFilter.value) {
+            addClearButton(repoFilter);
+        }
+        
+        repoFilter.addEventListener('input', function() {
+            if (this.value) {
+                addClearButton(this);
+            } else {
+                removeClearButton(this);
+            }
+        });
     }
     
     if (yearFilter) {
         yearFilter.addEventListener('change', filterWeeks);
+    }
+    
+    function addClearButton(input) {
+        if (!input.nextElementSibling || !input.nextElementSibling.classList.contains('clear-btn')) {
+            const clearBtn = document.createElement('button');
+            clearBtn.className = 'clear-btn';
+            clearBtn.innerHTML = '×';
+            clearBtn.onclick = function() {
+                input.value = '';
+                filterWeeks();
+                removeClearButton(input);
+            };
+            input.parentNode.style.position = 'relative';
+            input.parentNode.insertBefore(clearBtn, input.nextSibling);
+        }
+    }
+    
+    function removeClearButton(input) {
+        const clearBtn = input.nextElementSibling;
+        if (clearBtn && clearBtn.classList.contains('clear-btn')) {
+            clearBtn.remove();
+        }
     }
     
     // Keyboard shortcuts
@@ -1025,6 +1403,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             if (repoFilter) {
                 repoFilter.focus();
+                repoFilter.select();
             }
         }
         
@@ -1032,34 +1411,100 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Escape') {
             if (repoFilter) {
                 repoFilter.value = '';
+                removeClearButton(repoFilter);
             }
             if (yearFilter) {
                 yearFilter.value = '';
             }
             filterWeeks();
+            
+            // Unfocus any input
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
         }
     });
     
     // Initialize
-    updateVisibleCounts();
+    updateStats(weekCards.length);
 });
 
-// Add some helpful functionality for week detail pages
+// Week detail page enhancements
 if (window.location.pathname.includes('/weeks/')) {
-    document.addEventListener('keydown', function(e) {
-        const prevLink = document.querySelector('a[href*="-"]:not([href="../index.html"]):first-of-type');
-        const nextLink = document.querySelector('a[href*="-"]:not([href="../index.html"]):last-of-type');
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add smooth scrolling for TOC links
+        const tocLinks = document.querySelectorAll('.toc a');
+        tocLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1);
+                const targetElement = document.getElementById(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                    
+                    // Add highlight effect
+                    targetElement.classList.add('highlight');
+                    setTimeout(() => {
+                        targetElement.classList.remove('highlight');
+                    }, 2000);
+                }
+            });
+        });
         
-        // Navigate with arrow keys
-        if (e.key === 'ArrowLeft' && prevLink && prevLink !== nextLink) {
-            window.location.href = prevLink.href;
-        } else if (e.key === 'ArrowRight' && nextLink) {
-            window.location.href = nextLink.href;
-        }
-        
-        // Go back to calendar with 'c' key
-        if (e.key === 'c' || e.key === 'C') {
-            window.location.href = '../index.html';
-        }
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            // Navigate between weeks with arrow keys
+            if (e.key === 'ArrowLeft') {
+                const prevLink = document.querySelector('.nav-link:nth-child(2)');
+                if (prevLink && prevLink.textContent.includes('Week')) {
+                    window.location.href = prevLink.href;
+                }
+            } else if (e.key === 'ArrowRight') {
+                const nextLink = document.querySelector('.nav-link:last-child');
+                if (nextLink && nextLink.textContent.includes('Week')) {
+                    window.location.href = nextLink.href;
+                }
+            }
+            
+            // Go back to calendar with 'c' key
+            if (e.key === 'c' && !e.ctrlKey && !e.metaKey) {
+                window.location.href = '../index.html';
+            }
+        });
     });
-}'''
+}
+
+// Add some CSS for dynamic elements
+const style = document.createElement('style');
+style.textContent = `
+    .clear-btn {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        font-size: 20px;
+        color: #999;
+        cursor: pointer;
+        padding: 0 4px;
+        line-height: 1;
+    }
+    
+    .clear-btn:hover {
+        color: #666;
+    }
+    
+    .highlight {
+        animation: highlight 2s ease;
+    }
+    
+    @keyframes highlight {
+        0% { background-color: rgba(0, 102, 204, 0.2); }
+        100% { background-color: transparent; }
+    }
+`;
+document.head.appendChild(style);'''

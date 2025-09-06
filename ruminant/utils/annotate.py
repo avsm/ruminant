@@ -89,7 +89,7 @@ def get_user_full_name(username: str, token: Optional[str] = None) -> str:
 
 def extract_repo_from_path(file_path: Path) -> Optional[str]:
     """Extract repository owner/name from the file path structure."""
-    # Expected structure: data/summaries/owner/repo/week-NN-YYYY.md or data/reports/owner/repo/week-NN-YYYY.md
+    # Expected structure: data/summaries/owner/repo/week-NN-YYYY.json or data/reports/owner/repo/week-NN-YYYY.json
     parts = file_path.parts
     
     # Find data directory in path
@@ -142,8 +142,9 @@ def add_github_links(text: str, repo: Optional[str], token: Optional[str]) -> st
     
     # Add issue/PR links if we know the repository
     if repo:
-        # Pattern to match #1234 (issue/PR references) but not if already in a link
-        issue_pattern = r'(?<!\[)#(\d+)(?!\])'
+        # Pattern to match #1234 (issue/PR references)
+        # Only match if not preceded by / (to avoid matching in URLs)
+        issue_pattern = r'(?<!/)#(\d+)\b'
         
         def replace_issue_reference(match):
             issue_number = match.group(1)
@@ -152,9 +153,24 @@ def add_github_links(text: str, repo: Optional[str], token: Optional[str]) -> st
         
         # Apply issue/PR transformations
         text = re.sub(issue_pattern, replace_issue_reference, text)
-        
-        # Add repository link if it's not already linked
-        repo_pattern = rf'\b{re.escape(repo)}\b(?!\])'
+    
+    # Pattern to match user/repo#1234 (full repo issue/PR references)
+    # This handles the new format from aggregate summaries
+    full_repo_issue_pattern = r'\b([a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]/[a-zA-Z0-9][a-zA-Z0-9\-_.]*[a-zA-Z0-9])#(\d+)\b'
+    
+    def replace_full_repo_issue_reference(match):
+        repo_name = match.group(1)
+        issue_number = match.group(2)
+        url = f"https://github.com/{repo_name}/issues/{issue_number}"
+        return f"[{repo_name}#{issue_number}]({url})"
+    
+    # Apply full repo issue/PR transformations
+    text = re.sub(full_repo_issue_pattern, replace_full_repo_issue_reference, text)
+    
+    # Add repository link if it's not already linked (only for the current repo)
+    if repo:
+        # But skip if it's part of a URL (contains github.com/)
+        repo_pattern = rf'(?<!github\.com/)\b{re.escape(repo)}\b'
         repo_replacement = f"[{repo}](https://github.com/{repo})"
         
         # Only replace in the title line (first line)
@@ -228,31 +244,87 @@ def deduplicate_contributors_section(text: str) -> str:
 
 
 def annotate_file(input_file: Path, output_file: Path, token: Optional[str]) -> bool:
-    """Annotate a single markdown file with GitHub links."""
+    """Annotate a single file with GitHub links (supports both JSON and markdown)."""
     try:
-        # Read the file
-        with open(input_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # Extract repository from path
-        repo = extract_repo_from_path(input_file)
-        if repo:
-            info(f"Processing {input_file.name} for repository {repo}")
+        # Check if it's a JSON file
+        if input_file.suffix == '.json':
+            # Read the JSON file
+            with open(input_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Extract repository from path or data
+            repo = extract_repo_from_path(input_file) or data.get('repo')
+            if repo:
+                info(f"Processing {input_file.name} for repository {repo}")
+            else:
+                info(f"Processing {input_file.name} (repository not detected)")
+            
+            # Process each markdown content field in the JSON
+            # Check if this is a weekly summary (has 'short_summary' field) or individual repo summary
+            if 'short_summary' in data:
+                # Weekly summary fields
+                fields_to_process = [
+                    'short_summary', 'overall_activity', 'key_achievements', 'ongoing_initiatives',
+                    'priority_items', 'notable_discussions', 'emerging_patterns', 'ecosystem_health',
+                    'contributors_spotlight'
+                ]
+            else:
+                # Individual repository summary fields
+                fields_to_process = [
+                    'overall_activity', 'ongoing_projects', 'priority_items',
+                    'notable_discussions', 'emerging_trends', 'good_first_issues', 'contributors'
+                ]
+            
+            for field in fields_to_process:
+                if field in data and data[field] is not None:
+                    # Add GitHub links to the markdown content
+                    annotated_content = add_github_links(data[field], repo, token)
+                    
+                    # Special handling for contributors section
+                    if field == 'contributors':
+                        # Create a temporary markdown with just this section for deduplication
+                        temp_md = f"## Contributors\n\n{annotated_content}"
+                        temp_md = deduplicate_contributors_section(temp_md)
+                        # Extract just the content after the header
+                        if '## Contributors' in temp_md:
+                            data[field] = temp_md.split('## Contributors', 1)[1].strip()
+                            if data[field].startswith('\n\n'):
+                                data[field] = data[field][2:]
+                    else:
+                        data[field] = annotated_content
+            
+            # Write the annotated JSON
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            
+            return True
+            
         else:
-            info(f"Processing {input_file.name} (repository not detected from path)")
-        
-        # Add GitHub links
-        annotated_content = add_github_links(content, repo, token)
-        
-        # Deduplicate contributors section
-        annotated_content = deduplicate_contributors_section(annotated_content)
-        
-        # Write the annotated content
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(annotated_content)
-        
-        return True
+            # Original markdown processing
+            # Read the file
+            with open(input_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Extract repository from path
+            repo = extract_repo_from_path(input_file)
+            if repo:
+                info(f"Processing {input_file.name} for repository {repo}")
+            else:
+                info(f"Processing {input_file.name} (repository not detected from path)")
+            
+            # Add GitHub links
+            annotated_content = add_github_links(content, repo, token)
+            
+            # Deduplicate contributors section
+            annotated_content = deduplicate_contributors_section(annotated_content)
+            
+            # Write the annotated content
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(annotated_content)
+            
+            return True
         
     except Exception as e:
         error(f"Error processing {input_file}: {e}")

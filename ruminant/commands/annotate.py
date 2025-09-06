@@ -24,11 +24,11 @@ def find_summary_files(pattern: str = None) -> List[Path]:
     if pattern:
         # Use the provided pattern
         files = glob.glob(pattern, recursive=True)
-        return [Path(f) for f in files if f.endswith('.md')]
+        return [Path(f) for f in files if f.endswith('.json')]
     else:
-        # Find all markdown files in summaries directory
+        # Find all JSON files in summaries directory
         if summaries_dir.exists():
-            return list(summaries_dir.rglob("*.md"))
+            return list(summaries_dir.rglob("*.json"))
         return []
 
 
@@ -187,7 +187,7 @@ def annotate_main(
                     # Try to extract repo info and construct proper report path
                     repo_from_path = extract_repo_from_path(file_path)
                     if repo_from_path:
-                        # Extract year and week from filename: week-NN-YYYY.md
+                        # Extract year and week from filename: week-NN-YYYY.json
                         filename = file_path.stem  # removes .md
                         parts = filename.split('-')
                         if len(parts) == 3 and parts[0] == 'week':
@@ -199,11 +199,27 @@ def annotate_main(
                                 # Fallback to manual path construction
                                 output_file = get_reports_dir() / file_path.relative_to(get_summaries_dir())
                         else:
-                            # Fallback to manual path construction
-                            output_file = get_reports_dir() / file_path.relative_to(get_summaries_dir())
+                            # Check if this is a weekly summary file
+                            if 'summary-weekly' in str(file_path):
+                                # For weekly summary files, create output in reports/weekly/
+                                from ..utils.paths import get_reports_dir
+                                weekly_reports_dir = get_reports_dir() / "weekly"
+                                weekly_reports_dir.mkdir(parents=True, exist_ok=True)
+                                output_file = weekly_reports_dir / file_path.name
+                            else:
+                                # Fallback to manual path construction for regular summaries
+                                output_file = get_reports_dir() / file_path.relative_to(get_summaries_dir())
                     else:
-                        # Fallback to manual path construction
-                        output_file = get_reports_dir() / file_path.relative_to(get_summaries_dir())
+                        # Check if this is a weekly summary file
+                        if 'summary-weekly' in str(file_path):
+                            # For weekly summary files, create output in reports/weekly/
+                            from ..utils.paths import get_reports_dir
+                            weekly_reports_dir = get_reports_dir() / "weekly"
+                            weekly_reports_dir.mkdir(parents=True, exist_ok=True)
+                            output_file = weekly_reports_dir / file_path.name
+                        else:
+                            # Fallback to manual path construction for regular summaries
+                            output_file = get_reports_dir() / file_path.relative_to(get_summaries_dir())
                 
                 if annotate_file(file_path, output_file, token):
                     file_size = output_file.stat().st_size

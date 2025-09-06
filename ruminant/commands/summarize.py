@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import typer
 from datetime import datetime
 from typing import Optional, List
@@ -11,7 +12,9 @@ from ..config import load_config
 from ..utils.dates import get_last_complete_week, get_week_list, format_week_range
 from ..utils.paths import (
     get_prompt_file_path, get_summary_file_path, get_session_log_file_path,
-    ensure_repo_dirs, parse_repo
+    ensure_repo_dirs, parse_repo, get_aggregate_prompt_file_path,
+    get_aggregate_summary_file_path, get_aggregate_session_log_file_path,
+    ensure_aggregate_dirs
 )
 from ..utils.logging import (
     success, error, warning, info, step, summary_table, operation_summary,
@@ -193,6 +196,82 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
         }
 
 
+def generate_aggregate_summary(year: int, week: int, config, claude_args: Optional[List[str]] = None) -> dict:
+    """Generate an aggregate summary using Claude CLI for a specific week."""
+    
+    # Get file paths
+    ensure_aggregate_dirs()
+    prompt_file = get_aggregate_prompt_file_path(year, week)
+    summary_file = get_aggregate_summary_file_path(year, week)
+    log_file = get_aggregate_session_log_file_path(year, week)
+    week_range_str = format_week_range(year, week)
+    
+    # Check if prompt file exists
+    if not prompt_file.exists():
+        return {
+            "success": False,
+            "details": f"Aggregate prompt file not found: {prompt_file}",
+            "prompt_file": prompt_file,
+            "summary_file": summary_file,
+            "log_file": log_file
+        }
+    
+    try:
+        # Use custom Claude args if provided, otherwise use config
+        cmd_args = claude_args if claude_args else config.claude.args
+        
+        # Run Claude CLI with logging
+        claude_result = run_claude_cli(prompt_file, config.claude.command, cmd_args, log_file)
+        
+        if not claude_result["success"]:
+            return {
+                "success": False,
+                "details": f"Claude CLI failed: {claude_result['error']}",
+                "prompt_file": prompt_file,
+                "summary_file": summary_file,
+                "log_file": log_file
+            }
+        
+        # Claude should have written the file directly, but let's check if we have output
+        if claude_result["output"].strip():
+            # If Claude returned output instead of writing file, save it
+            if not summary_file.exists():
+                with open(summary_file, 'w', encoding='utf-8') as f:
+                    f.write(claude_result["output"])
+        
+        # Verify the summary file was created
+        if not summary_file.exists():
+            return {
+                "success": False,
+                "details": "Claude CLI completed but no aggregate summary file was created",
+                "prompt_file": prompt_file,
+                "summary_file": summary_file,
+                "log_file": log_file
+            }
+        
+        # Get file size for reporting
+        file_size = summary_file.stat().st_size
+        
+        return {
+            "success": True,
+            "details": f"Aggregate summary generated ({file_size:,} bytes)",
+            "prompt_file": prompt_file,
+            "summary_file": summary_file,
+            "log_file": log_file,
+            "week_range": week_range_str
+        }
+        
+    except Exception as e:
+        error(f"Error generating aggregate summary: {e}")
+        return {
+            "success": False,
+            "details": str(e),
+            "prompt_file": prompt_file,
+            "summary_file": summary_file,
+            "log_file": log_file
+        }
+
+
 def summarize_main(
     repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
     weeks: int = typer.Option(1, "--weeks", help="Number of weeks to generate summaries for"),
@@ -200,6 +279,8 @@ def summarize_main(
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI (space-separated)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without running Claude CLI"),
+    parallel_workers: Optional[int] = typer.Option(None, "--parallel-workers", help="Number of parallel Claude instances (default from config)"),
+    aggregate: bool = typer.Option(False, "--aggregate", help="Generate aggregate weekly summary across all repositories"),
 ) -> None:
     """Generate summaries using Claude CLI."""
     
@@ -236,42 +317,42 @@ def summarize_main(
         else:
             target_year, target_week = get_last_complete_week()
         
-        # Get list of weeks to process
-        if weeks > 1:
-            week_list = get_week_list(weeks, target_year, target_week)
-            step(f"Generating summaries for {len(repositories_to_process)} repositories for {weeks} weeks")
-        else:
-            week_list = [(target_year, target_week)]
-            step(f"Generating summaries for {len(repositories_to_process)} repositories for week {target_week} of {target_year}")
-        
-        if dry_run:
-            info("DRY RUN MODE - No actual summaries will be generated")
-        
-        # Show Claude CLI configuration
-        claude_cmd = config.claude.command
-        claude_cmd_args = parsed_claude_args if parsed_claude_args else config.claude.args
-        info(f"Claude CLI: {claude_cmd} {' '.join(claude_cmd_args)}")
-        
-        # Generate summaries for all repos and weeks
-        all_results = []
-        total_operations = len(repositories_to_process) * len(week_list)
-        current_operation = 0
-        
-        for repo in repositories_to_process:
+        # Handle aggregate mode
+        if aggregate:
+            # Get list of weeks to process
+            if weeks > 1:
+                week_list = get_week_list(weeks, target_year, target_week)
+                step(f"Generating aggregate summaries for {weeks} weeks")
+            else:
+                week_list = [(target_year, target_week)]
+                step(f"Generating aggregate summary for week {target_week} of {target_year}")
+            
+            if dry_run:
+                info("DRY RUN MODE - No actual summaries will be generated")
+            
+            # Show Claude CLI configuration
+            claude_cmd = config.claude.command
+            claude_cmd_args = parsed_claude_args if parsed_claude_args else config.claude.args
+            info(f"Claude CLI: {claude_cmd} {' '.join(claude_cmd_args)}")
+            
+            # Generate aggregate summaries for each week
+            all_results = []
+            total_operations = len(week_list)
+            current_operation = 0
+            
             for w_year, w_week in week_list:
                 current_operation += 1
-                info(f"[{current_operation}/{total_operations}] Generating summary for {repo} week {w_week}/{w_year}")
+                info(f"[{current_operation}/{total_operations}] Generating aggregate summary for week {w_week}/{w_year}")
                 
                 if dry_run:
                     # Just check if prompt file exists
-                    prompt_file = get_prompt_file_path(repo, w_year, w_week)
-                    summary_file = get_summary_file_path(repo, w_year, w_week)
-                    log_file = get_session_log_file_path(repo, w_year, w_week)
+                    prompt_file = get_aggregate_prompt_file_path(w_year, w_week)
+                    summary_file = get_aggregate_summary_file_path(w_year, w_week)
+                    log_file = get_aggregate_session_log_file_path(w_year, w_week)
                     
                     if prompt_file.exists():
                         result = {
                             "success": True,
-                            "repo": repo,
                             "details": f"Would generate from {prompt_file} -> {summary_file}",
                             "prompt_file": prompt_file,
                             "summary_file": summary_file,
@@ -280,21 +361,127 @@ def summarize_main(
                     else:
                         result = {
                             "success": False,
-                            "repo": repo,
-                            "details": f"Prompt file missing: {prompt_file}",
+                            "details": f"Aggregate prompt file missing: {prompt_file}",
                             "prompt_file": prompt_file,
                             "summary_file": summary_file,
                             "log_file": log_file
                         }
                 else:
-                    result = generate_summary(repo, w_year, w_week, config, parsed_claude_args)
+                    result = generate_aggregate_summary(w_year, w_week, config, parsed_claude_args)
                 
                 all_results.append(result)
                 
                 if result["success"]:
-                    success(f"Summary: {result['summary_file']}")
+                    success(f"Aggregate summary: {result['summary_file']}")
                 else:
                     error(f"Failed: {result['details']}")
+        else:
+            # Original per-repository logic
+            # Get list of weeks to process
+            if weeks > 1:
+                week_list = get_week_list(weeks, target_year, target_week)
+                step(f"Generating summaries for {len(repositories_to_process)} repositories for {weeks} weeks")
+            else:
+                week_list = [(target_year, target_week)]
+                step(f"Generating summaries for {len(repositories_to_process)} repositories for week {target_week} of {target_year}")
+            
+            if dry_run:
+                info("DRY RUN MODE - No actual summaries will be generated")
+            
+            # Calculate total operations
+            total_operations = len(repositories_to_process) * len(week_list)
+            
+            # Show Claude CLI configuration
+            claude_cmd = config.claude.command
+            claude_cmd_args = parsed_claude_args if parsed_claude_args else config.claude.args
+            workers = parallel_workers if parallel_workers is not None else config.claude.parallel_workers
+            info(f"Claude CLI: {claude_cmd} {' '.join(claude_cmd_args)}")
+            if not dry_run and total_operations > 1:
+                info(f"Using {workers} parallel workers")
+            
+            # Generate summaries for all repos and weeks
+            all_results = []
+            current_operation = 0
+            
+            if dry_run or total_operations == 1:
+                # Sequential processing for dry run or single operation
+                for repo in repositories_to_process:
+                    for w_year, w_week in week_list:
+                        current_operation += 1
+                        info(f"[{current_operation}/{total_operations}] Generating summary for {repo} week {w_week}/{w_year}")
+                        
+                        if dry_run:
+                            # Just check if prompt file exists
+                            prompt_file = get_prompt_file_path(repo, w_year, w_week)
+                            summary_file = get_summary_file_path(repo, w_year, w_week)
+                            log_file = get_session_log_file_path(repo, w_year, w_week)
+                            
+                            if prompt_file.exists():
+                                result = {
+                                "success": True,
+                                "repo": repo,
+                                "details": f"Would generate from {prompt_file} -> {summary_file}",
+                                "prompt_file": prompt_file,
+                                "summary_file": summary_file,
+                                "log_file": log_file
+                            }
+                            else:
+                                result = {
+                                "success": False,
+                                "repo": repo,
+                                "details": f"Prompt file missing: {prompt_file}",
+                                "prompt_file": prompt_file,
+                                "summary_file": summary_file,
+                                "log_file": log_file
+                            }
+                        else:
+                            result = generate_summary(repo, w_year, w_week, config, parsed_claude_args)
+                        
+                        all_results.append(result)
+                        
+                        if result["success"]:
+                            success(f"Summary: {result['summary_file']}")
+                        else:
+                            error(f"Failed: {result['details']}")
+            else:
+                # Parallel processing for multiple operations
+                tasks = []
+                for repo in repositories_to_process:
+                    for w_year, w_week in week_list:
+                        tasks.append((repo, w_year, w_week))
+                
+                with ThreadPoolExecutor(max_workers=workers) as executor:
+                    # Submit all tasks
+                    future_to_task = {}
+                    for repo, w_year, w_week in tasks:
+                        future = executor.submit(generate_summary, repo, w_year, w_week, config, parsed_claude_args)
+                        future_to_task[future] = (repo, w_year, w_week)
+                    
+                    # Process results as they complete
+                    for future in as_completed(future_to_task):
+                        repo, w_year, w_week = future_to_task[future]
+                        current_operation += 1
+                        
+                        try:
+                            result = future.result()
+                            info(f"[{current_operation}/{total_operations}] Completed: {repo} week {w_week}/{w_year}")
+                            
+                            if result["success"]:
+                                success(f"Summary: {result['summary_file']}")
+                            else:
+                                error(f"Failed: {result['details']}")
+                        except Exception as e:
+                            result = {
+                                "success": False,
+                                "repo": repo,
+                                "details": f"Exception during parallel execution: {e}",
+                                "prompt_file": get_prompt_file_path(repo, w_year, w_week),
+                                "summary_file": get_summary_file_path(repo, w_year, w_week),
+                                "log_file": get_session_log_file_path(repo, w_year, w_week)
+                            }
+                            error(f"[{current_operation}/{total_operations}] Failed: {repo} week {w_week}/{w_year} - {e}")
+                        
+                        all_results.append(result)
         
         # Print summary
         successful_results = [r for r in all_results if r["success"]]
@@ -312,7 +499,9 @@ def summarize_main(
         
         # Show next steps
         if successful_results and not dry_run:
-            if config.reporting.auto_annotate:
+            if aggregate:
+                info("Aggregate summaries generated successfully.")
+            elif config.reporting.auto_annotate:
                 info("To annotate reports with GitHub links:")
                 info("  ruminant annotate")
             else:
