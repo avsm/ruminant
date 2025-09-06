@@ -187,7 +187,16 @@ def deduplicate_contributors_section(text: str) -> str:
     seen_usernames: Set[str] = set()
     unique_contributors = []
     
-    for display_name, username in contributor_links:
+    for display_name, github_path in contributor_links:
+        # Skip if this is an issue/PR link (contains /issues/ or /pull/)
+        if '/issues/' in github_path or '/pull/' in github_path:
+            continue
+        
+        # Skip if the display name starts with # (it's a PR/issue reference)
+        if display_name.startswith('#'):
+            continue
+            
+        username = github_path
         if username not in seen_usernames:
             seen_usernames.add(username)
             unique_contributors.append(f"[{display_name}](https://github.com/{username})")

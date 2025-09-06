@@ -113,11 +113,12 @@ def report(
     skip_prompt: bool = typer.Option(False, "--skip-prompt", help="Skip the prompt generation step"),
     skip_summarize: bool = typer.Option(False, "--skip-summarize", help="Skip the summarize step"),
     skip_annotate: bool = typer.Option(False, "--skip-annotate", help="Skip the annotation step"),
+    skip_existing: bool = typer.Option(False, "--skip-existing", help="Skip weeks that already have reports"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without executing"),
 ) -> None:
     """Run the complete end-to-end reporting workflow."""
     from .commands.report import report_main
-    report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_prompt, skip_summarize, skip_annotate, dry_run)
+    report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_prompt, skip_summarize, skip_annotate, skip_existing, dry_run)
 
 
 @app.command()
