@@ -29,6 +29,11 @@ def get_reports_dir() -> Path:
     return get_data_dir() / "reports"
 
 
+def get_logs_dir() -> Path:
+    """Get the logs directory path."""
+    return get_data_dir() / "logs"
+
+
 def get_repo_cache_dir(repo: str) -> Path:
     """Get the cache directory for a specific repository."""
     owner, name = repo.split("/")
@@ -73,12 +78,21 @@ def get_report_file_path(repo: str, year: int, week: int) -> Path:
     return get_repo_reports_dir(repo) / f"week-{week:02d}-{year}.md"
 
 
+def get_session_log_file_path(repo: str, year: int, week: int) -> Path:
+    """Get the session log file path for a specific repo and week."""
+    owner, name = repo.split("/")
+    return get_logs_dir() / owner / name / f"week-{week:02d}-{year}-session.json"
+
+
 def ensure_repo_dirs(repo: str) -> None:
     """Ensure all directories exist for a repository."""
     get_repo_cache_dir(repo).mkdir(parents=True, exist_ok=True)
     get_repo_prompts_dir(repo).mkdir(parents=True, exist_ok=True)
     get_repo_summaries_dir(repo).mkdir(parents=True, exist_ok=True)
     get_repo_reports_dir(repo).mkdir(parents=True, exist_ok=True)
+    # Ensure logs directory for this repo
+    owner, name = repo.split("/")
+    (get_logs_dir() / owner / name).mkdir(parents=True, exist_ok=True)
 
 
 def parse_repo(repo: str) -> Tuple[str, str]:

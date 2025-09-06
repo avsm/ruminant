@@ -19,31 +19,43 @@ app = typer.Typer(
 @app.command(help="Fetch and cache GitHub repository data")
 def sync(
     repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
-    weeks: int = typer.Option(1, "--weeks", help="Number of weeks to sync"),
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to sync (defaults to config value)"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     force: bool = typer.Option(False, "--force", help="Force refresh cache"),
 ) -> None:
     """Fetch and cache GitHub repository data."""
     from .commands.sync import sync_main
+    
+    # Use config default if weeks not specified
+    if weeks is None:
+        config = load_config()
+        weeks = config.reporting.default_weeks
+    
     sync_main(repos, weeks, year, week, force)
 
 @app.command(help="Generate Claude prompts for weekly summaries")  
 def prompt(
     repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
-    weeks: int = typer.Option(1, "--weeks", help="Number of weeks to generate prompts for"),
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to generate prompts for (defaults to config value)"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     show_paths: bool = typer.Option(False, "--show-paths", help="Show file paths that will be used"),
 ) -> None:
     """Generate Claude prompts for weekly GitHub activity summaries."""
     from .commands.prompt import prompt_main
+    
+    # Use config default if weeks not specified
+    if weeks is None:
+        config = load_config()
+        weeks = config.reporting.default_weeks
+    
     prompt_main(repos, weeks, year, week, show_paths)
 
 @app.command(help="Generate summaries using Claude CLI")
 def summarize(
     repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
-    weeks: int = typer.Option(1, "--weeks", help="Number of weeks to generate summaries for"),
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to generate summaries for (defaults to config value)"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
@@ -51,6 +63,12 @@ def summarize(
 ) -> None:
     """Generate summaries using Claude CLI."""
     from .commands.summarize import summarize_main
+    
+    # Use config default if weeks not specified
+    if weeks is None:
+        config = load_config()
+        weeks = config.reporting.default_weeks
+    
     summarize_main(repos, weeks, year, week, claude_args, dry_run)
 
 # Create annotate subcommands
@@ -60,7 +78,7 @@ annotate_app = typer.Typer(help="Annotate reports with GitHub links")
 def annotate_main_cmd(
     files: Optional[List[str]] = typer.Argument(None, help="Specific files to annotate (supports wildcards)"),
     repos: Optional[List[str]] = typer.Option(None, "--repos", help="Repository names (owner/repo format)"),
-    weeks: int = typer.Option(1, "--weeks", help="Number of weeks to annotate"),
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to annotate (defaults to config value)"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     in_place: bool = typer.Option(False, "--in-place", help="Modify files in place instead of creating reports"),
@@ -68,6 +86,12 @@ def annotate_main_cmd(
 ) -> None:
     """Annotate markdown reports with GitHub links."""
     from .commands.annotate import annotate_main
+    
+    # Use config default if weeks not specified
+    if weeks is None:
+        config = load_config()
+        weeks = config.reporting.default_weeks
+    
     annotate_main(files, repos, weeks, year, week, in_place, all_summaries)
 
 @annotate_app.command()
@@ -88,7 +112,7 @@ def annotate_callback(
     ctx: typer.Context,
     files: Optional[List[str]] = typer.Argument(None, help="Specific files to annotate (supports wildcards)"),
     repos: Optional[List[str]] = typer.Option(None, "--repos", help="Repository names (owner/repo format)"),
-    weeks: int = typer.Option(1, "--weeks", help="Number of weeks to annotate"),
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to annotate (defaults to config value)"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     in_place: bool = typer.Option(False, "--in-place", help="Modify files in place instead of creating reports"),
@@ -97,6 +121,12 @@ def annotate_callback(
     """Annotate markdown reports with GitHub links."""
     if ctx.invoked_subcommand is None:
         from .commands.annotate import annotate_main
+        
+        # Use config default if weeks not specified
+        if weeks is None:
+            config = load_config()
+            weeks = config.reporting.default_weeks
+        
         annotate_main(files, repos, weeks, year, week, in_place, all_summaries)
 
 app.add_typer(annotate_app, name="annotate")
@@ -104,7 +134,7 @@ app.add_typer(annotate_app, name="annotate")
 @app.command(help="Run complete end-to-end reporting workflow") 
 def report(
     repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
-    weeks: int = typer.Option(1, "--weeks", help="Number of weeks to process"),
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to process (defaults to config value)"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     force_sync: bool = typer.Option(False, "--force-sync", help="Force refresh GitHub data cache"),
@@ -118,6 +148,12 @@ def report(
 ) -> None:
     """Run the complete end-to-end reporting workflow."""
     from .commands.report import report_main
+    
+    # Use config default if weeks not specified
+    if weeks is None:
+        config = load_config()
+        weeks = config.reporting.default_weeks
+    
     report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_prompt, skip_summarize, skip_annotate, skip_existing, dry_run)
 
 

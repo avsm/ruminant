@@ -1,14 +1,16 @@
 """Summarize command for generating reports using Claude CLI."""
 
+import json
 import subprocess
 import typer
+from datetime import datetime
 from typing import Optional, List
 from pathlib import Path
 
 from ..config import load_config
 from ..utils.dates import get_last_complete_week, get_week_list, format_week_range
 from ..utils.paths import (
-    get_prompt_file_path, get_summary_file_path,
+    get_prompt_file_path, get_summary_file_path, get_session_log_file_path,
     ensure_repo_dirs, parse_repo
 )
 from ..utils.logging import (
@@ -16,11 +18,11 @@ from ..utils.logging import (
     print_repo_list
 )
 
-def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str]) -> dict:
-    """Run Claude CLI with the given prompt file."""
+def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str], log_file: Path) -> dict:
+    """Run Claude CLI with the given prompt file and save verbose logs."""
     try:
-        # Build the command
-        cmd = [claude_command] + claude_args
+        # Build the command with verbose and stream-json flags
+        cmd = [claude_command] + claude_args + ["--verbose", "--output-format", "stream-json"]
         
         # Read the prompt file
         with open(prompt_file, 'r', encoding='utf-8') as f:
@@ -37,37 +39,76 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             timeout=300  # 5 minute timeout
         )
         
+        # Always save session log
+        try:
+            # Ensure log directory exists
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Parse and save the stream-json output from stdout
+            log_entries = []
+            if result.stdout:
+                for line in result.stdout.strip().split('\n'):
+                    if line.strip():
+                        try:
+                            # Each line should be a JSON object
+                            log_entry = json.loads(line)
+                            log_entries.append(log_entry)
+                        except json.JSONDecodeError:
+                            # If not JSON, save as plain text entry
+                            log_entries.append({"type": "text", "content": line})
+            
+            # Save the complete session log (even if empty)
+            with open(log_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    "command": ' '.join(cmd),
+                    "timestamp": datetime.now().isoformat(),
+                    "returncode": result.returncode,
+                    "stdout_size": len(result.stdout) if result.stdout else 0,
+                    "stderr_size": len(result.stderr) if result.stderr else 0,
+                    "entries": log_entries
+                }, f, indent=2)
+            
+            info(f"Session log saved: {log_file}")
+            
+        except Exception as e:
+            warning(f"Failed to save session log: {e}")
+        
         if result.returncode == 0:
             return {
                 "success": True,
                 "output": result.stdout,
-                "error": result.stderr
+                "error": result.stderr,
+                "log_file": log_file
             }
         else:
             return {
                 "success": False,
                 "output": result.stdout,
                 "error": result.stderr,
-                "returncode": result.returncode
+                "returncode": result.returncode,
+                "log_file": log_file
             }
             
     except subprocess.TimeoutExpired:
         return {
             "success": False,
             "error": "Claude CLI timed out after 5 minutes",
-            "output": ""
+            "output": "",
+            "log_file": log_file
         }
     except FileNotFoundError:
         return {
             "success": False,
             "error": f"Claude CLI command '{claude_command}' not found. Make sure it's installed and in your PATH.",
-            "output": ""
+            "output": "",
+            "log_file": log_file
         }
     except Exception as e:
         return {
             "success": False,
             "error": f"Error running Claude CLI: {e}",
-            "output": ""
+            "output": "",
+            "log_file": log_file
         }
 
 
@@ -78,6 +119,7 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
     ensure_repo_dirs(repo)
     prompt_file = get_prompt_file_path(repo, year, week)
     summary_file = get_summary_file_path(repo, year, week)
+    log_file = get_session_log_file_path(repo, year, week)
     week_range_str = format_week_range(year, week)
     
     # Check if prompt file exists
@@ -87,15 +129,16 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
             "repo": repo,
             "details": f"Prompt file not found: {prompt_file}",
             "prompt_file": prompt_file,
-            "summary_file": summary_file
+            "summary_file": summary_file,
+            "log_file": log_file
         }
     
     try:
         # Use custom Claude args if provided, otherwise use config
         cmd_args = claude_args if claude_args else config.claude.args
         
-        # Run Claude CLI
-        claude_result = run_claude_cli(prompt_file, config.claude.command, cmd_args)
+        # Run Claude CLI with logging
+        claude_result = run_claude_cli(prompt_file, config.claude.command, cmd_args, log_file)
         
         if not claude_result["success"]:
             return {
@@ -103,7 +146,8 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
                 "repo": repo,
                 "details": f"Claude CLI failed: {claude_result['error']}",
                 "prompt_file": prompt_file,
-                "summary_file": summary_file
+                "summary_file": summary_file,
+                "log_file": log_file
             }
         
         # Claude should have written the file directly, but let's check if we have output
@@ -120,7 +164,8 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
                 "repo": repo,
                 "details": "Claude CLI completed but no summary file was created",
                 "prompt_file": prompt_file,
-                "summary_file": summary_file
+                "summary_file": summary_file,
+                "log_file": log_file
             }
         
         # Get file size for reporting
@@ -132,6 +177,7 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
             "details": f"Summary generated ({file_size:,} bytes)",
             "prompt_file": prompt_file,
             "summary_file": summary_file,
+            "log_file": log_file,
             "week_range": week_range_str
         }
         
@@ -142,7 +188,8 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
             "repo": repo,
             "details": str(e),
             "prompt_file": prompt_file,
-            "summary_file": summary_file
+            "summary_file": summary_file,
+            "log_file": log_file
         }
 
 
@@ -219,6 +266,7 @@ def summarize_main(
                     # Just check if prompt file exists
                     prompt_file = get_prompt_file_path(repo, w_year, w_week)
                     summary_file = get_summary_file_path(repo, w_year, w_week)
+                    log_file = get_session_log_file_path(repo, w_year, w_week)
                     
                     if prompt_file.exists():
                         result = {
@@ -226,7 +274,8 @@ def summarize_main(
                             "repo": repo,
                             "details": f"Would generate from {prompt_file} -> {summary_file}",
                             "prompt_file": prompt_file,
-                            "summary_file": summary_file
+                            "summary_file": summary_file,
+                            "log_file": log_file
                         }
                     else:
                         result = {
@@ -234,7 +283,8 @@ def summarize_main(
                             "repo": repo,
                             "details": f"Prompt file missing: {prompt_file}",
                             "prompt_file": prompt_file,
-                            "summary_file": summary_file
+                            "summary_file": summary_file,
+                            "log_file": log_file
                         }
                 else:
                     result = generate_summary(repo, w_year, w_week, config, parsed_claude_args)
