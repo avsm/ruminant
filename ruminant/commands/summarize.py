@@ -1,0 +1,282 @@
+"""Summarize command for generating reports using Claude CLI."""
+
+import subprocess
+import typer
+from typing import Optional, List
+from pathlib import Path
+
+from ..config import load_config
+from ..utils.dates import get_last_complete_week, get_week_list, format_week_range
+from ..utils.paths import (
+    get_prompt_file_path, get_summary_file_path,
+    ensure_repo_dirs, parse_repo
+)
+from ..utils.logging import (
+    success, error, warning, info, step, summary_table, operation_summary,
+    print_repo_list
+)
+
+def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str]) -> dict:
+    """Run Claude CLI with the given prompt file."""
+    try:
+        # Build the command
+        cmd = [claude_command] + claude_args
+        
+        # Read the prompt file
+        with open(prompt_file, 'r', encoding='utf-8') as f:
+            prompt_content = f.read()
+        
+        info(f"Running Claude CLI: {' '.join(cmd)}")
+        
+        # Run Claude CLI with prompt as input
+        result = subprocess.run(
+            cmd,
+            input=prompt_content,
+            text=True,
+            capture_output=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0:
+            return {
+                "success": True,
+                "output": result.stdout,
+                "error": result.stderr
+            }
+        else:
+            return {
+                "success": False,
+                "output": result.stdout,
+                "error": result.stderr,
+                "returncode": result.returncode
+            }
+            
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "error": "Claude CLI timed out after 5 minutes",
+            "output": ""
+        }
+    except FileNotFoundError:
+        return {
+            "success": False,
+            "error": f"Claude CLI command '{claude_command}' not found. Make sure it's installed and in your PATH.",
+            "output": ""
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Error running Claude CLI: {e}",
+            "output": ""
+        }
+
+
+def generate_summary(repo: str, year: int, week: int, config, claude_args: Optional[List[str]] = None) -> dict:
+    """Generate a summary using Claude CLI for a specific repo and week."""
+    
+    # Get file paths
+    ensure_repo_dirs(repo)
+    prompt_file = get_prompt_file_path(repo, year, week)
+    summary_file = get_summary_file_path(repo, year, week)
+    week_range_str = format_week_range(year, week)
+    
+    # Check if prompt file exists
+    if not prompt_file.exists():
+        return {
+            "success": False,
+            "repo": repo,
+            "details": f"Prompt file not found: {prompt_file}",
+            "prompt_file": prompt_file,
+            "summary_file": summary_file
+        }
+    
+    try:
+        # Use custom Claude args if provided, otherwise use config
+        cmd_args = claude_args if claude_args else config.claude.args
+        
+        # Run Claude CLI
+        claude_result = run_claude_cli(prompt_file, config.claude.command, cmd_args)
+        
+        if not claude_result["success"]:
+            return {
+                "success": False,
+                "repo": repo,
+                "details": f"Claude CLI failed: {claude_result['error']}",
+                "prompt_file": prompt_file,
+                "summary_file": summary_file
+            }
+        
+        # Claude should have written the file directly, but let's check if we have output
+        if claude_result["output"].strip():
+            # If Claude returned output instead of writing file, save it
+            if not summary_file.exists():
+                with open(summary_file, 'w', encoding='utf-8') as f:
+                    f.write(claude_result["output"])
+        
+        # Verify the summary file was created
+        if not summary_file.exists():
+            return {
+                "success": False,
+                "repo": repo,
+                "details": "Claude CLI completed but no summary file was created",
+                "prompt_file": prompt_file,
+                "summary_file": summary_file
+            }
+        
+        # Get file size for reporting
+        file_size = summary_file.stat().st_size
+        
+        return {
+            "success": True,
+            "repo": repo,
+            "details": f"Summary generated ({file_size:,} bytes)",
+            "prompt_file": prompt_file,
+            "summary_file": summary_file,
+            "week_range": week_range_str
+        }
+        
+    except Exception as e:
+        error(f"Error generating summary for {repo}: {e}")
+        return {
+            "success": False,
+            "repo": repo,
+            "details": str(e),
+            "prompt_file": prompt_file,
+            "summary_file": summary_file
+        }
+
+
+def summarize_main(
+    repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
+    weeks: int = typer.Option(1, "--weeks", help="Number of weeks to generate summaries for"),
+    year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
+    week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
+    claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI (space-separated)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without running Claude CLI"),
+) -> None:
+    """Generate summaries using Claude CLI."""
+    
+    try:
+        config = load_config()
+        
+        # Parse Claude args if provided
+        parsed_claude_args = None
+        if claude_args:
+            parsed_claude_args = claude_args.split()
+        
+        # Determine repositories to process
+        if repos:
+            # Validate repo format
+            for repo in repos:
+                try:
+                    parse_repo(repo)
+                except ValueError as e:
+                    error(str(e))
+                    raise typer.Exit(1)
+            repositories_to_process = repos
+        else:
+            repositories_to_process = config.repositories
+        
+        if not repositories_to_process:
+            error("No repositories specified. Use arguments or configure in .ruminant.toml")
+            raise typer.Exit(1)
+        
+        print_repo_list(repositories_to_process)
+        
+        # Determine time range
+        if year and week:
+            target_year, target_week = year, week
+        else:
+            target_year, target_week = get_last_complete_week()
+        
+        # Get list of weeks to process
+        if weeks > 1:
+            week_list = get_week_list(weeks, target_year, target_week)
+            step(f"Generating summaries for {len(repositories_to_process)} repositories for {weeks} weeks")
+        else:
+            week_list = [(target_year, target_week)]
+            step(f"Generating summaries for {len(repositories_to_process)} repositories for week {target_week} of {target_year}")
+        
+        if dry_run:
+            info("DRY RUN MODE - No actual summaries will be generated")
+        
+        # Show Claude CLI configuration
+        claude_cmd = config.claude.command
+        claude_cmd_args = parsed_claude_args if parsed_claude_args else config.claude.args
+        info(f"Claude CLI: {claude_cmd} {' '.join(claude_cmd_args)}")
+        
+        # Generate summaries for all repos and weeks
+        all_results = []
+        total_operations = len(repositories_to_process) * len(week_list)
+        current_operation = 0
+        
+        for repo in repositories_to_process:
+            for w_year, w_week in week_list:
+                current_operation += 1
+                info(f"[{current_operation}/{total_operations}] Generating summary for {repo} week {w_week}/{w_year}")
+                
+                if dry_run:
+                    # Just check if prompt file exists
+                    prompt_file = get_prompt_file_path(repo, w_year, w_week)
+                    summary_file = get_summary_file_path(repo, w_year, w_week)
+                    
+                    if prompt_file.exists():
+                        result = {
+                            "success": True,
+                            "repo": repo,
+                            "details": f"Would generate from {prompt_file} -> {summary_file}",
+                            "prompt_file": prompt_file,
+                            "summary_file": summary_file
+                        }
+                    else:
+                        result = {
+                            "success": False,
+                            "repo": repo,
+                            "details": f"Prompt file missing: {prompt_file}",
+                            "prompt_file": prompt_file,
+                            "summary_file": summary_file
+                        }
+                else:
+                    result = generate_summary(repo, w_year, w_week, config, parsed_claude_args)
+                
+                all_results.append(result)
+                
+                if result["success"]:
+                    success(f"Summary: {result['summary_file']}")
+                else:
+                    error(f"Failed: {result['details']}")
+        
+        # Print summary
+        successful_results = [r for r in all_results if r["success"]]
+        failed_results = [r for r in all_results if not r["success"]]
+        
+        if successful_results:
+            action = "Would generate" if dry_run else "Generated"
+            success(f"{action} {len(successful_results)}/{len(all_results)} summaries")
+        
+        if failed_results:
+            warning(f"Failed to generate {len(failed_results)} summaries")
+            summary_table("Failed Summaries", failed_results)
+        
+        operation_summary("Summary Generation", len(all_results), len(successful_results))
+        
+        # Show next steps
+        if successful_results and not dry_run:
+            if config.reporting.auto_annotate:
+                info("To annotate reports with GitHub links:")
+                info("  ruminant annotate")
+            else:
+                info("Summaries generated. Run 'ruminant annotate' to add GitHub links.")
+        
+        # Exit with error if any operations failed
+        if failed_results:
+            raise typer.Exit(1)
+            
+    except KeyboardInterrupt:
+        warning("Summary generation interrupted by user")
+        raise typer.Exit(1)
+    except Exception as e:
+        error(f"Summary generation failed: {e}")
+        raise typer.Exit(1)
+
+

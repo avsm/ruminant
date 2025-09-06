@@ -1,0 +1,23 @@
+[project]
+name = "OCaml Community Activity"
+description = "Weekly reports for OCaml ecosystem projects"
+
+[repositories]
+repos = [
+    "ocaml/opam-repository",
+    "mirage/mirage",
+    "janestreet/base",
+    "ocsigen/lwt"
+]
+
+[repositories.custom_prompts]
+"ocaml/opam-repository" = """Focus on package submissions, maintenance updates, and ecosystem changes.
+Highlight any breaking changes or major version updates."""
+
+[claude]
+command = "claude"
+args = ["--non-interactive"]
+
+[reporting]
+default_weeks = 1
+auto_annotate = true
