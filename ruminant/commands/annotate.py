@@ -201,9 +201,9 @@ def annotate_main(
                         else:
                             # Check if this is a weekly summary file
                             if 'summary-weekly' in str(file_path):
-                                # For weekly summary files, create output in reports/weekly/
-                                from ..utils.paths import get_reports_dir
-                                weekly_reports_dir = get_reports_dir() / "weekly"
+                                # For weekly summary files, create output in reports-weekly/
+                                from ..utils.paths import get_weekly_reports_dir
+                                weekly_reports_dir = get_weekly_reports_dir()
                                 weekly_reports_dir.mkdir(parents=True, exist_ok=True)
                                 output_file = weekly_reports_dir / file_path.name
                             else:
@@ -212,9 +212,9 @@ def annotate_main(
                     else:
                         # Check if this is a weekly summary file
                         if 'summary-weekly' in str(file_path):
-                            # For weekly summary files, create output in reports/weekly/
-                            from ..utils.paths import get_reports_dir
-                            weekly_reports_dir = get_reports_dir() / "weekly"
+                            # For weekly summary files, create output in reports-weekly/
+                            from ..utils.paths import get_weekly_reports_dir
+                            weekly_reports_dir = get_weekly_reports_dir()
                             weekly_reports_dir.mkdir(parents=True, exist_ok=True)
                             output_file = weekly_reports_dir / file_path.name
                         else:

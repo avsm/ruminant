@@ -74,7 +74,7 @@ The report should include the following sections:
 1. A concise summary of the overall activity and key themes (MUST use bullet points)
 2. The most important ongoing projects or initiatives based on the data (MUST use bullet points)
 3. Prioritized issues and PRs that need immediate attention (MUST use bullet points)
-4. Major discussions that should be highlighted (MUST use bullet points)
+4. Notable discussions that should be highlighted (MUST use bullet points)
 5. Identify any emerging trends or patterns in development (MUST use bullet points)
 6. Good first issues for new contributors (MUST use bullet points)
 
@@ -84,6 +84,14 @@ CRITICAL REQUIREMENTS:
 - DO NOT include placeholder text like "No discussions were recorded" or "There are no XYZ to report"
 - Only include sections that have actual, substantive content
 - Be as concise as possible while maintaining clarity
+
+TONE AND LANGUAGE REQUIREMENTS:
+- Use factual, objective language - avoid hyperbolic terms like "major", "massive", "critical", "significant", "groundbreaking"
+- Prefer specific, quantifiable descriptions: "15 PRs merged", "3 bug fixes", "2 new features", "affects 5 modules"  
+- Instead of "major refactoring" → "refactoring affecting 12 files"
+- Instead of "critical bug fix" → "bug fix for memory leak affecting startup"
+- Instead of "massive performance improvement" → "30% performance improvement in query processing"
+- Focus on concrete changes and measurable impacts
 
 IMPORTANT: For each PR or issue you mention, ALWAYS include the contributor's GitHub username with @ symbol (e.g., @username) to properly credit their contributions. This is critical for recognizing contributors' work.
 
@@ -104,9 +112,9 @@ FORMATTING INSTRUCTIONS:
 
 Example of correct format:
 
-- **Authentication Framework** (#1234, #5678, #5681): Core authentication by @username with related security improvements
-- **Performance Optimization** (#5679, #5680, #5682, #5683): Multiple backend optimizations by @anotheruser including database and caching improvements
-- **Bug Fixes**: Critical memory leak fixed by @developer (#5684), UI rendering issues resolved (#5685, #5686)
+- **Authentication Framework** (#1234, #5678, #5681): Core authentication implementation by @username with related security improvements
+- **Performance Optimization** (#5679, #5680, #5682, #5683): Backend optimizations by @anotheruser including database and caching improvements
+- **Bug Fixes**: Memory leak fix by @developer (#5684), UI rendering issues resolved (#5685, #5686)
 - **Documentation Updates** (#5687, #5688): API documentation improvements and new contributor guide by @writer
 
 NOTE: Every substantive point MUST include PR/issue numbers to allow readers to investigate further"""
@@ -265,8 +273,16 @@ Generate a JSON report with the following structure:
 
 FORMATTING REQUIREMENTS:
 - short_summary: MUST be specific (e.g., "DWARF debugging in oxcaml, dune pkg parallelism fixes, LLVM backend progress" NOT "Active development across ecosystem")
-- short_summary: Avoid vague terms like "major", "significant", "active development" - use specific feature/fix names
+- short_summary: Avoid hyperbolic terms like "major", "significant", "massive", "critical", "groundbreaking" - use specific feature/fix names
 - short_summary: Keep under 200 characters, no markdown, suitable for calendar previews
+
+TONE AND LANGUAGE REQUIREMENTS:
+- Use factual, objective language throughout all sections
+- Prefer quantifiable descriptions: "15 PRs merged", "3 repositories", "5 bug fixes", "affects 12 modules"
+- Instead of "major development" → "15 commits across 5 files"
+- Instead of "significant milestone" → "feature completion for 3 modules"
+- Instead of "critical infrastructure work" → "infrastructure updates affecting 4 repositories"
+- Focus on concrete changes, specific numbers, and measurable impacts
 - Each other section should contain markdown with bullet points
 - EVERY bullet point should include relevant PR/issue references where possible to help readers navigate to specifics
 - Every repository reference must use @owner/repo format when referring to the repo itself
@@ -285,9 +301,9 @@ SYNTHESIS GUIDELINES:
 Remember:
 - You MUST read ALL the listed summary files before generating the aggregate
 - Focus on synthesis and patterns, not just listing individual repo activities
-- The short_summary is critical for calendar views - be SPECIFIC about actual changes/features
+- The short_summary is essential for calendar views - be SPECIFIC about actual changes/features
 - Good short_summary: "DWARF debug shapes, dune pkg Docker support, JSIR multi-file compilation, ARM64 assembler fix"
-- Bad short_summary: "Active development with significant improvements across the OCaml ecosystem"
+- Bad short_summary: "Active development with improvements across the OCaml ecosystem"
 - All sections except short_summary MUST use bullet points
 - ALL issue/PR references must use owner/repo#number format (never just #number)
 - Write the complete JSON summary to: {summary_file}

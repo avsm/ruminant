@@ -20,6 +20,42 @@ from ..utils.logging import (
     success, error, warning, info, step, summary_table, operation_summary,
     print_repo_list
 )
+import time
+
+def validate_summary_file(summary_file: Path) -> bool:
+    """Validate that a summary file contains valid JSON and not stream logs."""
+    if not summary_file.exists():
+        return False
+    
+    try:
+        with open(summary_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+            # Check if content looks like stream logs (numbered lines)
+            if content.strip().startswith('{"type":"system"') or '→{"type":' in content:
+                warning(f"Summary file contains stream logs, not valid summary: {summary_file}")
+                return False
+            
+            # Try to parse as JSON
+            data = json.loads(content)
+            
+            # Basic validation - should be a dict with expected structure
+            if not isinstance(data, dict):
+                warning(f"Summary file is not a valid JSON object: {summary_file}")
+                return False
+            
+            # Could add more specific validation here if needed
+            # e.g., check for required fields like 'summary', 'markdown', etc.
+            
+            return True
+            
+    except json.JSONDecodeError as e:
+        warning(f"Summary file is not valid JSON: {summary_file} - {e}")
+        return False
+    except Exception as e:
+        warning(f"Error validating summary file: {summary_file} - {e}")
+        return False
+
 
 def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str], log_file: Path) -> dict:
     """Run Claude CLI with the given prompt file and save verbose logs."""
@@ -39,7 +75,7 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             input=prompt_content,
             text=True,
             capture_output=True,
-            timeout=300  # 5 minute timeout
+            timeout=480  # 8 minute timeout
         )
         
         # Always save session log
@@ -95,9 +131,10 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
     except subprocess.TimeoutExpired:
         return {
             "success": False,
-            "error": "Claude CLI timed out after 5 minutes",
+            "error": "Claude CLI timed out after 8 minutes",
             "output": "",
-            "log_file": log_file
+            "log_file": log_file,
+            "timeout": True
         }
     except FileNotFoundError:
         return {
@@ -115,8 +152,8 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
         }
 
 
-def generate_summary(repo: str, year: int, week: int, config, claude_args: Optional[List[str]] = None) -> dict:
-    """Generate a summary using Claude CLI for a specific repo and week."""
+def generate_summary(repo: str, year: int, week: int, config, claude_args: Optional[List[str]] = None, max_retries: int = 3) -> dict:
+    """Generate a summary using Claude CLI for a specific repo and week with automatic retry."""
     
     # Get file paths
     ensure_repo_dirs(repo)
@@ -136,68 +173,122 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
             "log_file": log_file
         }
     
-    try:
-        # Use custom Claude args if provided, otherwise use config
-        cmd_args = claude_args if claude_args else config.claude.args
-        
-        # Run Claude CLI with logging
-        claude_result = run_claude_cli(prompt_file, config.claude.command, cmd_args, log_file)
-        
-        if not claude_result["success"]:
-            return {
-                "success": False,
-                "repo": repo,
-                "details": f"Claude CLI failed: {claude_result['error']}",
-                "prompt_file": prompt_file,
-                "summary_file": summary_file,
-                "log_file": log_file
-            }
-        
-        # Claude should have written the file directly, but let's check if we have output
-        if claude_result["output"].strip():
-            # If Claude returned output instead of writing file, save it
+    # Use custom Claude args if provided, otherwise use config
+    cmd_args = claude_args if claude_args else config.claude.args
+    
+    # Retry logic
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Clean up any invalid summary file from previous attempt
+            if summary_file.exists() and not validate_summary_file(summary_file):
+                warning(f"Removing invalid summary file from previous attempt: {summary_file}")
+                summary_file.unlink()
+            
+            # Update log file path for each attempt
+            if attempt > 1:
+                log_file = get_session_log_file_path(repo, year, week).with_suffix(f".attempt{attempt}.json")
+                info(f"Retry attempt {attempt}/{max_retries} for {repo} week {week}/{year}")
+                time.sleep(2)  # Brief delay between retries
+            
+            # Run Claude CLI with logging
+            claude_result = run_claude_cli(prompt_file, config.claude.command, cmd_args, log_file)
+            
+            # Check for timeout
+            if claude_result.get("timeout", False):
+                if attempt < max_retries:
+                    warning(f"Claude CLI timed out for {repo}, retrying...")
+                    continue
+                else:
+                    return {
+                        "success": False,
+                        "repo": repo,
+                        "details": f"Claude CLI timed out after {max_retries} attempts",
+                        "prompt_file": prompt_file,
+                        "summary_file": summary_file,
+                        "log_file": log_file
+                    }
+            
+            if not claude_result["success"]:
+                if attempt < max_retries:
+                    warning(f"Claude CLI failed: {claude_result['error']}, retrying...")
+                    continue
+                else:
+                    return {
+                        "success": False,
+                        "repo": repo,
+                        "details": f"Claude CLI failed after {max_retries} attempts: {claude_result['error']}",
+                        "prompt_file": prompt_file,
+                        "summary_file": summary_file,
+                        "log_file": log_file
+                    }
+            
+            # Claude should have written the file directly
+            # Do NOT save stdout as it contains stream-json logs, not the actual summary
+            
+            # Verify the summary file was created and is valid
             if not summary_file.exists():
-                with open(summary_file, 'w', encoding='utf-8') as f:
-                    f.write(claude_result["output"])
-        
-        # Verify the summary file was created
-        if not summary_file.exists():
+                if attempt < max_retries:
+                    warning(f"No summary file created for {repo}, retrying...")
+                    continue
+                else:
+                    return {
+                        "success": False,
+                        "repo": repo,
+                        "details": f"No summary file created after {max_retries} attempts. Make sure the prompt instructs Claude to write to a file.",
+                        "prompt_file": prompt_file,
+                        "summary_file": summary_file,
+                        "log_file": log_file
+                    }
+            
+            # Validate the summary file
+            if not validate_summary_file(summary_file):
+                if attempt < max_retries:
+                    warning(f"Invalid summary file generated for {repo}, retrying...")
+                    summary_file.unlink()  # Remove invalid file
+                    continue
+                else:
+                    return {
+                        "success": False,
+                        "repo": repo,
+                        "details": f"Invalid summary file after {max_retries} attempts (contains stream logs or invalid JSON)",
+                        "prompt_file": prompt_file,
+                        "summary_file": summary_file,
+                        "log_file": log_file
+                    }
+            
+            # Success!
+            file_size = summary_file.stat().st_size
+            if attempt > 1:
+                info(f"Successfully generated summary for {repo} on attempt {attempt}")
+            
             return {
-                "success": False,
+                "success": True,
                 "repo": repo,
-                "details": "Claude CLI completed but no summary file was created",
+                "details": f"Summary generated ({file_size:,} bytes)",
                 "prompt_file": prompt_file,
                 "summary_file": summary_file,
-                "log_file": log_file
+                "log_file": log_file,
+                "week_range": week_range_str
             }
-        
-        # Get file size for reporting
-        file_size = summary_file.stat().st_size
-        
-        return {
-            "success": True,
-            "repo": repo,
-            "details": f"Summary generated ({file_size:,} bytes)",
-            "prompt_file": prompt_file,
-            "summary_file": summary_file,
-            "log_file": log_file,
-            "week_range": week_range_str
-        }
-        
-    except Exception as e:
-        error(f"Error generating summary for {repo}: {e}")
-        return {
-            "success": False,
-            "repo": repo,
-            "details": str(e),
-            "prompt_file": prompt_file,
-            "summary_file": summary_file,
-            "log_file": log_file
-        }
+            
+        except Exception as e:
+            if attempt < max_retries:
+                warning(f"Error generating summary for {repo}: {e}, retrying...")
+                continue
+            else:
+                error(f"Error generating summary for {repo} after {max_retries} attempts: {e}")
+                return {
+                    "success": False,
+                    "repo": repo,
+                    "details": f"Error after {max_retries} attempts: {str(e)}",
+                    "prompt_file": prompt_file,
+                    "summary_file": summary_file,
+                    "log_file": log_file
+                }
 
 
-def generate_aggregate_summary(year: int, week: int, config, claude_args: Optional[List[str]] = None) -> dict:
-    """Generate an aggregate summary using Claude CLI for a specific week."""
+def generate_aggregate_summary(year: int, week: int, config, claude_args: Optional[List[str]] = None, max_retries: int = 3) -> dict:
+    """Generate an aggregate summary using Claude CLI for a specific week with automatic retry."""
     
     # Get file paths
     ensure_aggregate_dirs()
@@ -216,60 +307,112 @@ def generate_aggregate_summary(year: int, week: int, config, claude_args: Option
             "log_file": log_file
         }
     
-    try:
-        # Use custom Claude args if provided, otherwise use config
-        cmd_args = claude_args if claude_args else config.claude.args
-        
-        # Run Claude CLI with logging
-        claude_result = run_claude_cli(prompt_file, config.claude.command, cmd_args, log_file)
-        
-        if not claude_result["success"]:
-            return {
-                "success": False,
-                "details": f"Claude CLI failed: {claude_result['error']}",
-                "prompt_file": prompt_file,
-                "summary_file": summary_file,
-                "log_file": log_file
-            }
-        
-        # Claude should have written the file directly, but let's check if we have output
-        if claude_result["output"].strip():
-            # If Claude returned output instead of writing file, save it
+    # Use custom Claude args if provided, otherwise use config
+    cmd_args = claude_args if claude_args else config.claude.args
+    
+    # Retry logic
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Clean up any invalid summary file from previous attempt
+            if summary_file.exists() and not validate_summary_file(summary_file):
+                warning(f"Removing invalid aggregate summary file from previous attempt: {summary_file}")
+                summary_file.unlink()
+            
+            # Update log file path for each attempt
+            if attempt > 1:
+                log_file = get_aggregate_session_log_file_path(year, week).with_suffix(f".attempt{attempt}.json")
+                info(f"Retry attempt {attempt}/{max_retries} for aggregate summary week {week}/{year}")
+                time.sleep(2)  # Brief delay between retries
+            
+            # Run Claude CLI with logging
+            claude_result = run_claude_cli(prompt_file, config.claude.command, cmd_args, log_file)
+            
+            # Check for timeout
+            if claude_result.get("timeout", False):
+                if attempt < max_retries:
+                    warning(f"Claude CLI timed out for aggregate summary, retrying...")
+                    continue
+                else:
+                    return {
+                        "success": False,
+                        "details": f"Claude CLI timed out after {max_retries} attempts",
+                        "prompt_file": prompt_file,
+                        "summary_file": summary_file,
+                        "log_file": log_file
+                    }
+            
+            if not claude_result["success"]:
+                if attempt < max_retries:
+                    warning(f"Claude CLI failed: {claude_result['error']}, retrying...")
+                    continue
+                else:
+                    return {
+                        "success": False,
+                        "details": f"Claude CLI failed after {max_retries} attempts: {claude_result['error']}",
+                        "prompt_file": prompt_file,
+                        "summary_file": summary_file,
+                        "log_file": log_file
+                    }
+            
+            # Claude should have written the file directly
+            # Do NOT save stdout as it contains stream-json logs, not the actual summary
+            
+            # Verify the summary file was created and is valid
             if not summary_file.exists():
-                with open(summary_file, 'w', encoding='utf-8') as f:
-                    f.write(claude_result["output"])
-        
-        # Verify the summary file was created
-        if not summary_file.exists():
+                if attempt < max_retries:
+                    warning(f"No aggregate summary file created, retrying...")
+                    continue
+                else:
+                    return {
+                        "success": False,
+                        "details": f"No aggregate summary file created after {max_retries} attempts. Make sure the prompt instructs Claude to write to a file.",
+                        "prompt_file": prompt_file,
+                        "summary_file": summary_file,
+                        "log_file": log_file
+                    }
+            
+            # Validate the summary file
+            if not validate_summary_file(summary_file):
+                if attempt < max_retries:
+                    warning(f"Invalid aggregate summary file generated, retrying...")
+                    summary_file.unlink()  # Remove invalid file
+                    continue
+                else:
+                    return {
+                        "success": False,
+                        "details": f"Invalid aggregate summary file after {max_retries} attempts (contains stream logs or invalid JSON)",
+                        "prompt_file": prompt_file,
+                        "summary_file": summary_file,
+                        "log_file": log_file
+                    }
+            
+            # Success!
+            file_size = summary_file.stat().st_size
+            if attempt > 1:
+                info(f"Successfully generated aggregate summary on attempt {attempt}")
+            
             return {
-                "success": False,
-                "details": "Claude CLI completed but no aggregate summary file was created",
+                "success": True,
+                "details": f"Aggregate summary generated ({file_size:,} bytes)",
                 "prompt_file": prompt_file,
                 "summary_file": summary_file,
-                "log_file": log_file
+                "log_file": log_file,
+                "week_range": week_range_str
             }
-        
-        # Get file size for reporting
-        file_size = summary_file.stat().st_size
-        
-        return {
-            "success": True,
-            "details": f"Aggregate summary generated ({file_size:,} bytes)",
-            "prompt_file": prompt_file,
-            "summary_file": summary_file,
-            "log_file": log_file,
-            "week_range": week_range_str
-        }
-        
-    except Exception as e:
-        error(f"Error generating aggregate summary: {e}")
-        return {
-            "success": False,
-            "details": str(e),
-            "prompt_file": prompt_file,
-            "summary_file": summary_file,
-            "log_file": log_file
-        }
+            
+        except Exception as e:
+            if attempt < max_retries:
+                warning(f"Error generating aggregate summary: {e}, retrying...")
+                continue
+            else:
+                error(f"Error generating aggregate summary after {max_retries} attempts: {e}")
+                return {
+                    "success": False,
+                    "details": f"Error after {max_retries} attempts: {str(e)}",
+                    "prompt_file": prompt_file,
+                    "summary_file": summary_file,
+                    "log_file": log_file
+                }
 
 
 def summarize_main(

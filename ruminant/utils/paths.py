@@ -39,6 +39,11 @@ def get_weekly_summaries_dir() -> Path:
     return get_data_dir() / "summary-weekly"
 
 
+def get_weekly_reports_dir() -> Path:
+    """Get the weekly reports directory path."""
+    return get_data_dir() / "reports-weekly"
+
+
 def get_repo_cache_dir(repo: str) -> Path:
     """Get the cache directory for a specific repository."""
     owner, name = repo.split("/")
@@ -110,6 +115,11 @@ def get_aggregate_summary_file_path(year: int, week: int) -> Path:
     return get_weekly_summaries_dir() / f"week-{week:02d}-{year}.json"
 
 
+def get_aggregate_report_file_path(year: int, week: int) -> Path:
+    """Get the aggregate report file path for a specific week."""
+    return get_weekly_reports_dir() / f"week-{week:02d}-{year}.json"
+
+
 def get_aggregate_session_log_file_path(year: int, week: int) -> Path:
     """Get the aggregate session log file path for a specific week."""
     return get_logs_dir() / "weekly" / f"week-{week:02d}-{year}-session.json"
@@ -118,6 +128,7 @@ def get_aggregate_session_log_file_path(year: int, week: int) -> Path:
 def ensure_aggregate_dirs() -> None:
     """Ensure all directories exist for aggregate summaries."""
     get_weekly_summaries_dir().mkdir(parents=True, exist_ok=True)
+    get_weekly_reports_dir().mkdir(parents=True, exist_ok=True)
     (get_logs_dir() / "weekly").mkdir(parents=True, exist_ok=True)
 
 

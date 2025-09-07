@@ -13,6 +13,7 @@ from ..utils.paths import (
     get_summary_file_path,
     get_aggregate_prompt_file_path,
     get_aggregate_summary_file_path,
+    get_aggregate_report_file_path,
 )
 from ..utils.logging import (
     success,
@@ -492,16 +493,17 @@ def report_main(
                             # Annotate the aggregate summary file with GitHub links
                             try:
                                 aggregate_summary_file = get_aggregate_summary_file_path(process_year, process_week)
+                                aggregate_report_file = get_aggregate_report_file_path(process_year, process_week)
                                 annotate_main(
                                     files=[str(aggregate_summary_file)],
                                     repos=None,
                                     weeks=None,
                                     year=None,
                                     week=None,
-                                    in_place=True,
+                                    in_place=False,
                                     all_summaries=False,
                                 )
-                                success("✅ Aggregate summary annotated with GitHub links")
+                                success(f"✅ Aggregate summary annotated: {aggregate_report_file}")
                             except Exception as e:
                                 warning(f"⚠️ Failed to annotate aggregate summary: {e}")
                         else:

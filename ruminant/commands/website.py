@@ -220,16 +220,27 @@ def collect_all_reports(data_dir: Path) -> Tuple[List[ReportData], List[WeeklySu
             if report_data and report_data.has_content:
                 reports.append(report_data)
     
-    # Collect weekly summaries
+    # Collect weekly summaries - prioritize annotated reports over original summaries
     weekly_summaries = []
-    summaries_dir = data_dir / "summary-weekly"
     
-    if summaries_dir.exists():
-        # Find all .json files in summary-weekly directory
-        for summary_file in summaries_dir.glob("*.json"):
+    # First try to load from reports-weekly (annotated)
+    reports_weekly_dir = data_dir / "reports-weekly"
+    if reports_weekly_dir.exists():
+        # Find all .json files in reports-weekly directory
+        for summary_file in reports_weekly_dir.glob("*.json"):
             summary_data = parse_weekly_summary(summary_file)
             if summary_data and summary_data.has_content:
                 weekly_summaries.append(summary_data)
+    
+    # Fallback to original summaries if no annotated ones exist
+    if not weekly_summaries:
+        summaries_dir = data_dir / "summary-weekly"
+        if summaries_dir.exists():
+            # Find all .json files in summary-weekly directory
+            for summary_file in summaries_dir.glob("*.json"):
+                summary_data = parse_weekly_summary(summary_file)
+                if summary_data and summary_data.has_content:
+                    weekly_summaries.append(summary_data)
     
     # Sort by year, week, org, repo
     reports.sort(key=lambda x: (x.year, x.week, x.org, x.repo))
