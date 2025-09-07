@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import tomli
 import tomli_w
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -23,6 +24,23 @@ class ClaudeConfig:
 
 
 @dataclass
+class GroupConfig:
+    """Repository group configuration."""
+    name: str
+    description: str
+    prompt: str = ""
+    repositories: List[str] = field(default_factory=list)
+
+
+@dataclass
+class RepositoryConfig:
+    """Individual repository configuration."""
+    name: str
+    group: str
+    custom_prompt: Optional[str] = None
+
+
+@dataclass
 class ReportingConfig:
     """Reporting configuration."""
     default_weeks: int = 1
@@ -34,11 +52,24 @@ class Config:
     """Main configuration class."""
     project_name: str = "OCaml Community Activity"
     project_description: str = "Weekly reports for OCaml ecosystem projects"
-    repositories: List[str] = field(default_factory=list)
+    repositories: List[str] = field(default_factory=list)  # Legacy: list of repo names
+    repository_configs: List[RepositoryConfig] = field(default_factory=list)  # New: repo configs with groups
+    groups: Dict[str, GroupConfig] = field(default_factory=dict)  # Group definitions
     custom_prompts: Dict[str, str] = field(default_factory=dict)
     github: GitHubConfig = field(default_factory=GitHubConfig)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
+    
+    def get_repositories_for_group(self, group_name: str) -> List[str]:
+        """Get all repository names for a specific group."""
+        return [repo.name for repo in self.repository_configs if repo.group == group_name]
+    
+    def get_repository_group(self, repo_name: str) -> Optional[str]:
+        """Get the group name for a specific repository."""
+        for repo in self.repository_configs:
+            if repo.name == repo_name:
+                return repo.group
+        return None
 
 
 def find_config_file() -> Optional[Path]:
@@ -84,11 +115,78 @@ def load_config() -> Config:
                 config.project_name = project.get("name", config.project_name)
                 config.project_description = project.get("description", config.project_description)
             
-            # Repositories
+            # Load groups first
+            if "groups" in data:
+                for group_key, group_data in data["groups"].items():
+                    if isinstance(group_data, dict):
+                        group_config = GroupConfig(
+                            name=group_data.get("name", group_key),
+                            description=group_data.get("description", ""),
+                            prompt=group_data.get("prompt", ""),
+                            repositories=[]  # Will be populated when loading repos
+                        )
+                        config.groups[group_key] = group_config
+            
+            # Load repositories with group assignments
             if "repositories" in data:
-                repos = data["repositories"]
-                config.repositories = repos.get("repos", [])
-                config.custom_prompts = repos.get("custom_prompts", {})
+                if isinstance(data["repositories"], list):
+                    # New format: list of repository configs with groups
+                    for repo_data in data["repositories"]:
+                        if isinstance(repo_data, dict):
+                            repo_name = repo_data.get("name")
+                            repo_group = repo_data.get("group")
+                            
+                            if not repo_name:
+                                raise ValueError("Repository missing 'name' field")
+                            if not repo_group:
+                                raise ValueError(f"Repository '{repo_name}' missing required 'group' field")
+                            if repo_group not in config.groups:
+                                raise ValueError(f"Repository '{repo_name}' references undefined group '{repo_group}'")
+                            
+                            repo_config = RepositoryConfig(
+                                name=repo_name,
+                                group=repo_group,
+                                custom_prompt=repo_data.get("custom_prompt")
+                            )
+                            config.repository_configs.append(repo_config)
+                            config.repositories.append(repo_name)  # Maintain backward compatibility
+                            
+                            # Add repo to its group
+                            config.groups[repo_group].repositories.append(repo_name)
+                            
+                            # Store custom prompt if provided
+                            if repo_config.custom_prompt:
+                                config.custom_prompts[repo_name] = repo_config.custom_prompt
+                
+                elif isinstance(data["repositories"], dict):
+                    # Legacy format compatibility
+                    repos = data["repositories"]
+                    legacy_repos = repos.get("repos", [])
+                    if legacy_repos:
+                        print("Warning: Using legacy repository format without groups. Please update your config.")
+                        # Create a default group for legacy repos
+                        if "default" not in config.groups:
+                            config.groups["default"] = GroupConfig(
+                                name="Default",
+                                description="Ungrouped repositories",
+                                prompt="",
+                                repositories=[]
+                            )
+                        for repo_name in legacy_repos:
+                            repo_config = RepositoryConfig(
+                                name=repo_name,
+                                group="default"
+                            )
+                            config.repository_configs.append(repo_config)
+                            config.repositories.append(repo_name)
+                            config.groups["default"].repositories.append(repo_name)
+                    
+                    config.custom_prompts = repos.get("custom_prompts", {})
+            
+            # Validate that all groups have at least one repository
+            for group_key, group_config in config.groups.items():
+                if not group_config.repositories:
+                    print(f"Warning: Group '{group_key}' has no repositories assigned")
             
             # Claude config
             if "claude" in data:
@@ -149,18 +247,33 @@ def create_default_config() -> None:
             "name": "OCaml Community Activity",
             "description": "Weekly reports for OCaml ecosystem projects"
         },
-        "repositories": {
-            "repos": [
-                "ocaml/opam-repository",
-                "mirage/mirage",
-                "janestreet/base",
-                "ocsigen/lwt"
-            ],
-            "custom_prompts": {
-                "ocaml/opam-repository": """Focus on package submissions, maintenance updates, and ecosystem changes.
-Highlight any breaking changes or major version updates."""
+        "groups": {
+            "oxcaml": {
+                "name": "OCaml Core",
+                "description": "Core OCaml language and tooling",
+                "prompt": """Focus on language features, compiler improvements, and core tooling changes.
+Highlight any breaking changes or deprecations that affect the ecosystem."""
+            },
+            "mirage": {
+                "name": "MirageOS",
+                "description": "MirageOS unikernel ecosystem",
+                "prompt": """Emphasize unikernel-specific developments, security updates, and deployment improvements.
+Track progress on platform support and hardware compatibility."""
+            },
+            "community": {
+                "name": "OCaml Community",
+                "description": "Broader OCaml community projects",
+                "prompt": """Highlight innovative libraries, new frameworks, and community contributions.
+Note adoption trends and emerging patterns in the ecosystem."""
             }
         },
+        "repositories": [
+            {"name": "ocaml/opam-repository", "group": "oxcaml"},
+            {"name": "ocaml/ocaml", "group": "oxcaml"},
+            {"name": "mirage/mirage", "group": "mirage"},
+            {"name": "janestreet/base", "group": "community"},
+            {"name": "ocsigen/lwt", "group": "community"}
+        ],
         "claude": {
             "command": "claude",
             "args": ["-p"],

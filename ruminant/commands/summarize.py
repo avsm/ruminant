@@ -12,9 +12,9 @@ from ..config import load_config
 from ..utils.dates import get_last_complete_week, get_week_list, format_week_range
 from ..utils.paths import (
     get_prompt_file_path, get_summary_file_path, get_session_log_file_path,
-    ensure_repo_dirs, parse_repo, get_aggregate_prompt_file_path,
-    get_aggregate_summary_file_path, get_aggregate_session_log_file_path,
-    ensure_aggregate_dirs
+    ensure_repo_dirs, parse_repo, get_group_prompt_file_path,
+    get_group_summary_file_path, get_group_session_log_file_path,
+    ensure_group_dirs
 )
 from ..utils.logging import (
     success, error, warning, info, step, summary_table, operation_summary,
@@ -287,21 +287,22 @@ def generate_summary(repo: str, year: int, week: int, config, claude_args: Optio
                 }
 
 
-def generate_aggregate_summary(year: int, week: int, config, claude_args: Optional[List[str]] = None, max_retries: int = 3) -> dict:
-    """Generate an aggregate summary using Claude CLI for a specific week with automatic retry."""
+def generate_group_summary(group: str, year: int, week: int, config, claude_args: Optional[List[str]] = None, max_retries: int = 3) -> dict:
+    """Generate a group summary using Claude CLI for a specific week with automatic retry."""
     
     # Get file paths
-    ensure_aggregate_dirs()
-    prompt_file = get_aggregate_prompt_file_path(year, week)
-    summary_file = get_aggregate_summary_file_path(year, week)
-    log_file = get_aggregate_session_log_file_path(year, week)
+    ensure_group_dirs(group)
+    prompt_file = get_group_prompt_file_path(group, year, week)
+    summary_file = get_group_summary_file_path(group, year, week)
+    log_file = get_group_session_log_file_path(group, year, week)
     week_range_str = format_week_range(year, week)
     
     # Check if prompt file exists
     if not prompt_file.exists():
         return {
             "success": False,
-            "details": f"Aggregate prompt file not found: {prompt_file}",
+            "group": group,
+            "details": f"Group '{group}' prompt file not found: {prompt_file}",
             "prompt_file": prompt_file,
             "summary_file": summary_file,
             "log_file": log_file
@@ -315,13 +316,13 @@ def generate_aggregate_summary(year: int, week: int, config, claude_args: Option
         try:
             # Clean up any invalid summary file from previous attempt
             if summary_file.exists() and not validate_summary_file(summary_file):
-                warning(f"Removing invalid aggregate summary file from previous attempt: {summary_file}")
+                warning(f"Removing invalid group summary file from previous attempt: {summary_file}")
                 summary_file.unlink()
             
             # Update log file path for each attempt
             if attempt > 1:
-                log_file = get_aggregate_session_log_file_path(year, week).with_suffix(f".attempt{attempt}.json")
-                info(f"Retry attempt {attempt}/{max_retries} for aggregate summary week {week}/{year}")
+                log_file = get_group_session_log_file_path(group, year, week).with_suffix(f".attempt{attempt}.json")
+                info(f"Retry attempt {attempt}/{max_retries} for group '{group}' summary week {week}/{year}")
                 time.sleep(2)  # Brief delay between retries
             
             # Run Claude CLI with logging
@@ -330,7 +331,7 @@ def generate_aggregate_summary(year: int, week: int, config, claude_args: Option
             # Check for timeout
             if claude_result.get("timeout", False):
                 if attempt < max_retries:
-                    warning(f"Claude CLI timed out for aggregate summary, retrying...")
+                    warning(f"Claude CLI timed out for group '{group}' summary, retrying...")
                     continue
                 else:
                     return {
@@ -360,12 +361,12 @@ def generate_aggregate_summary(year: int, week: int, config, claude_args: Option
             # Verify the summary file was created and is valid
             if not summary_file.exists():
                 if attempt < max_retries:
-                    warning(f"No aggregate summary file created, retrying...")
+                    warning(f"No group '{group}' summary file created, retrying...")
                     continue
                 else:
                     return {
                         "success": False,
-                        "details": f"No aggregate summary file created after {max_retries} attempts. Make sure the prompt instructs Claude to write to a file.",
+                        "details": f"No group '{group}' summary file created after {max_retries} attempts. Make sure the prompt instructs Claude to write to a file.",
                         "prompt_file": prompt_file,
                         "summary_file": summary_file,
                         "log_file": log_file
@@ -374,13 +375,13 @@ def generate_aggregate_summary(year: int, week: int, config, claude_args: Option
             # Validate the summary file
             if not validate_summary_file(summary_file):
                 if attempt < max_retries:
-                    warning(f"Invalid aggregate summary file generated, retrying...")
+                    warning(f"Invalid group '{group}' summary file generated, retrying...")
                     summary_file.unlink()  # Remove invalid file
                     continue
                 else:
                     return {
                         "success": False,
-                        "details": f"Invalid aggregate summary file after {max_retries} attempts (contains stream logs or invalid JSON)",
+                        "details": f"Invalid group '{group}' summary file after {max_retries} attempts (contains stream logs or invalid JSON)",
                         "prompt_file": prompt_file,
                         "summary_file": summary_file,
                         "log_file": log_file
@@ -389,11 +390,12 @@ def generate_aggregate_summary(year: int, week: int, config, claude_args: Option
             # Success!
             file_size = summary_file.stat().st_size
             if attempt > 1:
-                info(f"Successfully generated aggregate summary on attempt {attempt}")
+                info(f"Successfully generated group '{group}' summary on attempt {attempt}")
             
             return {
                 "success": True,
-                "details": f"Aggregate summary generated ({file_size:,} bytes)",
+                "group": group,
+                "details": f"Group '{group}' summary generated ({file_size:,} bytes)",
                 "prompt_file": prompt_file,
                 "summary_file": summary_file,
                 "log_file": log_file,
@@ -402,10 +404,10 @@ def generate_aggregate_summary(year: int, week: int, config, claude_args: Option
             
         except Exception as e:
             if attempt < max_retries:
-                warning(f"Error generating aggregate summary: {e}, retrying...")
+                warning(f"Error generating group '{group}' summary: {e}, retrying...")
                 continue
             else:
-                error(f"Error generating aggregate summary after {max_retries} attempts: {e}")
+                error(f"Error generating group '{group}' summary after {max_retries} attempts: {e}")
                 return {
                     "success": False,
                     "details": f"Error after {max_retries} attempts: {str(e)}",
@@ -423,7 +425,9 @@ def summarize_main(
     claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI (space-separated)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without running Claude CLI"),
     parallel_workers: Optional[int] = typer.Option(None, "--parallel-workers", help="Number of parallel Claude instances (default from config)"),
-    aggregate: bool = typer.Option(False, "--aggregate", help="Generate aggregate weekly summary across all repositories"),
+    group: Optional[str] = typer.Option(None, "--group", help="Generate summary for a specific group"),
+    all_groups: bool = typer.Option(False, "--all-groups", help="Generate summaries for all configured groups"),
+    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group summary generation"),
 ) -> None:
     """Generate summaries using Claude CLI."""
     
@@ -460,15 +464,22 @@ def summarize_main(
         else:
             target_year, target_week = get_last_complete_week()
         
-        # Handle aggregate mode
-        if aggregate:
-            # Get list of weeks to process
-            if weeks > 1:
-                week_list = get_week_list(weeks, target_year, target_week)
-                step(f"Generating aggregate summaries for {weeks} weeks")
-            else:
-                week_list = [(target_year, target_week)]
-                step(f"Generating aggregate summary for week {target_week} of {target_year}")
+        # Get list of weeks to process
+        if weeks > 1:
+            week_list = get_week_list(weeks, target_year, target_week)
+        else:
+            week_list = [(target_year, target_week)]
+        
+        all_results = []
+        
+        # Handle specific group generation
+        if group:
+            if group not in config.groups:
+                error(f"Group '{group}' not found in configuration")
+                raise typer.Exit(1)
+            
+            group_repos = config.get_repositories_for_group(group)
+            step(f"Generating summaries for group '{group}' with {len(group_repos)} repositories for {len(week_list)} week(s)")
             
             if dry_run:
                 info("DRY RUN MODE - No actual summaries will be generated")
@@ -478,24 +489,18 @@ def summarize_main(
             claude_cmd_args = parsed_claude_args if parsed_claude_args else config.claude.args
             info(f"Claude CLI: {claude_cmd} {' '.join(claude_cmd_args)}")
             
-            # Generate aggregate summaries for each week
-            all_results = []
-            total_operations = len(week_list)
-            current_operation = 0
-            
             for w_year, w_week in week_list:
-                current_operation += 1
-                info(f"[{current_operation}/{total_operations}] Generating aggregate summary for week {w_week}/{w_year}")
+                info(f"Generating group summary for '{group}' week {w_week}/{w_year}")
                 
                 if dry_run:
-                    # Just check if prompt file exists
-                    prompt_file = get_aggregate_prompt_file_path(w_year, w_week)
-                    summary_file = get_aggregate_summary_file_path(w_year, w_week)
-                    log_file = get_aggregate_session_log_file_path(w_year, w_week)
+                    prompt_file = get_group_prompt_file_path(group, w_year, w_week)
+                    summary_file = get_group_summary_file_path(group, w_year, w_week)
+                    log_file = get_group_session_log_file_path(group, w_year, w_week)
                     
                     if prompt_file.exists():
                         result = {
                             "success": True,
+                            "group": group,
                             "details": f"Would generate from {prompt_file} -> {summary_file}",
                             "prompt_file": prompt_file,
                             "summary_file": summary_file,
@@ -504,20 +509,76 @@ def summarize_main(
                     else:
                         result = {
                             "success": False,
-                            "details": f"Aggregate prompt file missing: {prompt_file}",
+                            "group": group,
+                            "details": f"Group prompt file missing: {prompt_file}",
                             "prompt_file": prompt_file,
                             "summary_file": summary_file,
                             "log_file": log_file
                         }
                 else:
-                    result = generate_aggregate_summary(w_year, w_week, config, parsed_claude_args)
+                    result = generate_group_summary(group, w_year, w_week, config, parsed_claude_args)
                 
                 all_results.append(result)
                 
                 if result["success"]:
-                    success(f"Aggregate summary: {result['summary_file']}")
+                    success(f"Group summary: {result['summary_file']}")
                 else:
                     error(f"Failed: {result['details']}")
+        
+        # Handle all groups generation
+        elif all_groups:
+            if not config.groups:
+                error("No groups configured")
+                raise typer.Exit(1)
+            
+            step(f"Generating summaries for {len(config.groups)} groups for {len(week_list)} week(s)")
+            
+            if dry_run:
+                info("DRY RUN MODE - No actual summaries will be generated")
+            
+            # Show Claude CLI configuration
+            claude_cmd = config.claude.command
+            claude_cmd_args = parsed_claude_args if parsed_claude_args else config.claude.args
+            info(f"Claude CLI: {claude_cmd} {' '.join(claude_cmd_args)}")
+            
+            for group_name in config.groups:
+                for w_year, w_week in week_list:
+                    info(f"Generating group summary for '{group_name}' week {w_week}/{w_year}")
+                    
+                    if dry_run:
+                        prompt_file = get_group_prompt_file_path(group_name, w_year, w_week)
+                        summary_file = get_group_summary_file_path(group_name, w_year, w_week)
+                        log_file = get_group_session_log_file_path(group_name, w_year, w_week)
+                        
+                        if prompt_file.exists():
+                            result = {
+                                "success": True,
+                                "group": group_name,
+                                "details": f"Would generate from {prompt_file} -> {summary_file}",
+                                "prompt_file": prompt_file,
+                                "summary_file": summary_file,
+                                "log_file": log_file
+                            }
+                        else:
+                            result = {
+                                "success": False,
+                                "group": group_name,
+                                "details": f"Group prompt file missing: {prompt_file}",
+                                "prompt_file": prompt_file,
+                                "summary_file": summary_file,
+                                "log_file": log_file
+                            }
+                    else:
+                        result = generate_group_summary(group_name, w_year, w_week, config, parsed_claude_args)
+                    
+                    all_results.append(result)
+                    
+                    if result["success"]:
+                        success(f"Group summary: {result['summary_file']}")
+                    else:
+                        error(f"Failed: {result['details']}")
+        
+        # Default: generate individual repo summaries, then group summaries
         else:
             # Original per-repository logic
             # Get list of weeks to process
@@ -625,6 +686,48 @@ def summarize_main(
                             error(f"[{current_operation}/{total_operations}] Failed: {repo} week {w_week}/{w_year} - {e}")
                         
                         all_results.append(result)
+            
+            # After individual summaries, generate group summaries (unless skipped)
+            if not skip_groups and config.groups:
+                step(f"Generating summaries for {len(config.groups)} groups")
+                
+                for group_name in config.groups:
+                    for w_year, w_week in week_list:
+                        info(f"Generating group summary for '{group_name}' week {w_week}/{w_year}")
+                        
+                        if dry_run:
+                            prompt_file = get_group_prompt_file_path(group_name, w_year, w_week)
+                            summary_file = get_group_summary_file_path(group_name, w_year, w_week)
+                            log_file = get_group_session_log_file_path(group_name, w_year, w_week)
+                            
+                            if prompt_file.exists():
+                                result = {
+                                    "success": True,
+                                    "group": group_name,
+                                    "details": f"Would generate from {prompt_file} -> {summary_file}",
+                                    "prompt_file": prompt_file,
+                                    "summary_file": summary_file,
+                                    "log_file": log_file
+                                }
+                            else:
+                                result = {
+                                    "success": False,
+                                    "group": group_name,
+                                    "details": f"Group prompt file missing: {prompt_file}",
+                                    "prompt_file": prompt_file,
+                                    "summary_file": summary_file,
+                                    "log_file": log_file
+                                }
+                        else:
+                            # Run group summaries sequentially (they're aggregations, so fewer of them)
+                            result = generate_group_summary(group_name, w_year, w_week, config, parsed_claude_args)
+                        
+                        all_results.append(result)
+                        
+                        if result["success"]:
+                            success(f"Group summary: {result['summary_file']}")
+                        else:
+                            error(f"Failed: {result['details']}")
         
         # Print summary
         successful_results = [r for r in all_results if r["success"]]
@@ -642,8 +745,8 @@ def summarize_main(
         
         # Show next steps
         if successful_results and not dry_run:
-            if aggregate:
-                info("Aggregate summaries generated successfully.")
+            if group or all_groups:
+                info("Group summaries generated successfully.")
             elif config.reporting.auto_annotate:
                 info("To annotate reports with GitHub links:")
                 info("  ruminant annotate")

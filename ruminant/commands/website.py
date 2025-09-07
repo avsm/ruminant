@@ -62,8 +62,9 @@ class ReportData:
 
 
 @dataclass
-class WeeklySummaryData:
-    """Structured data from a weekly aggregate summary JSON."""
+class GroupSummaryData:
+    """Structured data from a group summary JSON."""
+    group: str
     year: int
     week: int
     week_range: str
@@ -101,7 +102,11 @@ class WeekData:
     week: int
     week_range: str
     repos: Dict[str, ReportData]  # repo_key -> ReportData
-    weekly_summary: Optional[WeeklySummaryData] = None
+    group_summaries: Dict[str, GroupSummaryData] = None  # group_name -> GroupSummaryData
+    
+    def __post_init__(self):
+        if self.group_summaries is None:
+            self.group_summaries = {}
     
     @property
     def activity_level(self) -> int:
@@ -120,18 +125,21 @@ class WeekData:
             if repo.emerging_trends:
                 level += 2
         
-        # Add bonus for weekly summary
-        if self.weekly_summary and self.weekly_summary.has_content:
-            level += 5
+        # Add bonus for group summaries
+        if self.group_summaries:
+            for summary in self.group_summaries.values():
+                if summary.has_content:
+                    level += 3
         
         return level
 
 
-def parse_weekly_summary(file_path: Path) -> Optional[WeeklySummaryData]:
-    """Parse a weekly aggregate summary JSON file."""
+def parse_group_summary(file_path: Path, group_name: str) -> Optional[GroupSummaryData]:
+    """Parse a group summary JSON file."""
     try:
         # Extract year, week from filename
-        # Expected: data/summary-weekly/week-{week}-{year}.json
+        # Expected: data/summaries/groups/{group}/week-{week}-{year}.json or
+        #           data/reports/groups/{group}/week-{week}-{year}.json
         filename = file_path.stem  # removes .json
         if not filename.startswith('week-'):
             return None
@@ -149,7 +157,8 @@ def parse_weekly_summary(file_path: Path) -> Optional[WeeklySummaryData]:
         
         week_range = data.get('week_range', format_week_range(year, week))
         
-        return WeeklySummaryData(
+        return GroupSummaryData(
+            group=group_name,
             year=year,
             week=week,
             week_range=week_range,
@@ -167,7 +176,7 @@ def parse_weekly_summary(file_path: Path) -> Optional[WeeklySummaryData]:
         )
         
     except (ValueError, KeyError, json.JSONDecodeError) as e:
-        error(f"Error parsing weekly summary {file_path}: {e}")
+        error(f"Error parsing group summary {file_path}: {e}")
         return None
 
 
@@ -208,48 +217,60 @@ def parse_json_report(file_path: Path) -> Optional[ReportData]:
         return None
 
 
-def collect_all_reports(data_dir: Path) -> Tuple[List[ReportData], List[WeeklySummaryData]]:
-    """Collect and parse all JSON report files and weekly summaries."""
+def collect_all_reports(data_dir: Path) -> Tuple[List[ReportData], Dict[str, List[GroupSummaryData]]]:
+    """Collect and parse all JSON report files and group summaries."""
     reports = []
     reports_dir = data_dir / "reports"
     
     if reports_dir.exists():
-        # Find all .json files in reports directory
+        # Find all .json files in reports directory (excluding groups)
         for report_file in reports_dir.rglob("*.json"):
-            report_data = parse_json_report(report_file)
-            if report_data and report_data.has_content:
-                reports.append(report_data)
+            # Skip files in groups directory
+            if "groups" not in report_file.parts:
+                report_data = parse_json_report(report_file)
+                if report_data and report_data.has_content:
+                    reports.append(report_data)
     
-    # Collect weekly summaries - prioritize annotated reports over original summaries
-    weekly_summaries = []
+    # Collect group summaries
+    group_summaries = {}
     
-    # First try to load from reports-weekly (annotated)
-    reports_weekly_dir = data_dir / "reports-weekly"
-    if reports_weekly_dir.exists():
-        # Find all .json files in reports-weekly directory
-        for summary_file in reports_weekly_dir.glob("*.json"):
-            summary_data = parse_weekly_summary(summary_file)
-            if summary_data and summary_data.has_content:
-                weekly_summaries.append(summary_data)
+    # First try to load from reports/groups (annotated)
+    reports_groups_dir = data_dir / "reports" / "groups"
+    if reports_groups_dir.exists():
+        for group_dir in reports_groups_dir.iterdir():
+            if group_dir.is_dir():
+                group_name = group_dir.name
+                group_summaries[group_name] = []
+                for summary_file in group_dir.glob("*.json"):
+                    summary_data = parse_group_summary(summary_file, group_name)
+                    if summary_data and summary_data.has_content:
+                        group_summaries[group_name].append(summary_data)
     
     # Fallback to original summaries if no annotated ones exist
-    if not weekly_summaries:
-        summaries_dir = data_dir / "summary-weekly"
-        if summaries_dir.exists():
-            # Find all .json files in summary-weekly directory
-            for summary_file in summaries_dir.glob("*.json"):
-                summary_data = parse_weekly_summary(summary_file)
-                if summary_data and summary_data.has_content:
-                    weekly_summaries.append(summary_data)
+    if not group_summaries:
+        summaries_groups_dir = data_dir / "summaries" / "groups"
+        if summaries_groups_dir.exists():
+            for group_dir in summaries_groups_dir.iterdir():
+                if group_dir.is_dir():
+                    group_name = group_dir.name
+                    group_summaries[group_name] = []
+                    for summary_file in group_dir.glob("*.json"):
+                        summary_data = parse_group_summary(summary_file, group_name)
+                        if summary_data and summary_data.has_content:
+                            group_summaries[group_name].append(summary_data)
     
-    # Sort by year, week, org, repo
+    # Sort reports by year, week, org, repo
     reports.sort(key=lambda x: (x.year, x.week, x.org, x.repo))
-    weekly_summaries.sort(key=lambda x: (x.year, x.week))
-    return reports, weekly_summaries
+    
+    # Sort group summaries by year and week
+    for group_name in group_summaries:
+        group_summaries[group_name].sort(key=lambda x: (x.year, x.week))
+    
+    return reports, group_summaries
 
 
-def organize_by_weeks(reports: List[ReportData], weekly_summaries: List[WeeklySummaryData]) -> Dict[Tuple[int, int], WeekData]:
-    """Organize reports and weekly summaries by (year, week)."""
+def organize_by_weeks(reports: List[ReportData], group_summaries: Dict[str, List[GroupSummaryData]]) -> Dict[Tuple[int, int], WeekData]:
+    """Organize reports and group summaries by (year, week)."""
     weeks = {}
     
     for report in reports:
@@ -261,24 +282,27 @@ def organize_by_weeks(reports: List[ReportData], weekly_summaries: List[WeeklySu
                 year=report.year,
                 week=report.week,
                 week_range=report.week_range,
-                repos={}
+                repos={},
+                group_summaries={}
             )
         
         weeks[week_key].repos[repo_key] = report
     
-    # Add weekly summaries
-    for summary in weekly_summaries:
-        week_key = (summary.year, summary.week)
-        
-        if week_key not in weeks:
-            weeks[week_key] = WeekData(
-                year=summary.year,
-                week=summary.week,
-                week_range=summary.week_range,
-                repos={}
-            )
-        
-        weeks[week_key].weekly_summary = summary
+    # Add group summaries
+    for group_name, summaries in group_summaries.items():
+        for summary in summaries:
+            week_key = (summary.year, summary.week)
+            
+            if week_key not in weeks:
+                weeks[week_key] = WeekData(
+                    year=summary.year,
+                    week=summary.week,
+                    week_range=summary.week_range,
+                    repos={},
+                    group_summaries={}
+                )
+            
+            weeks[week_key].group_summaries[group_name] = summary
     
     return weeks
 
@@ -318,17 +342,27 @@ def generate_calendar_html(weeks_data: Dict[Tuple[int, int], WeekData], all_repo
             # Create navigation links
             prev_week, next_week = get_adjacent_weeks(sorted_weeks, (year, week_num))
             
-            # Create summary content - prioritize weekly summary if available
+            # Create summary content - prioritize group summaries if available
             summary_content = ''
-            if week_data.weekly_summary and week_data.weekly_summary.short_summary:
-                # Use the curated short summary from aggregate
-                summary_content = week_data.weekly_summary.short_summary
-                if len(summary_content) > 120:
-                    summary_content = summary_content[:117] + "..."
+            if week_data.group_summaries:
+                # Use group summaries
+                group_items = []
+                for group_name in sorted(week_data.group_summaries.keys())[:2]:
+                    summary = week_data.group_summaries[group_name]
+                    if summary.short_summary:
+                        text = summary.short_summary
+                        if len(text) > 80:
+                            text = text[:77] + "..."
+                        group_items.append(f'{group_name}: {text}')
+                
+                if len(week_data.group_summaries) > 2:
+                    group_items.append(f'+{len(week_data.group_summaries) - 2} more groups')
+                
+                summary_content = ' • '.join(group_items)
             else:
                 # Fall back to individual repo summaries
                 repo_items = []
-                for repo in sorted(week_data.repos.keys())[:3]:  # Show fewer when no weekly summary
+                for repo in sorted(week_data.repos.keys())[:3]:
                     report = week_data.repos[repo]
                     summary = report.summary_text
                     if len(summary) > 60:
@@ -342,8 +376,8 @@ def generate_calendar_html(weeks_data: Dict[Tuple[int, int], WeekData], all_repo
             
             # Repo count indicator
             repo_count_html = f'<span class="repo-count">{len(week_data.repos)} repos'
-            if week_data.weekly_summary:
-                repo_count_html += ' • 📊 Summary'
+            if week_data.group_summaries:
+                repo_count_html += f' • 📊 {len(week_data.group_summaries)} groups'
             repo_count_html += '</span>'
             
             # Create week card
@@ -452,9 +486,10 @@ def generate_week_detail_html(week_data: WeekData, prev_week: Optional[Tuple[int
     # Generate table of contents
     toc_items = []
     
-    # Add weekly summary to TOC if available
-    if week_data.weekly_summary:
-        toc_items.append('<li><a href="#weekly-summary">📊 Weekly Summary</a></li>')
+    # Add group summaries to TOC if available
+    if week_data.group_summaries:
+        for group_name in sorted(week_data.group_summaries.keys()):
+            toc_items.append(f'<li><a href="#group-{group_name}">📊 {group_name.upper()} Summary</a></li>')
     
     for repo in sorted(week_data.repos.keys()):
         repo_id = repo.replace('/', '-')
@@ -467,100 +502,101 @@ def generate_week_detail_html(week_data: WeekData, prev_week: Optional[Tuple[int
             {''.join(toc_items)}
         </ul>
     </div>
-    ''' if (len(week_data.repos) > 1 or week_data.weekly_summary) else ''
+    ''' if (len(week_data.repos) > 1 or week_data.group_summaries) else ''
     
-    # Weekly summary section
-    weekly_summary_html = ''
-    if week_data.weekly_summary:
-        summary = week_data.weekly_summary
-        summary_sections = []
-        
-        if summary.short_summary:
-            summary_sections.append(f'''
-            <div class="summary-highlight">
-                <p class="short-summary">{summary.short_summary}</p>
-            </div>
-            ''')
-        
-        if summary.overall_activity:
-            summary_sections.append(f'''
-            <div class="section">
-                <h3>Overall Activity</h3>
-                {format_markdown_section(summary.overall_activity)}
-            </div>
-            ''')
-        
-        if summary.key_achievements:
-            summary_sections.append(f'''
-            <div class="section">
-                <h3>Key Achievements</h3>
-                {format_markdown_section(summary.key_achievements)}
-            </div>
-            ''')
-        
-        if summary.ongoing_initiatives:
-            summary_sections.append(f'''
-            <div class="section">
-                <h3>Ongoing Initiatives</h3>
-                {format_markdown_section(summary.ongoing_initiatives)}
-            </div>
-            ''')
-        
-        if summary.priority_items:
-            summary_sections.append(f'''
-            <div class="section">
-                <h3>Priority Items</h3>
-                {format_markdown_section(summary.priority_items)}
-            </div>
-            ''')
-        
-        if summary.notable_discussions:
-            summary_sections.append(f'''
-            <div class="section">
-                <h3>Notable Discussions</h3>
-                {format_markdown_section(summary.notable_discussions)}
-            </div>
-            ''')
-        
-        if summary.emerging_patterns:
-            summary_sections.append(f'''
-            <div class="section">
-                <h3>Emerging Patterns</h3>
-                {format_markdown_section(summary.emerging_patterns)}
-            </div>
-            ''')
-        
-        if summary.ecosystem_health:
-            summary_sections.append(f'''
-            <div class="section">
-                <h3>Ecosystem Health</h3>
-                {format_markdown_section(summary.ecosystem_health)}
-            </div>
-            ''')
-        
-        if summary.contributors_spotlight:
-            summary_sections.append(f'''
-            <div class="section">
-                <h3>Contributors Spotlight</h3>
-                {format_markdown_section(summary.contributors_spotlight)}
-            </div>
-            ''')
-        
-        repos_included = ', '.join(summary.repositories_included) if summary.repositories_included else 'All repositories'
-        
-        weekly_summary_html = f'''
-        <section class="weekly-summary-section" id="weekly-summary">
-            <div class="weekly-summary-header">
-                <h2 class="weekly-summary-title">📊 Weekly Summary</h2>
-                <div class="summary-meta">
-                    <span class="repos-included">Covering: {repos_included}</span>
+    # Group summaries section
+    group_summaries_html = []
+    if week_data.group_summaries:
+        for group_name in sorted(week_data.group_summaries.keys()):
+            summary = week_data.group_summaries[group_name]
+            summary_sections = []
+            
+            if summary.short_summary:
+                summary_sections.append(f'''
+                <div class="summary-highlight">
+                    <p class="short-summary">{summary.short_summary}</p>
                 </div>
-            </div>
-            <div class="weekly-summary-content">
-                {''.join(summary_sections)}
-            </div>
-        </section>
-        '''
+                ''')
+            
+            if summary.overall_activity:
+                summary_sections.append(f'''
+                <div class="section">
+                    <h3>Overall Activity</h3>
+                    {format_markdown_section(summary.overall_activity)}
+                </div>
+                ''')
+            
+            if summary.key_achievements:
+                summary_sections.append(f'''
+                <div class="section">
+                    <h3>Key Achievements</h3>
+                    {format_markdown_section(summary.key_achievements)}
+                </div>
+                ''')
+            
+            if summary.ongoing_initiatives:
+                summary_sections.append(f'''
+                <div class="section">
+                    <h3>Ongoing Initiatives</h3>
+                    {format_markdown_section(summary.ongoing_initiatives)}
+                </div>
+                ''')
+            
+            if summary.priority_items:
+                summary_sections.append(f'''
+                <div class="section">
+                    <h3>Priority Items</h3>
+                    {format_markdown_section(summary.priority_items)}
+                </div>
+                ''')
+            
+            if summary.notable_discussions:
+                summary_sections.append(f'''
+                <div class="section">
+                    <h3>Notable Discussions</h3>
+                    {format_markdown_section(summary.notable_discussions)}
+                </div>
+                ''')
+            
+            if summary.emerging_patterns:
+                summary_sections.append(f'''
+                <div class="section">
+                    <h3>Emerging Patterns</h3>
+                    {format_markdown_section(summary.emerging_patterns)}
+                </div>
+                ''')
+            
+            if summary.ecosystem_health:
+                summary_sections.append(f'''
+                <div class="section">
+                    <h3>Ecosystem Health</h3>
+                    {format_markdown_section(summary.ecosystem_health)}
+                </div>
+                ''')
+            
+            if summary.contributors_spotlight:
+                summary_sections.append(f'''
+                <div class="section">
+                    <h3>Contributors Spotlight</h3>
+                    {format_markdown_section(summary.contributors_spotlight)}
+                </div>
+                ''')
+            
+            repos_included = ', '.join(summary.repositories_included) if summary.repositories_included else 'All repositories'
+            
+            group_summaries_html.append(f'''
+            <section class="group-summary-section" id="group-{group_name}">
+                <div class="group-summary-header">
+                    <h2 class="group-summary-title">📊 {group_name.upper()} Summary</h2>
+                    <div class="summary-meta">
+                        <span class="repos-included">Repositories: {repos_included}</span>
+                    </div>
+                </div>
+                <div class="group-summary-content">
+                    {''.join(summary_sections)}
+                </div>
+            </section>
+            ''')
 
     # Repository sections
     repo_sections = []
@@ -656,7 +692,7 @@ def generate_week_detail_html(week_data: WeekData, prev_week: Optional[Tuple[int
         {toc_html}
         
         <main class="repos-container">
-            {weekly_summary_html}
+            {''.join(group_summaries_html)}
             {''.join(repo_sections)}
         </main>
     </div>
@@ -738,16 +774,17 @@ def website_main(
         output_path = Path(output_dir)
         
         step("Collecting and parsing JSON report files...")
-        reports, weekly_summaries = collect_all_reports(data_dir)
+        reports, group_summaries = collect_all_reports(data_dir)
         
-        if not reports and not weekly_summaries:
-            error("No JSON report files or weekly summaries found. Run 'ruminant annotate' and/or generate aggregate summaries first.")
+        if not reports and not group_summaries:
+            error("No JSON report files or group summaries found. Run 'ruminant annotate' and/or generate group summaries first.")
             raise typer.Exit(1)
         
-        info(f"Found {len(reports)} report files and {len(weekly_summaries)} weekly summaries")
+        total_group_summaries = sum(len(summaries) for summaries in group_summaries.values())
+        info(f"Found {len(reports)} report files and {total_group_summaries} group summaries across {len(group_summaries)} groups")
         
         step("Organizing data by weeks...")
-        weeks_data = organize_by_weeks(reports, weekly_summaries)
+        weeks_data = organize_by_weeks(reports, group_summaries)
         all_repos = get_all_repos(reports)
         
         info(f"Organized {len(weeks_data)} weeks across {len(all_repos)} repositories")
@@ -1116,6 +1153,51 @@ body {
 
 .toc a:hover {
     text-decoration: underline;
+}
+
+/* Group Summary Sections */
+.group-summary-section {
+    border: 2px solid var(--primary-color);
+    border-radius: 0.5rem;
+    background: var(--card-bg);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+.group-summary-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0099ff 100%);
+    padding: 1rem 1.5rem;
+    color: white;
+}
+
+.group-summary-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.summary-meta {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.group-summary-content {
+    padding: 1.5rem;
+}
+
+.summary-highlight {
+    background: var(--background);
+    border-left: 4px solid var(--primary-color);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 0.25rem;
+}
+
+.short-summary {
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0;
 }
 
 /* Repository Sections */

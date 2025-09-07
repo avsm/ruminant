@@ -45,7 +45,9 @@ def prompt(
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     show_paths: bool = typer.Option(False, "--show-paths", help="Show file paths that will be used"),
-    aggregate: bool = typer.Option(False, "--aggregate", help="Generate aggregate weekly summary across all repositories"),
+    group: Optional[str] = typer.Option(None, "--group", help="Generate prompt for a specific group"),
+    all_groups: bool = typer.Option(False, "--all-groups", help="Generate prompts for all configured groups"),
+    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group prompt generation"),
 ) -> None:
     """Generate Claude prompts for weekly GitHub activity summaries."""
     from .commands.prompt import prompt_main
@@ -59,7 +61,7 @@ def prompt(
             config = load_config()
             weeks = config.reporting.default_weeks
     
-    prompt_main(repos, weeks, year, week, show_paths, aggregate)
+    prompt_main(repos, weeks, year, week, show_paths, group, all_groups, skip_groups)
 
 @app.command(help="Generate summaries using Claude CLI")
 def summarize(
@@ -70,7 +72,9 @@ def summarize(
     claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without running Claude CLI"),
     parallel_workers: Optional[int] = typer.Option(None, "--parallel-workers", help="Number of parallel Claude instances (default from config)"),
-    aggregate: bool = typer.Option(False, "--aggregate", help="Generate aggregate weekly summary across all repositories"),
+    group: Optional[str] = typer.Option(None, "--group", help="Generate summary for a specific group"),
+    all_groups: bool = typer.Option(False, "--all-groups", help="Generate summaries for all configured groups"),
+    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group summary generation"),
 ) -> None:
     """Generate summaries using Claude CLI."""
     from .commands.summarize import summarize_main
@@ -84,7 +88,7 @@ def summarize(
             config = load_config()
             weeks = config.reporting.default_weeks
     
-    summarize_main(repos, weeks, year, week, claude_args, dry_run, parallel_workers, aggregate)
+    summarize_main(repos, weeks, year, week, claude_args, dry_run, parallel_workers, group, all_groups, skip_groups)
 
 # Create annotate subcommands
 annotate_app = typer.Typer(help="Annotate reports with GitHub links")
@@ -164,7 +168,7 @@ def report(
     skip_annotate: bool = typer.Option(False, "--skip-annotate", help="Skip the annotation step"),
     skip_existing: bool = typer.Option(False, "--skip-existing", help="Skip weeks that already have reports"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without executing"),
-    skip_aggregate: bool = typer.Option(False, "--skip-aggregate", help="Skip aggregate summary generation"),
+    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group summary generation"),
 ) -> None:
     """Run the complete end-to-end reporting workflow."""
     from .commands.report import report_main
@@ -174,7 +178,7 @@ def report(
         config = load_config()
         weeks = config.reporting.default_weeks
     
-    report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_prompt, skip_summarize, skip_annotate, skip_existing, dry_run, skip_aggregate)
+    report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_prompt, skip_summarize, skip_annotate, skip_existing, dry_run, skip_groups)
 
 
 @app.command()

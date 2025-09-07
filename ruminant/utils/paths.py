@@ -34,14 +34,24 @@ def get_logs_dir() -> Path:
     return get_data_dir() / "logs"
 
 
-def get_weekly_summaries_dir() -> Path:
-    """Get the weekly summaries directory path."""
-    return get_data_dir() / "summary-weekly"
+def get_groups_dir() -> Path:
+    """Get the groups directory path."""
+    return get_data_dir() / "groups"
 
 
-def get_weekly_reports_dir() -> Path:
-    """Get the weekly reports directory path."""
-    return get_data_dir() / "reports-weekly"
+def get_group_prompts_dir(group: str) -> Path:
+    """Get the prompts directory for a specific group."""
+    return get_prompts_dir() / "groups" / group
+
+
+def get_group_summaries_dir(group: str) -> Path:
+    """Get the summaries directory for a specific group."""
+    return get_summaries_dir() / "groups" / group
+
+
+def get_group_reports_dir(group: str) -> Path:
+    """Get the reports directory for a specific group."""
+    return get_reports_dir() / "groups" / group
 
 
 def get_repo_cache_dir(repo: str) -> Path:
@@ -105,31 +115,32 @@ def ensure_repo_dirs(repo: str) -> None:
     (get_logs_dir() / owner / name).mkdir(parents=True, exist_ok=True)
 
 
-def get_aggregate_prompt_file_path(year: int, week: int) -> Path:
-    """Get the aggregate prompt file path for a specific week."""
-    return get_weekly_summaries_dir() / f"week-{week:02d}-{year}-prompt.txt"
+def get_group_prompt_file_path(group: str, year: int, week: int) -> Path:
+    """Get the group prompt file path for a specific group and week."""
+    return get_group_prompts_dir(group) / f"week-{week:02d}-{year}-prompt.txt"
 
 
-def get_aggregate_summary_file_path(year: int, week: int) -> Path:
-    """Get the aggregate summary file path for a specific week."""
-    return get_weekly_summaries_dir() / f"week-{week:02d}-{year}.json"
+def get_group_summary_file_path(group: str, year: int, week: int) -> Path:
+    """Get the group summary file path for a specific group and week."""
+    return get_group_summaries_dir(group) / f"week-{week:02d}-{year}.json"
 
 
-def get_aggregate_report_file_path(year: int, week: int) -> Path:
-    """Get the aggregate report file path for a specific week."""
-    return get_weekly_reports_dir() / f"week-{week:02d}-{year}.json"
+def get_group_report_file_path(group: str, year: int, week: int) -> Path:
+    """Get the group report file path for a specific group and week."""
+    return get_group_reports_dir(group) / f"week-{week:02d}-{year}.json"
 
 
-def get_aggregate_session_log_file_path(year: int, week: int) -> Path:
-    """Get the aggregate session log file path for a specific week."""
-    return get_logs_dir() / "weekly" / f"week-{week:02d}-{year}-session.json"
+def get_group_session_log_file_path(group: str, year: int, week: int) -> Path:
+    """Get the group session log file path for a specific group and week."""
+    return get_logs_dir() / "groups" / group / f"week-{week:02d}-{year}-session.json"
 
 
-def ensure_aggregate_dirs() -> None:
-    """Ensure all directories exist for aggregate summaries."""
-    get_weekly_summaries_dir().mkdir(parents=True, exist_ok=True)
-    get_weekly_reports_dir().mkdir(parents=True, exist_ok=True)
-    (get_logs_dir() / "weekly").mkdir(parents=True, exist_ok=True)
+def ensure_group_dirs(group: str) -> None:
+    """Ensure all directories exist for a group."""
+    get_group_prompts_dir(group).mkdir(parents=True, exist_ok=True)
+    get_group_summaries_dir(group).mkdir(parents=True, exist_ok=True)
+    get_group_reports_dir(group).mkdir(parents=True, exist_ok=True)
+    (get_logs_dir() / "groups" / group).mkdir(parents=True, exist_ok=True)
 
 
 def parse_repo(repo: str) -> Tuple[str, str]:

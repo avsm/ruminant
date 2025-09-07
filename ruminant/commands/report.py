@@ -11,9 +11,9 @@ from ..utils.paths import (
     get_cache_file_path,
     get_prompt_file_path,
     get_summary_file_path,
-    get_aggregate_prompt_file_path,
-    get_aggregate_summary_file_path,
-    get_aggregate_report_file_path,
+    get_group_prompt_file_path,
+    get_group_summary_file_path,
+    get_group_report_file_path,
 )
 from ..utils.logging import (
     success,
@@ -25,8 +25,8 @@ from ..utils.logging import (
     confirm_operation,
 )
 from .sync import sync_main
-from .prompt import prompt_main, generate_aggregate_prompt
-from .summarize import summarize_main, generate_aggregate_summary
+from .prompt import prompt_main, generate_group_prompt
+from .summarize import summarize_main, generate_group_summary
 from .annotate import annotate_main
 
 
@@ -90,23 +90,23 @@ def should_skip_annotate(
     return True
 
 
-def should_skip_aggregate_prompt(year: int, week: int, skip_existing: bool) -> bool:
-    """Check if aggregate prompt step should be skipped."""
+def should_skip_group_prompt(group: str, year: int, week: int, skip_existing: bool) -> bool:
+    """Check if group prompt step should be skipped."""
     if not skip_existing:
         return False
 
-    # Check if aggregate prompt file exists
-    prompt_file = get_aggregate_prompt_file_path(year, week)
+    # Check if group prompt file exists
+    prompt_file = get_group_prompt_file_path(group, year, week)
     return prompt_file.exists()
 
 
-def should_skip_aggregate_summary(year: int, week: int, skip_existing: bool) -> bool:
-    """Check if aggregate summary step should be skipped."""
+def should_skip_group_summary(group: str, year: int, week: int, skip_existing: bool) -> bool:
+    """Check if group summary step should be skipped."""
     if not skip_existing:
         return False
 
-    # Check if aggregate summary file exists
-    summary_file = get_aggregate_summary_file_path(year, week)
+    # Check if group summary file exists
+    summary_file = get_group_summary_file_path(group, year, week)
     return summary_file.exists()
 
 
@@ -141,8 +141,8 @@ def report_main(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Show what would be done without executing"
     ),
-    skip_aggregate: bool = typer.Option(
-        False, "--skip-aggregate", help="Skip aggregate summary generation"
+    skip_groups: bool = typer.Option(
+        False, "--skip-groups", help="Skip group summary generation"
     ),
 ) -> None:
     """Run the complete end-to-end reporting workflow: sync → prompt → summarize → annotate."""
@@ -208,8 +208,8 @@ def report_main(
             steps_to_run.append("🤖 Generate summaries with Claude")
         if not skip_annotate:
             steps_to_run.append("🔗 Annotate with GitHub links")
-        if not skip_aggregate:
-            steps_to_run.append("📊 Generate aggregate weekly summaries")
+        if not skip_groups and config.groups:
+            steps_to_run.append(f"📊 Generate {len(config.groups)} group summaries")
 
         for step_desc in steps_to_run:
             info(f"  {step_desc}")
@@ -248,8 +248,8 @@ def report_main(
                 total_steps += 1
             if not skip_annotate:
                 total_steps += 1
-            if not skip_aggregate:
-                total_steps += 2  # Aggregate prompt + aggregate summary
+            if not skip_groups and config.groups:
+                total_steps += len(config.groups) * 2  # Group prompts + summaries for each group
 
             current_step = 0
 
@@ -318,7 +318,9 @@ def report_main(
                             year=process_year,
                             week=process_week,
                             show_paths=False,
-                            aggregate=False,  # Don't generate aggregate during individual repo phase
+                            group=None,
+                            all_groups=False,
+                            skip_groups=True,  # Don't generate groups during individual repo phase
                         )
                         success("✅ Prompt generation completed")
 
@@ -364,7 +366,9 @@ def report_main(
                             claude_args=claude_args,
                             dry_run=dry_run,
                             parallel_workers=None,
-                            aggregate=False,  # Don't generate aggregate during individual repo phase
+                            group=None,
+                            all_groups=False,
+                            skip_groups=True,  # Don't generate groups during individual repo phase
                         )
                         success("✅ Summary generation completed")
 
@@ -421,107 +425,110 @@ def report_main(
                         error(f"❌ Annotation failed: {e}")
                         overall_success = False
 
-            # Step 5: Generate aggregate prompt
-            if not skip_aggregate:
-                current_step += 1
-
-                if should_skip_aggregate_prompt(
-                    process_year, process_week, skip_existing
-                ):
-                    step(
-                        f"Step {current_step}/{total_steps}: Skipping aggregate prompt generation (already exists)"
-                    )
-                    success("✅ Aggregate prompt generation skipped (already exists)")
-                else:
-                    step(
-                        f"Step {current_step}/{total_steps}: Generating aggregate prompt..."
-                    )
-                    try:
-                        result = generate_aggregate_prompt(
-                            repositories_to_process, process_year, process_week, config
+            # Step 5 & 6: Generate group prompts and summaries
+            if not skip_groups and config.groups:
+                for group_name in config.groups:
+                    # Generate group prompt
+                    current_step += 1
+                    group_repos = config.get_repositories_for_group(group_name)
+                    
+                    if should_skip_group_prompt(
+                        group_name, process_year, process_week, skip_existing
+                    ):
+                        step(
+                            f"Step {current_step}/{total_steps}: Skipping group '{group_name}' prompt generation (already exists)"
                         )
-                        if result["success"]:
-                            success(
-                                f"✅ Aggregate prompt generated: {result['prompt_file']}"
+                        success(f"✅ Group '{group_name}' prompt generation skipped (already exists)")
+                    else:
+                        step(
+                            f"Step {current_step}/{total_steps}: Generating group '{group_name}' prompt..."
+                        )
+                        try:
+                            result = generate_group_prompt(
+                                group_name, group_repos, process_year, process_week, config
                             )
-                            if result.get("missing"):
-                                warning(
-                                    f"Missing summaries for: {', '.join(result['missing'])}"
+                            if result["success"]:
+                                success(
+                                    f"✅ Group '{group_name}' prompt generated: {result['prompt_file']}"
                                 )
-                        else:
-                            error(
-                                f"❌ Aggregate prompt generation failed: {result['details']}"
-                            )
+                                if result.get("missing"):
+                                    warning(
+                                        f"Missing summaries for: {', '.join(result['missing'])}"
+                                    )
+                            else:
+                                error(
+                                    f"❌ Group '{group_name}' prompt generation failed: {result['details']}"
+                                )
+                                overall_success = False
+                        except Exception as e:
+                            error(f"❌ Group '{group_name}' prompt generation failed: {e}")
                             overall_success = False
-                    except Exception as e:
-                        error(f"❌ Aggregate prompt generation failed: {e}")
-                        overall_success = False
-                        if len(week_list) > 1 and not confirm_operation(
-                            "Continue with remaining weeks?"
+                            if len(week_list) > 1 and not confirm_operation(
+                                "Continue with remaining weeks?"
+                            ):
+                                raise typer.Exit(1)
+
+                    # Generate group summary
+                    if not skip_summarize:
+                        current_step += 1
+
+                        if should_skip_group_summary(
+                            group_name, process_year, process_week, skip_existing
                         ):
-                            raise typer.Exit(1)
-
-            # Step 6: Generate aggregate summary
-            if not skip_aggregate and not skip_summarize:
-                current_step += 1
-
-                if should_skip_aggregate_summary(
-                    process_year, process_week, skip_existing
-                ):
-                    step(
-                        f"Step {current_step}/{total_steps}: Skipping aggregate summary generation (already exists)"
-                    )
-                    success("✅ Aggregate summary generation skipped (already exists)")
-                else:
-                    step(
-                        f"Step {current_step}/{total_steps}: Generating aggregate summary with Claude..."
-                    )
-                    try:
-                        # Parse Claude args if provided
-                        parsed_claude_args = None
-                        if claude_args:
-                            parsed_claude_args = claude_args.split()
-
-                        result = generate_aggregate_summary(
-                            process_year, process_week, config, parsed_claude_args
-                        )
-                        if result["success"]:
-                            success(
-                                f"✅ Aggregate summary generated: {result['summary_file']}"
+                            step(
+                                f"Step {current_step}/{total_steps}: Skipping group '{group_name}' summary generation (already exists)"
                             )
-                            
-                            # Annotate the aggregate summary file with GitHub links
-                            try:
-                                aggregate_summary_file = get_aggregate_summary_file_path(process_year, process_week)
-                                aggregate_report_file = get_aggregate_report_file_path(process_year, process_week)
-                                annotate_main(
-                                    files=[str(aggregate_summary_file)],
-                                    repos=None,
-                                    weeks=None,
-                                    year=None,
-                                    week=None,
-                                    in_place=False,
-                                    all_summaries=False,
-                                )
-                                success(f"✅ Aggregate summary annotated: {aggregate_report_file}")
-                            except Exception as e:
-                                warning(f"⚠️ Failed to annotate aggregate summary: {e}")
+                            success(f"✅ Group '{group_name}' summary generation skipped (already exists)")
                         else:
-                            error(
-                                f"❌ Aggregate summary generation failed: {result['details']}"
+                            step(
+                                f"Step {current_step}/{total_steps}: Generating group '{group_name}' summary with Claude..."
                             )
-                            overall_success = False
-                    except Exception as e:
-                        error(f"❌ Aggregate summary generation failed: {e}")
-                        overall_success = False
+                            try:
+                                # Parse Claude args if provided
+                                parsed_claude_args = None
+                                if claude_args:
+                                    parsed_claude_args = claude_args.split()
+
+                                result = generate_group_summary(
+                                    group_name, process_year, process_week, config, parsed_claude_args
+                                )
+                                if result["success"]:
+                                    success(
+                                        f"✅ Group '{group_name}' summary generated: {result['summary_file']}"
+                                    )
+                                    
+                                    # Annotate the group summary file with GitHub links
+                                    try:
+                                        group_summary_file = get_group_summary_file_path(group_name, process_year, process_week)
+                                        group_report_file = get_group_report_file_path(group_name, process_year, process_week)
+                                        annotate_main(
+                                            files=[str(group_summary_file)],
+                                            repos=None,
+                                            weeks=None,
+                                            year=None,
+                                            week=None,
+                                            in_place=False,
+                                            all_summaries=False,
+                                        )
+                                        success(f"✅ Group '{group_name}' summary annotated: {group_report_file}")
+                                    except Exception as e:
+                                        warning(f"⚠️ Failed to annotate group '{group_name}' summary: {e}")
+                                else:
+                                    error(
+                                        f"❌ Group '{group_name}' summary generation failed: {result['details']}"
+                                    )
+                                    overall_success = False
+                            except Exception as e:
+                                error(f"❌ Group '{group_name}' summary generation failed: {e}")
+                                overall_success = False
 
         # Final summary
         if overall_success:
             success("🎉 End-to-end report generation completed successfully!")
             info("\nGenerated reports can be found in:")
             info("  Individual: data/reports/owner/repo/week-NN-YYYY.md")
-            if not skip_aggregate:
-                info("  Aggregate: data/summary-weekly/week-NN-YYYY.json")
+            if not skip_groups and config.groups:
+                info("  Groups: data/summaries/groups/<group>/week-NN-YYYY.json")
         else:
             warning("⚠️  Report generation completed with some errors")
             info("Check the logs above for details on what failed")

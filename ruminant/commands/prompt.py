@@ -8,8 +8,8 @@ from ..config import load_config
 from ..utils.dates import get_last_complete_week, get_week_list, get_week_date_range, format_week_range
 from ..utils.paths import (
     get_cache_file_path, get_prompt_file_path, get_summary_file_path,
-    ensure_repo_dirs, parse_repo, get_aggregate_prompt_file_path,
-    get_aggregate_summary_file_path, ensure_aggregate_dirs
+    ensure_repo_dirs, parse_repo, get_group_prompt_file_path,
+    get_group_summary_file_path, ensure_group_dirs
 )
 from ..utils.logging import (
     success, error, warning, info, step, summary_table, operation_summary,
@@ -189,8 +189,8 @@ IMPORTANT: You must use the Read tool to load and analyze the data from {cache_f
         }
 
 
-def generate_aggregate_prompt(repositories: List[str], year: int, week: int, config) -> dict:
-    """Generate an aggregate Claude prompt for summarizing activity across all repositories."""
+def generate_group_prompt(group_name: str, repositories: List[str], year: int, week: int, config) -> dict:
+    """Generate a group-specific Claude prompt for summarizing activity across repositories in a group."""
     
     # Get week date range
     week_start, week_end = get_week_date_range(year, week)
@@ -216,9 +216,19 @@ def generate_aggregate_prompt(repositories: List[str], year: int, week: int, con
     
     try:
         # Get file paths
-        ensure_aggregate_dirs()
-        prompt_file = get_aggregate_prompt_file_path(year, week)
-        summary_file = get_aggregate_summary_file_path(year, week)
+        ensure_group_dirs(group_name)
+        prompt_file = get_group_prompt_file_path(group_name, year, week)
+        summary_file = get_group_summary_file_path(group_name, year, week)
+        
+        # Get group configuration
+        group_config = config.groups.get(group_name)
+        if not group_config:
+            return {
+                "success": False,
+                "details": f"Group '{group_name}' not found in configuration",
+                "prompt_file": None,
+                "summary_file": None
+            }
         
         # Build the list of summary files
         summary_files_list = "\n".join([
@@ -226,17 +236,23 @@ def generate_aggregate_prompt(repositories: List[str], year: int, week: int, con
             for repo in available_repos
         ])
         
-        # Build the aggregate prompt
-        prompt = f"""You are a software development manager responsible for creating a high-level weekly summary across multiple GitHub repositories.
+        # Build the group-specific prompt
+        prompt = f"""You are a software development manager responsible for creating a high-level weekly summary for the {group_config.name} group.
 
-Please analyze the weekly summaries for the following repositories covering the period {week_range_str} (week {week} of {year}):
+GROUP CONTEXT:
+- Group: {group_config.name}
+- Description: {group_config.description}
+
+Please analyze the weekly summaries for the following repositories in this group covering the period {week_range_str} (week {week} of {year}):
 
 REPOSITORIES TO ANALYZE:
 {summary_files_list}
 
+{group_config.prompt if group_config.prompt else ""}
+
 YOUR TASK:
 1. Read and analyze ALL the repository summaries listed above using the Read tool
-2. Generate a comprehensive aggregate JSON summary that captures the week's activity across ALL repositories
+2. Generate a comprehensive group summary JSON that captures the week's activity across all repositories in the {group_config.name} group
 3. Write this summary to the file: {summary_file}
 
 The aggregate summary should synthesize information across all repositories to provide:
@@ -349,7 +365,9 @@ def prompt_main(
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     show_paths: bool = typer.Option(False, "--show-paths", help="Show file paths that will be used"),
-    aggregate: bool = typer.Option(False, "--aggregate", help="Generate aggregate weekly summary across all repositories"),
+    group: Optional[str] = typer.Option(None, "--group", help="Generate prompt for a specific group"),
+    all_groups: bool = typer.Option(False, "--all-groups", help="Generate prompts for all configured groups"),
+    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group prompt generation"),
 ) -> None:
     """Generate Claude prompts for weekly GitHub activity summaries."""
     
@@ -381,52 +399,62 @@ def prompt_main(
         else:
             target_year, target_week = get_last_complete_week()
         
-        # Handle aggregate mode
-        if aggregate:
-            # Get list of weeks to process
-            if weeks > 1:
-                week_list = get_week_list(weeks, target_year, target_week)
-                step(f"Generating aggregate prompts for {weeks} weeks")
-            else:
-                week_list = [(target_year, target_week)]
-                step(f"Generating aggregate prompt for week {target_week} of {target_year}")
+        # Get list of weeks to process
+        if weeks > 1:
+            week_list = get_week_list(weeks, target_year, target_week)
+        else:
+            week_list = [(target_year, target_week)]
+        
+        all_results = []
+        
+        # Handle specific group generation
+        if group:
+            if group not in config.groups:
+                error(f"Group '{group}' not found in configuration")
+                raise typer.Exit(1)
             
-            # Generate aggregate prompts for each week
-            all_results = []
-            total_operations = len(week_list)
-            current_operation = 0
+            group_repos = config.get_repositories_for_group(group)
+            step(f"Generating prompts for group '{group}' with {len(group_repos)} repositories for {len(week_list)} week(s)")
             
             for w_year, w_week in week_list:
-                current_operation += 1
-                info(f"[{current_operation}/{total_operations}] Generating aggregate prompt for week {w_week}/{w_year}")
-                
-                result = generate_aggregate_prompt(repositories_to_process, w_year, w_week, config)
+                info(f"Generating group prompt for '{group}' week {w_week}/{w_year}")
+                result = generate_group_prompt(group, group_repos, w_year, w_week, config)
                 all_results.append(result)
                 
                 if result["success"]:
-                    success(f"Generated aggregate prompt: {result['prompt_file']}")
+                    success(f"Generated group prompt: {result['prompt_file']}")
                     if result.get("missing"):
                         warning(f"Missing summaries for: {', '.join(result['missing'])}")
-                    if show_paths:
-                        paths = {
-                            "Prompt file": result["prompt_file"],
-                            "Summary file": result["summary_file"]
-                        }
-                        print_file_paths(f"Week {w_week}/{w_year} Aggregate Paths", paths)
                 else:
                     error(f"Failed: {result['details']}")
-        else:
-            # Original per-repository logic
-            # Get list of weeks to process
-            if weeks > 1:
-                week_list = get_week_list(weeks, target_year, target_week)
-                step(f"Generating prompts for {len(repositories_to_process)} repositories for {weeks} weeks")
-            else:
-                week_list = [(target_year, target_week)]
-                step(f"Generating prompts for {len(repositories_to_process)} repositories for week {target_week} of {target_year}")
+        
+        # Handle all groups generation
+        elif all_groups:
+            if not config.groups:
+                error("No groups configured")
+                raise typer.Exit(1)
             
-            # Generate prompts for all repos and weeks
-            all_results = []
+            step(f"Generating prompts for {len(config.groups)} groups for {len(week_list)} week(s)")
+            
+            for group_name in config.groups:
+                group_repos = config.get_repositories_for_group(group_name)
+                for w_year, w_week in week_list:
+                    info(f"Generating group prompt for '{group_name}' week {w_week}/{w_year}")
+                    result = generate_group_prompt(group_name, group_repos, w_year, w_week, config)
+                    all_results.append(result)
+                    
+                    if result["success"]:
+                        success(f"Generated group prompt: {result['prompt_file']}")
+                        if result.get("missing"):
+                            warning(f"Missing summaries for: {', '.join(result['missing'])}")
+                    else:
+                        error(f"Failed: {result['details']}")
+        
+        # Default: generate individual repo prompts, then group prompts
+        else:
+            # First, generate individual repository prompts
+            step(f"Generating prompts for {len(repositories_to_process)} repositories for {len(week_list)} week(s)")
+            
             total_operations = len(repositories_to_process) * len(week_list)
             current_operation = 0
             
@@ -447,6 +475,26 @@ def prompt_main(
                                 "Summary file": result["summary_file"]
                             }
                             print_file_paths(f"{repo} Week {w_week}/{w_year} Paths", paths)
+                    else:
+                        error(f"Failed: {result['details']}")
+            
+            # Then, generate group prompts (unless skipped)
+            if not skip_groups and config.groups:
+                step(f"Generating prompts for {len(config.groups)} groups")
+                
+                for group_name in config.groups:
+                    group_repos = config.get_repositories_for_group(group_name)
+                    for w_year, w_week in week_list:
+                        info(f"Generating group prompt for '{group_name}' week {w_week}/{w_year}")
+                        result = generate_group_prompt(group_name, group_repos, w_year, w_week, config)
+                        all_results.append(result)
+                        
+                        if result["success"]:
+                            success(f"Generated group prompt: {result['prompt_file']}")
+                            if result.get("missing"):
+                                warning(f"Missing summaries for: {', '.join(result['missing'])}")
+                        else:
+                            error(f"Failed: {result['details']}")
         
         # Print summary
         successful_results = [r for r in all_results if r["success"]]
