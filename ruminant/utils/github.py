@@ -394,6 +394,287 @@ def fetch_issues(repo: str, token: Optional[str], week_start: datetime, week_end
     return issues, prs, good_first_issues
 
 
+def fetch_user_info(username: str, token: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Fetch detailed user information from GitHub API."""
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    
+    url = f"https://api.github.com/users/{username}"
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 404:
+            warning(f"User {username} not found")
+            return None
+        else:
+            error(f"Error fetching user {username}: {response.status_code}")
+            return None
+    except requests.RequestException as e:
+        error(f"Failed to fetch user {username}: {e}")
+        return None
+
+
+def extract_users_from_data(issues: List[Dict], prs: List[Dict], discussions: List[Dict]) -> set:
+    """Extract unique usernames from issues, PRs, discussions, and all @mentions in comments."""
+    import re
+    users = set()
+    
+    # Pattern to match @mentions - must start with a letter and can contain letters, numbers, and hyphens
+    # This avoids matching things like @15 or @21 which are likely line numbers
+    mention_pattern = re.compile(r'@([a-zA-Z][a-zA-Z0-9-]{0,38})')
+    
+    # Extract from issues
+    for issue in issues:
+        if issue.get("user"):
+            users.add(issue["user"])
+        
+        # Extract from issue body
+        if issue.get("body"):
+            mentions = mention_pattern.findall(issue["body"])
+            users.update(mentions)
+        
+        # Extract from comments
+        for comment in issue.get("comments", []):
+            # Extract comment author (format: "@author: text")
+            if comment.startswith("@"):
+                parts = comment.split(":", 1)
+                if len(parts) >= 1:
+                    username = parts[0][1:].strip()  # Remove @ and get username before colon
+                    # Validate it's a proper username (starts with letter)
+                    if username and username[0].isalpha():
+                        users.add(username)
+            
+            # Extract all @mentions within the comment text
+            mentions = mention_pattern.findall(comment)
+            users.update(mentions)
+    
+    # Extract from PRs
+    for pr in prs:
+        if pr.get("user"):
+            users.add(pr["user"])
+        
+        # Extract from PR body
+        if pr.get("body"):
+            mentions = mention_pattern.findall(pr["body"])
+            users.update(mentions)
+        
+        # Extract from comments
+        for comment in pr.get("comments", []):
+            # Extract comment author (format: "@author: text")
+            if comment.startswith("@"):
+                parts = comment.split(":", 1)
+                if len(parts) >= 1:
+                    username = parts[0][1:].strip()  # Remove @ and get username before colon
+                    # Validate it's a proper username (starts with letter)
+                    if username and username[0].isalpha():
+                        users.add(username)
+            
+            # Extract all @mentions within the comment text
+            mentions = mention_pattern.findall(comment)
+            users.update(mentions)
+    
+    # Extract from discussions
+    for discussion in discussions:
+        if discussion.get("user"):
+            users.add(discussion["user"])
+        
+        # Extract from discussion body
+        if discussion.get("body"):
+            mentions = mention_pattern.findall(discussion["body"])
+            users.update(mentions)
+    
+    # Common words that appear after @ but aren't usernames
+    common_words = {
+        "ghost", "Anonymous", "github-actions", "github",
+        "test", "check", "lint", "doc", "all", "empty", "echo",
+        "author", "users", "default", "deprecated", "disable",
+        "builtin", "invalid", "immediate", "master", "main",
+        "raise", "return", "import", "export", "static", "dynamic",
+        "inline", "implicit", "explicit", "param", "params",
+        "option", "options", "support", "install", "uninstall",
+        "build", "compile", "run", "exec", "execute", "start", "stop",
+        "enable", "disable", "true", "false", "yes", "no",
+        "foo", "bar", "baz", "example", "sample", "demo",
+        "todo", "fixme", "note", "warning", "error", "info",
+        "debug", "release", "production", "development", "staging",
+        "local", "remote", "origin", "upstream", "downstream",
+        "entry", "exit", "init", "cleanup", "setup", "teardown",
+        "begin", "end", "open", "close", "read", "write",
+        "get", "set", "add", "remove", "delete", "update",
+        "list", "lists", "array", "arrays", "map", "maps",
+        "string", "strings", "number", "numbers", "bool", "boolean",
+        "int", "integer", "float", "double", "char", "character",
+        "byte", "bytes", "bit", "bits", "size", "length",
+        "count", "total", "sum", "average", "min", "max",
+        "first", "last", "next", "prev", "previous", "current",
+        "new", "old", "temp", "tmp", "cache", "buffer",
+        "input", "output", "result", "results", "value", "values",
+        "key", "keys", "item", "items", "element", "elements",
+        "node", "nodes", "edge", "edges", "graph", "tree",
+        "root", "leaf", "parent", "child", "children", "sibling",
+        "copy", "move", "rename", "replace", "swap", "merge",
+        "split", "join", "concat", "append", "prepend", "insert",
+        "push", "pop", "shift", "unshift", "slice", "splice",
+        "filter", "map", "reduce", "fold", "scan", "zip",
+        "sort", "reverse", "shuffle", "unique", "distinct", "group",
+        "match", "search", "find", "replace", "regex", "pattern",
+        "format", "parse", "encode", "decode", "encrypt", "decrypt",
+        "hash", "sign", "verify", "validate", "sanitize", "escape",
+        "serialize", "deserialize", "marshal", "unmarshal", "pack", "unpack",
+        "compress", "decompress", "zip", "unzip", "tar", "untar",
+        "upload", "download", "fetch", "pull", "push", "sync",
+        "send", "receive", "request", "response", "reply", "forward",
+        "connect", "disconnect", "bind", "unbind", "listen", "accept",
+        "open", "close", "read", "write", "seek", "tell",
+        "lock", "unlock", "acquire", "release", "wait", "notify",
+        "start", "stop", "pause", "resume", "cancel", "abort",
+        "create", "destroy", "alloc", "free", "malloc", "calloc",
+        "realloc", "dealloc", "new", "delete", "construct", "destruct",
+        "initialize", "finalize", "register", "unregister", "subscribe", "unsubscribe",
+        "attach", "detach", "mount", "unmount", "load", "unload",
+        "include", "exclude", "require", "import", "export", "module",
+        "package", "library", "framework", "plugin", "extension", "addon",
+        "config", "configure", "settings", "preferences", "options", "flags",
+        "version", "release", "patch", "major", "minor", "micro",
+        "alpha", "beta", "gamma", "delta", "epsilon", "zeta",
+        "public", "private", "protected", "internal", "external", "global",
+        "static", "const", "final", "abstract", "virtual", "override",
+        "interface", "class", "struct", "enum", "union", "typedef",
+        "namespace", "using", "alias", "template", "generic", "trait",
+        "function", "method", "procedure", "routine", "callback", "handler",
+        "event", "signal", "slot", "delegate", "lambda", "closure",
+        "async", "await", "promise", "future", "task", "thread",
+        "process", "job", "worker", "pool", "queue", "stack",
+        "heap", "buffer", "cache", "store", "storage", "memory",
+        "disk", "file", "folder", "directory", "path", "url",
+        "uri", "urn", "uuid", "guid", "id", "uid",
+        "name", "label", "title", "description", "summary", "details",
+        "content", "body", "header", "footer", "sidebar", "nav",
+        "menu", "toolbar", "statusbar", "panel", "dialog", "modal",
+        "button", "link", "input", "output", "form", "field",
+        "table", "row", "column", "cell", "grid", "layout",
+        "view", "model", "controller", "component", "widget", "element",
+        "page", "screen", "window", "frame", "layer", "canvas",
+        "image", "icon", "sprite", "texture", "shader", "mesh",
+        "sound", "audio", "video", "media", "stream", "player",
+        "server", "client", "host", "guest", "peer", "node",
+        "network", "socket", "port", "protocol", "packet", "message",
+        "request", "response", "query", "command", "action", "operation",
+        "transaction", "session", "context", "scope", "environment", "state",
+        "data", "metadata", "schema", "table", "index", "key",
+        "record", "field", "column", "row", "tuple", "relation",
+        "database", "collection", "document", "object", "entity", "model",
+        "repository", "service", "provider", "factory", "builder", "manager",
+        "helper", "utility", "tool", "lib", "core", "base",
+        "common", "shared", "global", "system", "platform", "framework",
+        "application", "app", "program", "software", "package", "module",
+        "component", "plugin", "extension", "addon", "patch", "update",
+        "fix", "hotfix", "bugfix", "feature", "enhancement", "improvement",
+        "refactor", "optimize", "performance", "security", "stability", "reliability",
+        "compatibility", "portability", "scalability", "flexibility", "extensibility", "maintainability",
+        "usability", "accessibility", "internationalization", "localization", "translation", "documentation",
+        "comment", "note", "todo", "fixme", "hack", "workaround",
+        "deprecated", "obsolete", "legacy", "experimental", "unstable", "beta",
+        "release", "version", "tag", "branch", "commit", "merge",
+        "rebase", "cherry-pick", "revert", "reset", "stash", "apply",
+        "diff", "patch", "blame", "log", "status", "config",
+        "clone", "fork", "pull", "push", "fetch", "remote",
+        "upstream", "downstream", "origin", "master", "main", "develop",
+        "feature", "bugfix", "hotfix", "release", "tag", "branch",
+        # OCaml-specific common words
+        "type", "module", "sig", "struct", "functor", "val",
+        "let", "in", "rec", "and", "or", "not",
+        "if", "then", "else", "match", "with", "when",
+        "fun", "function", "try", "with", "exception", "raise",
+        "begin", "end", "do", "done", "for", "while",
+        "to", "downto", "of", "as", "ref", "mutable",
+        "open", "include", "module", "type", "class", "object",
+        "method", "inherit", "initializer", "constraint", "virtual", "private",
+        "lazy", "assert", "external", "rec", "nonrec", "and",
+        # Common version-like strings
+        "v1", "v2", "v3", "v4", "v5", "v30", "v31",
+        # Build/test related
+        "runtest", "runtest-js", "runtest-a", "runtest-name",
+        "build", "make", "cmake", "configure", "install",
+        # Package managers
+        "npm", "pip", "gem", "cargo", "opam", "dune",
+        # OS/platforms
+        "linux", "windows", "macos", "unix", "posix", "win32",
+        "ubuntu", "debian", "fedora", "centos", "rhel", "arch",
+        # Common tools
+        "git", "svn", "hg", "cvs", "bzr", "perforce",
+        "gcc", "clang", "msvc", "icc", "llvm", "mingw",
+        "make", "cmake", "autoconf", "automake", "libtool", "pkg-config",
+        # Email providers (sometimes appear in broken mentions)
+        "gmail", "outlook", "yahoo", "hotmail", "protonmail", "icloud",
+        # Common test/example names
+        "foo", "bar", "baz", "qux", "quux", "corge",
+        "alice", "bob", "charlie", "dave", "eve", "frank",
+        # Database-related
+        "mysql", "postgresql", "sqlite", "mongodb", "redis", "cassandra",
+        # Other common technical terms
+        "api", "sdk", "cli", "gui", "ui", "ux",
+        "http", "https", "ftp", "ssh", "ssl", "tls",
+        "json", "xml", "yaml", "toml", "ini", "csv",
+        "utf8", "utf16", "ascii", "unicode", "base64", "hex",
+        "md5", "sha1", "sha256", "sha512", "crc32", "xxhash",
+        # Short common words
+        "a", "an", "the", "is", "are", "was", "were",
+        "be", "been", "being", "have", "has", "had",
+        "do", "does", "did", "will", "would", "should",
+        "could", "may", "might", "must", "can", "cannot",
+        "it", "its", "this", "that", "these", "those",
+        "my", "your", "his", "her", "our", "their",
+        "i", "you", "he", "she", "we", "they",
+        "me", "him", "her", "us", "them", "myself",
+        "at", "by", "for", "from", "in", "of",
+        "on", "to", "with", "about", "after", "before",
+        "up", "down", "out", "off", "over", "under",
+        # OCaml-specific modules/libraries  
+        "fmt", "lwt", "async", "core", "base", "stdio",
+        "list", "array", "string", "bytes", "buffer", "queue",
+        "stack", "heap", "set", "map", "hashtbl", "weak",
+        "gc", "sys", "unix", "thread", "mutex", "condition",
+        "event", "random", "complex", "bigarray", "dynlink", "str",
+        "graphics", "dbm", "labltk", "camlp4", "camlp5", "ppx",
+        # Common patterns that look like usernames but aren't
+        "regalloc", "docalias", "pkg-lock", "pkg-install", 
+        "ocaml-index", "untaged", "untagged", "tangled",
+        "cold", "hot", "warm", "cool", "recoil", "specialise",
+        "hilbert", "thor", "jane", "alice", "bob",
+        "sita", "fedora", "pop-os", "ubuntu", "debian",
+        # Specific non-usernames seen in the data
+        "anthropic", "janestreet", "ocamlpro", "ocaml",
+        "XYZ", "ABC", "TODO", "FIXME", "XXX", "HACK",
+        "GLIBC", "POSIX", "ISO", "ANSI", "IEEE",
+        # Common prefixes/suffixes that might appear
+        "latest", "current", "previous", "next", "first", "last"
+    }
+    
+    # Remove invalid usernames
+    users = users - common_words
+    users.discard("")  # Remove empty strings
+    
+    # Additional validation: remove usernames that don't start with a letter
+    # and remove hex-like strings (e.g., "d87a1eb", "fe8872fd7ead")
+    import re
+    hex_pattern = re.compile(r'^[a-f0-9]+$')
+    
+    valid_users = set()
+    for u in users:
+        if u and u[0].isalpha():
+            # Skip if it looks like a hex string (commit SHA fragment)
+            if not hex_pattern.match(u.lower()):
+                # Skip if it's too short (likely not a real username)
+                if len(u) >= 2:
+                    valid_users.add(u)
+    
+    return valid_users
+
+
 def fetch_discussions(repo: str, token: Optional[str], week_start: datetime, week_end: datetime) -> List[Dict]:
     """Fetch discussions from a repository for a specific week."""
     headers = {"Accept": "application/vnd.github.v3+json"}

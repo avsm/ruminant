@@ -23,6 +23,7 @@ def sync(
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     force: bool = typer.Option(False, "--force", help="Force refresh cache"),
+    scan_only: bool = typer.Option(False, "--scan-only", help="Only scan cached data for missing users"),
 ) -> None:
     """Fetch and cache GitHub repository data."""
     from .commands.sync import sync_main
@@ -36,7 +37,7 @@ def sync(
             config = load_config()
             weeks = config.reporting.default_weeks
     
-    sync_main(repos, weeks, year, week, force)
+    sync_main(repos, weeks, year, week, force, scan_only)
 
 @app.command(help="Generate Claude prompts for weekly summaries")  
 def prompt(
@@ -258,13 +259,14 @@ def init(
         raise typer.Exit(1)
 
 
-@app.command(help="Generate static HTML website from summaries")
-def website(
-    output_dir: Optional[str] = typer.Option("website", "--output", "-o", help="Output directory for website"),
+@app.command(help="Export summaries as JSON for JavaScript frontend")
+def json(
+    output_dir: Optional[str] = typer.Option("website-json", "--output", "-o", help="Output directory for JSON files"),
+    pretty: bool = typer.Option(False, "--pretty", help="Pretty-print JSON output"),
 ) -> None:
-    """Generate static HTML website from all summaries."""
-    from .commands.website import website_main
-    website_main(output_dir)
+    """Generate JSON files for JavaScript frontend consumption."""
+    from .commands.website_json import website_json_main
+    website_json_main(output_dir, pretty)
 
 
 @app.command()

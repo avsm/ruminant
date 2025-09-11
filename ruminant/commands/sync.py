@@ -8,11 +8,13 @@ from datetime import datetime
 from ..config import load_config, get_github_token
 from ..utils.dates import get_last_complete_week, get_week_list, get_week_date_range
 from ..utils.paths import get_cache_file_path, ensure_repo_dirs, parse_repo
+from pathlib import Path
+import glob as glob_module
 from ..utils.logging import (
     success, error, warning, info, step, summary_table, operation_summary,
     repo_progress, print_repo_list
 )
-from ..utils.github import fetch_issues, fetch_discussions
+from ..utils.github import fetch_issues, fetch_discussions, extract_users_from_data, fetch_user_info
 
 def load_week_cache(repo: str, year: int, week: int, max_age_hours: int = 24) -> Optional[dict]:
     """Load cached data for a specific repo and week."""
@@ -62,6 +64,91 @@ def save_week_cache(repo: str, year: int, week: int, data: dict) -> None:
         error(f"Error saving cache file {cache_file}: {e}")
 
 
+def scan_cached_data_for_users(token: Optional[str]) -> set:
+    """Scan all cached repository data to find users not yet fetched."""
+    all_users = set()
+    missing_users = set()
+    
+    # Find all cached week files
+    cache_pattern = "data/gh/*/*/week-*.json"
+    cache_files = glob_module.glob(cache_pattern)
+    
+    info(f"Scanning {len(cache_files)} cached data files for users...")
+    
+    for cache_file in cache_files:
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                
+                # Extract users from cached data
+                issues = data.get('issues', [])
+                prs = data.get('prs', [])
+                discussions = data.get('discussions', [])
+                
+                # Use the extraction function to get all users
+                users = extract_users_from_data(issues, prs, discussions)
+                all_users.update(users)
+                
+                # Also add users from the cached users list if present
+                cached_users = data.get('users', [])
+                all_users.update(cached_users)
+                
+        except Exception as e:
+            warning(f"Error reading cache file {cache_file}: {e}")
+            continue
+    
+    # Check which users don't have data files yet
+    user_dir = Path("data/users")
+    for username in all_users:
+        user_file = user_dir / f"{username}.json"
+        if not user_file.exists():
+            missing_users.add(username)
+    
+    if missing_users:
+        info(f"Found {len(missing_users)} users without cached data")
+    
+    return missing_users
+
+
+def save_user_data(users: set, token: Optional[str]) -> dict:
+    """Fetch and save user data for a set of usernames."""
+    user_dir = Path("data/users")
+    user_dir.mkdir(parents=True, exist_ok=True)
+    
+    fetched = 0
+    skipped = 0
+    failed = 0
+    
+    for username in users:
+        user_file = user_dir / f"{username}.json"
+        
+        # Skip if user data already exists
+        if user_file.exists():
+            skipped += 1
+            continue
+        
+        # Fetch user data from GitHub
+        user_data = fetch_user_info(username, token)
+        if user_data:
+            try:
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, ensure_ascii=False, indent=2)
+                fetched += 1
+                info(f"Saved user data for {username}")
+            except Exception as e:
+                error(f"Failed to save user data for {username}: {e}")
+                failed += 1
+        else:
+            failed += 1
+    
+    return {
+        "total": len(users),
+        "fetched": fetched,
+        "skipped": skipped,
+        "failed": failed
+    }
+
+
 def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], force: bool = False) -> dict:
     """Sync repository data for a specific week."""
     week_start, week_end = get_week_date_range(year, week)
@@ -75,8 +162,10 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
             discussions_count = len(cached_data.get('discussions', []))
             gfi_count = len(cached_data.get('good_first_issues', []))
             
+            users_count = len(cached_data.get('users', []))
+            
             repo_progress(repo, week, year, 
-                         f"{issues_count} issues, {prs_count} PRs, {discussions_count} discussions, {gfi_count} good first issues (cached)")
+                         f"{issues_count} issues, {prs_count} PRs, {discussions_count} discussions, {gfi_count} good first issues, {users_count} users (cached)")
             return {
                 "success": True,
                 "repo": repo,
@@ -85,8 +174,10 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
                     "issues": issues_count,
                     "prs": prs_count,
                     "discussions": discussions_count,
-                    "good_first_issues": gfi_count
-                }
+                    "good_first_issues": gfi_count,
+                    "users": users_count
+                },
+                "users": set(cached_data.get('users', []))
             }
     
     try:
@@ -96,12 +187,17 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
         issues, prs, recent_good_first_issues = fetch_issues(repo, token, week_start, week_end)
         discussions = fetch_discussions(repo, token, week_start, week_end)
         
+        # Extract users from the fetched data
+        users = extract_users_from_data(issues, prs, discussions)
+        info(f"Found {len(users)} unique users in {repo} week {week}/{year}")
+        
         # Save the fetched data to cache
         data_to_cache = {
             'issues': issues,
             'prs': prs,
             'good_first_issues': recent_good_first_issues,
-            'discussions': discussions
+            'discussions': discussions,
+            'users': list(users)  # Store the list of users in the cache
         }
         save_week_cache(repo, year, week, data_to_cache)
         
@@ -117,8 +213,10 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
                 "issues": len(issues),
                 "prs": len(prs),
                 "discussions": len(discussions),
-                "good_first_issues": len(recent_good_first_issues)
-            }
+                "good_first_issues": len(recent_good_first_issues),
+                "users": len(users)
+            },
+            "users": users
         }
         
     except Exception as e:
@@ -137,6 +235,7 @@ def sync_main(
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     force: bool = typer.Option(False, "--force", help="Force refresh cache"),
+    scan_only: bool = typer.Option(False, "--scan-only", help="Only scan cached data for missing users"),
 ) -> None:
     """Fetch and cache GitHub repository data."""
     
@@ -165,6 +264,20 @@ def sync_main(
             error("No repositories specified. Use arguments or configure in .ruminant.toml")
             raise typer.Exit(1)
         
+        # If scan-only mode, just scan cached data and fetch missing users
+        if scan_only:
+            step("Scanning cached data for missing users (scan-only mode)...")
+            missing_users = scan_cached_data_for_users(token)
+            
+            if missing_users:
+                step(f"Found {len(missing_users)} users without cached data")
+                user_result = save_user_data(missing_users, token)
+                success(f"User data: {user_result['fetched']} fetched, {user_result['skipped']} cached, {user_result['failed']} failed")
+            else:
+                success("All users in cached data have been fetched")
+            
+            return
+        
         print_repo_list(repositories_to_sync)
         
         # Determine time range
@@ -183,6 +296,7 @@ def sync_main(
         
         # Sync data for all repos and weeks
         all_results = []
+        all_users = set()
         total_operations = len(repositories_to_sync) * len(week_list)
         current_operation = 0
         
@@ -193,6 +307,10 @@ def sync_main(
                 
                 result = sync_repository_data(repo, w_year, w_week, token, force)
                 all_results.append(result)
+                
+                # Collect users from this repo/week
+                if result["success"] and "users" in result:
+                    all_users.update(result["users"])
         
         # Print summary
         successful_results = [r for r in all_results if r["success"]]
@@ -207,6 +325,22 @@ def sync_main(
             
             success(f"Synced {len(successful_results)}/{len(all_results)} operations")
             info(f"Total items: {total_issues} issues, {total_prs} PRs, {total_discussions} discussions, {total_gfis} good first issues")
+            
+            # Fetch and save user data for newly found users
+            if all_users:
+                step(f"Fetching user data for {len(all_users)} unique users from current sync...")
+                user_result = save_user_data(all_users, token)
+                success(f"User data: {user_result['fetched']} fetched, {user_result['skipped']} cached, {user_result['failed']} failed")
+            
+            # Scan all cached data for any missing users
+            step("Scanning cached data for any missing users...")
+            missing_users = scan_cached_data_for_users(token)
+            if missing_users:
+                step(f"Fetching data for {len(missing_users)} missing users from cached data...")
+                missing_result = save_user_data(missing_users, token)
+                success(f"Missing user data: {missing_result['fetched']} fetched, {missing_result['skipped']} cached, {missing_result['failed']} failed")
+            else:
+                info("No missing users found in cached data")
         
         if failed_results:
             warning(f"Failed operations: {len(failed_results)}")
