@@ -39,31 +39,6 @@ def sync(
     
     sync_main(repos, weeks, year, week, force, scan_only)
 
-@app.command(help="Generate Claude prompts for weekly summaries")  
-def prompt(
-    repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
-    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to generate prompts for (defaults to config value)"),
-    year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
-    week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
-    show_paths: bool = typer.Option(False, "--show-paths", help="Show file paths that will be used"),
-    group: Optional[str] = typer.Option(None, "--group", help="Generate prompt for a specific group"),
-    all_groups: bool = typer.Option(False, "--all-groups", help="Generate prompts for all configured groups"),
-    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group prompt generation"),
-) -> None:
-    """Generate Claude prompts for weekly GitHub activity summaries."""
-    from .commands.prompt import prompt_main
-    
-    # Use config default if weeks not specified
-    # But if a specific week is given, default to 1 week
-    if weeks is None:
-        if week is not None:
-            weeks = 1
-        else:
-            config = load_config()
-            weeks = config.reporting.default_weeks
-    
-    prompt_main(repos, weeks, year, week, show_paths, group, all_groups, skip_groups)
-
 @app.command(help="Generate summaries using Claude CLI")
 def summarize(
     repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
@@ -72,10 +47,10 @@ def summarize(
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without running Claude CLI"),
+    prompt_only: bool = typer.Option(False, "--prompt-only", help="Only generate prompts without running Claude CLI"),
+    show_paths: bool = typer.Option(False, "--show-paths", help="Show file paths that will be used"),
     parallel_workers: Optional[int] = typer.Option(None, "--parallel-workers", help="Number of parallel Claude instances (default from config)"),
-    group: Optional[str] = typer.Option(None, "--group", help="Generate summary for a specific group"),
-    all_groups: bool = typer.Option(False, "--all-groups", help="Generate summaries for all configured groups"),
-    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group summary generation"),
+    skip_existing: bool = typer.Option(True, "--skip-existing/--force", help="Skip weeks that already have summaries (default: skip)"),
 ) -> None:
     """Generate summaries using Claude CLI."""
     from .commands.summarize import summarize_main
@@ -89,71 +64,7 @@ def summarize(
             config = load_config()
             weeks = config.reporting.default_weeks
     
-    summarize_main(repos, weeks, year, week, claude_args, dry_run, parallel_workers, group, all_groups, skip_groups)
-
-# Create annotate subcommands
-annotate_app = typer.Typer(help="Annotate reports with GitHub links")
-
-@annotate_app.command(name="main")
-def annotate_main_cmd(
-    files: Optional[List[str]] = typer.Argument(None, help="Specific files to annotate (supports wildcards)"),
-    repos: Optional[List[str]] = typer.Option(None, "--repos", help="Repository names (owner/repo format)"),
-    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to annotate (defaults to config value)"),
-    year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
-    week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
-    in_place: bool = typer.Option(False, "--in-place", help="Modify files in place instead of creating reports"),
-    all_summaries: bool = typer.Option(False, "--all", help="Annotate all summary files"),
-) -> None:
-    """Annotate markdown reports with GitHub links."""
-    from .commands.annotate import annotate_main
-    
-    # Use config default if weeks not specified
-    if weeks is None:
-        config = load_config()
-        weeks = config.reporting.default_weeks
-    
-    annotate_main(files, repos, weeks, year, week, in_place, all_summaries)
-
-@annotate_app.command()
-def clear_cache() -> None:
-    """Clear the user cache."""
-    from .commands.annotate import clear_cache as annotate_clear_cache
-    annotate_clear_cache()
-
-@annotate_app.command()
-def stats() -> None:
-    """Show user cache statistics."""
-    from .commands.annotate import stats as annotate_stats
-    annotate_stats()
-
-# Make main the default for annotate
-@annotate_app.callback(invoke_without_command=True)
-def annotate_callback(
-    ctx: typer.Context,
-    files: Optional[List[str]] = typer.Argument(None, help="Specific files to annotate (supports wildcards)"),
-    repos: Optional[List[str]] = typer.Option(None, "--repos", help="Repository names (owner/repo format)"),
-    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to annotate (defaults to config value)"),
-    year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
-    week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
-    in_place: bool = typer.Option(False, "--in-place", help="Modify files in place instead of creating reports"),
-    all_summaries: bool = typer.Option(False, "--all", help="Annotate all summary files"),
-) -> None:
-    """Annotate markdown reports with GitHub links."""
-    if ctx.invoked_subcommand is None:
-        from .commands.annotate import annotate_main
-        
-        # Use config default if weeks not specified
-        # But if a specific week is given, default to 1 week
-        if weeks is None:
-            if week is not None:
-                weeks = 1
-            else:
-                config = load_config()
-                weeks = config.reporting.default_weeks
-        
-        annotate_main(files, repos, weeks, year, week, in_place, all_summaries)
-
-app.add_typer(annotate_app, name="annotate")
+    summarize_main(repos, weeks, year, week, claude_args, dry_run, prompt_only, show_paths, parallel_workers, skip_existing)
 
 @app.command(help="Run complete end-to-end reporting workflow") 
 def report(
@@ -164,12 +75,9 @@ def report(
     force_sync: bool = typer.Option(False, "--force-sync", help="Force refresh GitHub data cache"),
     claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
     skip_sync: bool = typer.Option(False, "--skip-sync", help="Skip the sync step"),
-    skip_prompt: bool = typer.Option(False, "--skip-prompt", help="Skip the prompt generation step"),
     skip_summarize: bool = typer.Option(False, "--skip-summarize", help="Skip the summarize step"),
-    skip_annotate: bool = typer.Option(False, "--skip-annotate", help="Skip the annotation step"),
     skip_existing: bool = typer.Option(False, "--skip-existing", help="Skip weeks that already have reports"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without executing"),
-    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group summary generation"),
 ) -> None:
     """Run the complete end-to-end reporting workflow."""
     from .commands.report import report_main
@@ -179,7 +87,34 @@ def report(
         config = load_config()
         weeks = config.reporting.default_weeks
     
-    report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_prompt, skip_summarize, skip_annotate, skip_existing, dry_run, skip_groups)
+    report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_summarize, skip_existing, dry_run)
+
+
+@app.command(help="Generate group summaries from individual repository summaries")
+def group(
+    group: Optional[str] = typer.Argument(None, help="Group name to generate summary for"),
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to process (defaults to config value)"),
+    year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
+    week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
+    all_groups: bool = typer.Option(False, "--all", help="Generate summaries for all configured groups"),
+    prompt_only: bool = typer.Option(False, "--prompt-only", help="Only generate prompts without running Claude"),
+    claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without executing"),
+    skip_existing: bool = typer.Option(True, "--skip-existing/--force", help="Skip groups that already have summaries (default: skip)"),
+) -> None:
+    """Generate group summaries from individual repository summaries."""
+    from .commands.group import group_main
+    
+    # Use config default if weeks not specified
+    # But if a specific week is given, default to 1 week
+    if weeks is None:
+        if week is not None:
+            weeks = 1
+        else:
+            config = load_config()
+            weeks = config.reporting.default_weeks
+    
+    group_main(group, weeks, year, week, all_groups, prompt_only, claude_args, dry_run, skip_existing)
 
 
 @app.command()

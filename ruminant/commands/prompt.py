@@ -18,6 +18,8 @@ from ..utils.logging import (
 
 def generate_prompt(repo: str, year: int, week: int, config) -> dict:
     """Generate a Claude prompt for summarizing repository activity."""
+    from pathlib import Path
+    import glob
     
     # Get week date range
     week_start, week_end = get_week_date_range(year, week)
@@ -54,10 +56,28 @@ def generate_prompt(repo: str, year: int, week: int, config) -> dict:
         # Load custom prompt for this repository
         custom_prompt = config.custom_prompts.get(repo, "")
         
+        # Get list of available user data files
+        user_data_dir = Path("data/users")
+        user_files = []
+        if user_data_dir.exists():
+            user_files = sorted([f.stem for f in user_data_dir.glob("*.json")])
+        
         # Build the detailed prompt
         base_prompt = f"""You are a software development manager responsible for analyzing GitHub repository activity.
 
 Please analyze GitHub repository data for {repo} covering the period {week_range_str} (week {week} of {year}).
+
+USER DATA AVAILABLE:
+The data/users/ directory contains JSON files with GitHub user information. Each file is named [username].json and contains:
+- Full name (if available)
+- Avatar URL
+- Bio
+- Company
+- Location
+- Blog/website
+- Other profile information
+
+{len(user_files)} user profiles are available in data/users/
 
 NOTE: If you need additional information about any PR or issue beyond what's in the JSON data, you can use the GitHub MCP server tools
 (e.g., mcp__github__get_pull_request, mcp__github__get_issue) to fetch more details about specific items.
@@ -93,15 +113,29 @@ TONE AND LANGUAGE REQUIREMENTS:
 - Instead of "massive performance improvement" → "30% performance improvement in query processing"
 - Focus on concrete changes and measurable impacts
 
-IMPORTANT: For each PR or issue you mention, ALWAYS include the contributor's GitHub username with @ symbol (e.g., @username) to properly credit their contributions. This is critical for recognizing contributors' work.
+IMPORTANT: For each PR or issue you mention, ALWAYS include the contributor's GitHub username properly formatted. This is critical for recognizing contributors' work.
 
-LINKING REQUIREMENTS:
-- EVERY bullet point MUST include relevant PR/issue numbers in parentheses or inline
-- For "Key Ongoing Projects", always include specific issue/PR references (#XXXX) where possible
-- When referring to PRs, issues, or discussions, use ONLY the GitHub reference format: #XXXX (number with # prefix)
-- DO NOT include the title after the reference number
-- For groups of related work, list ALL relevant PR/issue numbers, not just examples
-- Even general observations should reference specific PRs/issues that support them
+LINKING AND FORMATTING REQUIREMENTS:
+
+1. USER MENTIONS:
+   - When mentioning a GitHub user, check if their data exists in data/users/[username].json
+   - If user data exists and contains a "name" field, format as: [Full Name](https://github.com/username)
+   - If no name is available or file doesn't exist, format as: [@username](https://github.com/username)
+   - Example: [Gabriel Scherer](https://github.com/gasche) or [@gasche](https://github.com/gasche)
+
+2. ISSUE/PR REFERENCES:
+   - For issues/PRs in the current repository, convert #1234 to [#1234](https://github.com/{repo}/issues/1234)
+   - For cross-repository references, convert owner/repo#1234 to [owner/repo#1234](https://github.com/owner/repo/issues/1234)
+   - Note: GitHub treats PRs and issues in the same namespace, so /issues/ works for both
+   - Examples:
+     - #5678 becomes [#5678](https://github.com/{repo}/issues/5678)
+     - ocaml/dune#1234 becomes [ocaml/dune#1234](https://github.com/ocaml/dune/issues/1234)
+
+3. GENERAL LINKING:
+   - EVERY bullet point MUST include relevant PR/issue numbers as clickable links
+   - For "Key Ongoing Projects", always include specific issue/PR references
+   - For groups of related work, list ALL relevant PR/issue numbers, not just examples
+   - Even general observations should reference specific PRs/issues that support them
 
 FORMATTING INSTRUCTIONS:
 - ALL content MUST be organized using bullet points (starting with "-" or "*")
@@ -112,12 +146,17 @@ FORMATTING INSTRUCTIONS:
 
 Example of correct format:
 
-- **Authentication Framework** (#1234, #5678, #5681): Core authentication implementation by @username with related security improvements
-- **Performance Optimization** (#5679, #5680, #5682, #5683): Backend optimizations by @anotheruser including database and caching improvements
-- **Bug Fixes**: Memory leak fix by @developer (#5684), UI rendering issues resolved (#5685, #5686)
-- **Documentation Updates** (#5687, #5688): API documentation improvements and new contributor guide by @writer
+- **Authentication Framework** ([#1234](https://github.com/{repo}/issues/1234), [#5678](https://github.com/{repo}/issues/5678), [#5681](https://github.com/{repo}/issues/5681)): Core authentication implementation by [John Doe](https://github.com/username) with related security improvements
+- **Performance Optimization** ([#5679](https://github.com/{repo}/issues/5679), [#5680](https://github.com/{repo}/issues/5680)): Backend optimizations by [@anotheruser](https://github.com/anotheruser) including database and caching improvements
+- **Bug Fixes**: Memory leak fix by [Jane Smith](https://github.com/developer) ([#5684](https://github.com/{repo}/issues/5684)), UI rendering issues resolved ([#5685](https://github.com/{repo}/issues/5685), [#5686](https://github.com/{repo}/issues/5686))
+- **Documentation Updates** ([#5687](https://github.com/{repo}/issues/5687), [#5688](https://github.com/{repo}/issues/5688)): API documentation improvements and new contributor guide by [@writer](https://github.com/writer)
 
-NOTE: Every substantive point MUST include PR/issue numbers to allow readers to investigate further"""
+NOTE: Every substantive point MUST include properly formatted, clickable PR/issue links to allow readers to investigate further
+
+REMEMBER TO:
+1. Check data/users/[username].json for each mentioned user to get their full name
+2. Format all issue/PR references as clickable markdown links
+3. Use the correct GitHub URLs for all references"""
 
         # Add custom prompt if provided
         if custom_prompt:
@@ -147,7 +186,10 @@ IMPORTANT JSON FORMATTING RULES:
 - Each section value should contain the markdown content that would have been in that section
 - ALL sections MUST use bullet points format (starting with "-" or "*") for better readability
 - If a section has no meaningful content, set its value to null (not an empty string)
-- The markdown content within each section should follow the same formatting rules (bullet points, PR/issue references, @mentions)
+- The markdown content within each section should follow the same formatting rules:
+  - Bullet points for organization
+  - Clickable links for all PR/issue references (e.g., [#1234](https://github.com/{repo}/issues/1234))
+  - Properly formatted user mentions with links (e.g., [Full Name](https://github.com/username) or [@username](https://github.com/username))
 - Ensure proper JSON escaping for special characters in the markdown content
 - The JSON must be valid and properly formatted
 
@@ -157,7 +199,9 @@ IMPORTANT JSON FORMATTING RULES:
 Remember: 
 - ALL sections MUST use bullet point format - this is mandatory for consistency
 - Set section values to null if they would be empty or contain only filler text
-- EVERY bullet point in the markdown content must include relevant PR/issue numbers for reader follow-up
+- EVERY bullet point in the markdown content must include clickable PR/issue links for reader follow-up
+- Check data/users/[username].json files to get full names for user mentions
+- Format all GitHub references as proper markdown links
 - Use GitHub MCP server tools if you need additional information about specific PRs/issues
 - The output file MUST be written with the complete JSON summary
 
@@ -262,12 +306,13 @@ The aggregate summary should synthesize information across all repositories to p
 - Key achievements and challenges across the ecosystem
 
 CRITICAL REQUIREMENTS:
-- ALWAYS use full repository context for issues/PRs: owner/repo#number (e.g., ocaml/dune#1234)
+- ALWAYS format issues/PRs as clickable links: [owner/repo#number](https://github.com/owner/repo/issues/number)
 - Never use just #number alone - it's ambiguous across multiple repositories
-- Repository references use @owner/repo format when referring to the repo itself
+- Repository references use [@owner/repo](https://github.com/owner/repo) format when referring to the repo itself
 - ALL sections MUST use bullet point format for consistency
 - Synthesize information - don't just concatenate individual summaries
 - Identify cross-repository dependencies and interactions where applicable
+- Check data/users/ directory for user information to create proper user links
 
 Generate a JSON report with the following structure:
 
@@ -301,18 +346,19 @@ TONE AND LANGUAGE REQUIREMENTS:
 - Focus on concrete changes, specific numbers, and measurable impacts
 - Each other section should contain markdown with bullet points
 - EVERY bullet point should include relevant PR/issue references where possible to help readers navigate to specifics
-- Every repository reference must use @owner/repo format when referring to the repo itself
-- Every PR/issue reference MUST use full format: owner/repo#number (e.g., ocaml/dune#1234, NOT just #1234)
+- Every repository reference must use [@owner/repo](https://github.com/owner/repo) format when referring to the repo itself
+- Every PR/issue reference MUST be a clickable link: [owner/repo#number](https://github.com/owner/repo/issues/number)
 - Include multiple PR/issue references per bullet point when describing related work
+- User mentions should be formatted as [Full Name](https://github.com/username) when name is available in data/users/
 - If a section has no meaningful content, set its value to null
 - Ensure proper JSON escaping for special characters
 
 SYNTHESIS GUIDELINES:
-- Look for common themes across repositories (e.g., "security improvements in @ocaml/dune and @ocaml/opam")
-- Identify dependencies (e.g., "ocaml/dune#123 blocked by ocaml/ocaml#456")
-- Highlight coordinated efforts (e.g., "LLVM backend work spans @oxcaml/oxcaml and @ocaml/ocaml")
-- Note ecosystem-wide impacts (e.g., "Breaking changes in @ocaml/ocaml affecting @ocaml/dune and @ocaml/merlin")
-- When referring to issues/PRs, ALWAYS use owner/repo#number format for clarity
+- Look for common themes across repositories (e.g., "security improvements in [@ocaml/dune](https://github.com/ocaml/dune) and [@ocaml/opam](https://github.com/ocaml/opam)")
+- Identify dependencies (e.g., "[ocaml/dune#123](https://github.com/ocaml/dune/issues/123) blocked by [ocaml/ocaml#456](https://github.com/ocaml/ocaml/issues/456)")
+- Highlight coordinated efforts (e.g., "LLVM backend work spans [@oxcaml/oxcaml](https://github.com/oxcaml/oxcaml) and [@ocaml/ocaml](https://github.com/ocaml/ocaml)")
+- Note ecosystem-wide impacts (e.g., "Breaking changes in [@ocaml/ocaml](https://github.com/ocaml/ocaml) affecting [@ocaml/dune](https://github.com/ocaml/dune) and [@ocaml/merlin](https://github.com/ocaml/merlin)")
+- When referring to issues/PRs, ALWAYS format as clickable markdown links
 
 Remember:
 - You MUST read ALL the listed summary files before generating the aggregate
@@ -321,7 +367,8 @@ Remember:
 - Good short_summary: "DWARF debug shapes, dune pkg Docker support, JSIR multi-file compilation, ARM64 assembler fix"
 - Bad short_summary: "Active development with improvements across the OCaml ecosystem"
 - All sections except short_summary MUST use bullet points
-- ALL issue/PR references must use owner/repo#number format (never just #number)
+- ALL issue/PR references must be formatted as clickable markdown links
+- Check data/users/ for user information to properly format contributor mentions
 - Write the complete JSON summary to: {summary_file}
 
 ACTION REQUIRED:
