@@ -48,6 +48,15 @@ class ReportingConfig:
 
 
 @dataclass
+class AtomConfig:
+    """Atom feed configuration."""
+    base_url: str = "https://ocaml.org/ruminant"
+    author_name: str = "OCaml Community"
+    author_email: str = "community@ocaml.org"
+    opml_title: str = "OCaml Community Activity Feeds"
+
+
+@dataclass
 class Config:
     """Main configuration class."""
     project_name: str = "OCaml Community Activity"
@@ -59,6 +68,7 @@ class Config:
     github: GitHubConfig = field(default_factory=GitHubConfig)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
+    atom: AtomConfig = field(default_factory=AtomConfig)
     
     def get_repositories_for_group(self, group_name: str) -> List[str]:
         """Get all repository names for a specific group."""
@@ -200,6 +210,14 @@ def load_config() -> Config:
                 reporting = data["reporting"]
                 config.reporting.default_weeks = reporting.get("default_weeks", config.reporting.default_weeks)
                 config.reporting.auto_annotate = reporting.get("auto_annotate", config.reporting.auto_annotate)
+            
+            # Atom config
+            if "atom" in data:
+                atom = data["atom"]
+                config.atom.base_url = atom.get("base_url", config.atom.base_url)
+                config.atom.author_name = atom.get("author_name", config.atom.author_name)
+                config.atom.author_email = atom.get("author_email", config.atom.author_email)
+                config.atom.opml_title = atom.get("opml_title", config.atom.opml_title)
                 
         except Exception as e:
             raise RuntimeError(f"Error loading config from {config_path}: {e}")
@@ -282,6 +300,12 @@ Note adoption trends and emerging patterns in the ecosystem."""
         "reporting": {
             "default_weeks": 1,
             "auto_annotate": True
+        },
+        "atom": {
+            "base_url": "https://ocaml.org/ruminant",
+            "author_name": "OCaml Community",
+            "author_email": "community@ocaml.org",
+            "opml_title": "OCaml Community Activity Feeds"
         }
     }
     

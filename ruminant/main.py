@@ -204,6 +204,16 @@ def json(
     website_json_main(output_dir, pretty)
 
 
+@app.command(help="Generate Atom feeds and OPML from JSON summaries")
+def atom(
+    output_dir: Optional[str] = typer.Option("website-atom", "--output", "-o", help="Output directory for Atom feeds"),
+    pretty: bool = typer.Option(False, "--pretty", help="Pretty-print XML output"),
+) -> None:
+    """Generate Atom feeds for each group and an OPML container."""
+    from .commands.atom import atom_main
+    atom_main(output_dir, pretty)
+
+
 @app.command()
 def config(
     show_keys: bool = typer.Option(False, "--show-keys", help="Show sensitive configuration (GitHub token)")
