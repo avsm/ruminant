@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCAML.SYS :: Activity Monitor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg-primary: #000;
+            --bg-secondary: #111;
+            --bg-tertiary: #222;
+            --border-color: #333;
+            --text-primary: #00ff00;
+            --text-secondary: #ccc;
+            --text-muted: #666;
+            --text-dim: #888;
+            --link-color: #999;
+            --priority-color: #ffddee;
+            --eco-active-bg: #003300;
+        }
+        
+        :root.light-mode {
+            --bg-primary: #f4f1e8;
+            --bg-secondary: #ebe6d9;
+            --bg-tertiary: #ddd5c3;
+            --border-color: #b8b0a0;
+            --text-primary: #2a4f2a;
+            --text-secondary: #3a5f3a;
+            --text-muted: #5a7f5a;
+            --text-dim: #7a9f7a;
+            --link-color: #506850;
+            --priority-color: #1a3f1a;
+            --eco-active-bg: #c8c0a8;
+        }
+        
+        body { 
+            font-family: 'JetBrains Mono', 'SF Mono', 'Roboto Mono', 'Fira Code', 'Consolas', monospace;
+            line-height: 1.3;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        /* Top header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .header-title {
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: bold;
+            margin-left: 15px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .mode-toggle {
+            margin-left: auto;
+            margin-right: 15px;
+            cursor: pointer;
+            font-size: 20px;
+            color: var(--text-muted);
+            user-select: none;
+            transition: color 0.3s;
+        }
+        
+        .mode-toggle:hover {
+            color: var(--text-primary);
+        }
+        
+        .ecosystem-nav {
+            display: flex;
+            gap: 2px;
+        }
+        
+        .eco-tab {
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 11px;
+            text-transform: lowercase;
+            transition: all 0.2s;
+        }
+        
+        .eco-tab:hover { 
+            background: var(--border-color); 
+            color: var(--text-primary); 
+        }
+        
+        .eco-tab.active { 
+            background: var(--eco-active-bg); 
+            color: var(--text-primary); 
+            border-color: var(--text-primary); 
+        }
+        
+        
+        /* Sidebar */
+        .sidebar {
+            width: 200px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            margin-top: 40px;
+            overflow-y: auto;
+            height: calc(100vh - 40px);
+        }
+        
+        .sidebar-header {
+            padding: 8px 15px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        
+        .week-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--bg-tertiary);
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+            position: relative;
+            font-family: monospace;
+        }
+        
+        .week-item:hover { 
+            background: var(--bg-tertiary);
+            padding-left: 16px;
+        }
+        
+        .week-item.active { 
+            background: var(--eco-active-bg); 
+            color: var(--text-primary);
+            padding-left: 20px;
+        }
+        
+        .week-item.active::before {
+            content: '>';
+            position: absolute;
+            left: 8px;
+            color: var(--text-primary);
+            font-weight: bold;
+        }
+        
+        .week-item .week-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        
+        .week-item .week-num {
+            font-weight: normal;
+            color: var(--text-primary);
+        }
+        
+        .week-item .week-date {
+            color: var(--text-muted);
+            font-size: 10px;
+            margin-top: 3px;
+            opacity: 0.7;
+        }
+        
+        .week-item .week-progress {
+            display: none;
+            margin-top: 6px;
+            position: relative;
+        }
+        
+        .week-item.active .week-progress {
+            display: block;
+        }
+        
+        .week-item .progress-bar {
+            height: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .week-item .progress-fill {
+            height: 100%;
+            background: var(--text-dim);
+            transition: width 0.1s linear;
+            width: 0%;
+        }
+        
+        .week-item.active .progress-fill {
+            background: var(--text-primary);
+        }
+        
+        .week-item .progress-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: var(--text-muted);
+            mix-blend-mode: difference;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Main content */
+        .main-content {
+            flex: 1;
+            margin-top: 40px;
+            overflow-y: auto;
+            height: calc(100vh - 40px);
+            background: var(--bg-primary);
+        }
+        
+        .content-header {
+            padding: 8px 15px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            height: 40px;
+        }
+        
+        .content-body {
+            padding: 0;
+        }
+        
+        .week-section {
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 0;
+            padding: 20px;
+            scroll-margin-top: 40px;
+        }
+        
+        .week-header-main {
+            padding: 10px 0 15px 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        
+        .week-title-main {
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .week-subtitle {
+            color: var(--text-muted);
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        
+        .week-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 20px;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+        
+        .week-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .content-block {
+            color: var(--text-secondary);
+        }
+        
+        .content-label {
+            color: var(--text-primary);
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 10px;
+            text-transform: lowercase;
+            letter-spacing: 1px;
+        }
+        
+        
+        .repo-label {
+            color: var(--link-color);
+            font-weight: bold;
+            margin-top: 12px;
+            margin-bottom: 4px;
+        }
+        
+        
+        .content-text {
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .content-text a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+        
+        .content-text a:visited {
+            color: var(--link-color);
+        }
+        
+        .content-text a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Achievement styling */
+        .achievement {
+            color: #00ffff;
+        }
+        
+        :root.light-mode .achievement {
+            color: #cc6600;
+            font-weight: 600;
+        }
+        
+        /* Special styling for issue/PR links */
+        .content-text a.issue-link {
+            font-weight: 600;
+            font-style: italic;
+        }
+        
+        .content-text a.issue-link::before {
+            content: '#';
+            margin-right: 1px;
+        }
+        
+        
+        
+        .priority-text {
+            color: var(--priority-color);
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        
+        .priority-text a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+        
+        .priority-text a:visited {
+            color: var(--link-color);
+        }
+        
+        .priority-text a:hover {
+            text-decoration: underline;
+        }
+        
+        .priority-text a.issue-link {
+            font-weight: 600;
+            font-style: italic;
+        }
+        
+        .priority-text a.issue-link::before {
+            content: '#';
+            margin-right: 1px;
+        }
+        
+        .contributor-text {
+            color: var(--text-secondary);
+        }
+        
+        .contributor-text a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+        
+        .contributor-text a:visited {
+            color: var(--link-color);
+        }
+        
+        .contributor-text a:hover {
+            text-decoration: underline;
+        }
+        
+        .contributor-text a.issue-link {
+            font-weight: 600;
+            font-style: italic;
+        }
+        
+        .contributor-text a.issue-link::before {
+            content: '#';
+            margin-right: 1px;
+        }
+        
+        .content-section {
+            border: 1px solid #333;
+            background: #111;
+        }
+        
+        .section-header {
+            background: #222;
+            border-bottom: 1px solid #333;
+            padding: 8px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #00ff00;
+            font-weight: bold;
+            font-family: inherit;
+            user-select: none;
+        }
+        
+        .section-toggle {
+            color: #666;
+            font-size: 10px;
+        }
+        
+        .section-content {
+            padding: 15px;
+            display: block;
+        }
+        
+        .section-content.collapsed {
+            display: none;
+        }
+        
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 15px;
+        }
+        
+        .column-header {
+            color: #666;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #222;
+            padding-bottom: 5px;
+        }
+        
+        .priority-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #330033;
+            background: #110011;
+        }
+        
+        .priority-header {
+            color: #ff0066;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        
+        .priority-content {
+            color: #ccc;
+            font-size: 10px;
+            line-height: 1.4;
+        }
+        
+        .detail-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #222;
+            background: #111;
+        }
+        
+        .detail-header {
+            color: #00ffff;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .detail-content {
+            color: #aaa;
+            font-size: 10px;
+            line-height: 1.4;
+        }
+        
+        .priority {
+            color: #ff0066;
+            font-weight: bold;
+        }
+        
+        .achievement {
+            color: #00ffff;
+        }
+        
+        .repo-content a {
+            color: #0099ff;
+            text-decoration: none;
+        }
+        
+        .repo-content a:hover {
+            text-decoration: underline;
+        }
+        
+        .loading, .error {
+            text-align: center;
+            padding: 50px;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+        
+        .error {
+            color: var(--priority-color);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            margin: 20px;
+        }
+        
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: var(--bg-tertiary);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            font-size: 10px;
+            color: var(--text-muted);
+            padding: 0 15px;
+        }
+        
+        .status-info {
+            margin-left: auto;
+        }
+        
+        /* Tablet breakpoint - single column layout */
+        @media screen and (max-width: 1024px) {
+            .week-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .sidebar {
+                width: 160px;
+            }
+        }
+        
+        /* Mobile breakpoint */
+        @media screen and (max-width: 768px) {
+            body {
+                overflow: auto;
+            }
+            
+            .container {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            /* Make header mobile-friendly */
+            .header {
+                position: sticky;
+                height: auto;
+                padding: 10px;
+                flex-wrap: wrap;
+            }
+            
+            .header-title {
+                font-size: 12px;
+                margin-left: 10px;
+            }
+            
+            .mode-toggle {
+                margin-right: 10px;
+                font-size: 18px;
+            }
+            
+            /* Hide sidebar on mobile */
+            .sidebar {
+                display: none;
+            }
+            
+            /* Full width main content */
+            .main-content {
+                margin-top: 0;
+                height: auto;
+                overflow-y: visible;
+            }
+            
+            /* Make ecosystem tabs scrollable */
+            .content-header {
+                height: auto;
+                padding: 8px;
+                overflow-x: auto;
+            }
+            
+            .ecosystem-nav {
+                min-width: max-content;
+            }
+            
+            .eco-tab {
+                font-size: 10px;
+                padding: 5px 10px;
+            }
+            
+            /* Adjust week sections for mobile */
+            .week-section {
+                padding: 15px;
+            }
+            
+            .week-title-main {
+                font-size: 12px;
+            }
+            
+            .week-subtitle {
+                font-size: 10px;
+            }
+            
+            .week-content {
+                padding: 15px 0;
+                font-size: 10px;
+                gap: 15px;
+            }
+            
+            .content-label {
+                font-size: 9px;
+            }
+            
+            .repo-label {
+                font-size: 11px;
+                margin-top: 10px;
+            }
+            
+            .content-text,
+            .priority-text,
+            .contributor-text {
+                font-size: 10px;
+            }
+            
+            /* Hide status bar on mobile */
+            .status-bar {
+                display: none;
+            }
+        }
+        
+        /* Small mobile */
+        @media screen and (max-width: 480px) {
+            .week-section {
+                padding: 10px;
+            }
+            
+            .week-content {
+                padding: 10px 0;
+            }
+            
+            .header-title {
+                letter-spacing: 1px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-title">OCAML.SYS :: Activity Monitor</div>
+        <div class="mode-toggle" onclick="toggleTheme()">
+            <span id="mode-icon">◐</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="sidebar-header">/// TIMELINE</div>
+            <div id="week-list"></div>
+        </div>
+        
+        <div class="main-content">
+            <div class="content-header">
+                <div class="ecosystem-nav">
+                    <div class="eco-tab active" data-ecosystem="core">core</div>
+                    <div class="eco-tab" data-ecosystem="ecosystem">ecosystem</div>
+                    <div class="eco-tab" data-ecosystem="tools">tools</div>
+                    <div class="eco-tab" data-ecosystem="oxcaml">oxcaml</div>
+                </div>
+            </div>
+            <div class="content-body">
+                <div id="loading" class="loading">INITIALIZING FEED...</div>
+                <div id="error" class="error" style="display: none;"></div>
+                <div id="main-display"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="status-bar">
+        <span>STATUS: ONLINE</span>
+        <div class="status-info">
+            <span id="status-text">Ready</span>
+        </div>
+    </div>
+
+    <script>
+        let indexData = null;
+        let groupsData = null;
+        let allWeekData = {};
+        let currentEcosystem = 'core';
+        
+        // Theme management
+        function detectSystemTheme() {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                return 'light';
+            }
+            return 'dark';
+        }
+        
+        function setTheme(theme) {
+            const root = document.documentElement;
+            const icon = document.getElementById('mode-icon');
+            
+            if (theme === 'light') {
+                root.classList.add('light-mode');
+                icon.textContent = '☀';
+                localStorage.setItem('theme', 'light');
+            } else {
+                root.classList.remove('light-mode');
+                icon.textContent = '☾';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        
+        function toggleTheme() {
+            const isLight = document.documentElement.classList.contains('light-mode');
+            setTheme(isLight ? 'dark' : 'light');
+        }
+        
+        // Initialize theme on page load
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const theme = savedTheme || detectSystemTheme();
+            setTheme(theme);
+            
+            // Listen for system theme changes
+            if (window.matchMedia) {
+                window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+                    if (!localStorage.getItem('theme')) {
+                        setTheme(e.matches ? 'light' : 'dark');
+                    }
+                });
+            }
+        }
+        
+        function renderMarkdown(text) {
+            if (!text) return '';
+            
+            // Convert GitHub issue/PR links with special styling
+            text = text.replace(/\[#(\d+)\]\((https:\/\/github\.com\/[^)]+)\)/g, 
+                '<a href="$2" target="_blank" class="issue-link">$1</a>');
+            
+            // Detect user mentions in regular links
+            text = text.replace(/\[(@[^\]]+)\]\(([^)]+)\)/g, 
+                '<a href="$2" target="_blank" class="user-link">$1</a>');
+            
+            // Convert regular markdown links
+            text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, linkText, url) {
+                // Check if it's a user profile link
+                if (url.includes('github.com/') && url.split('/').length === 4) {
+                    const username = url.split('/').pop();
+                    return `<a href="${url}" target="_blank" class="user-link">${linkText}</a>`;
+                }
+                return `<a href="${url}" target="_blank">${linkText}</a>`;
+            });
+            
+            text = text.replace(/\*\*([^*]+)\*\*/g, '<span class="achievement">$1</span>');
+            text = text.replace(/^- (.+)$/gm, '• $1');
+            text = text.replace(/\n/g, '<br>');
+            return text;
+        }
+        
+        async function initSystem() {
+            updateStatus('LOADING INDEX...');
+            try {
+                const [indexResp, groupsResp] = await Promise.all([
+                    fetch('index.json'),
+                    fetch('groups.json')
+                ]);
+                
+                if (!indexResp.ok || !groupsResp.ok) throw new Error('FEED CORRUPTED');
+                
+                indexData = await indexResp.json();
+                groupsData = await groupsResp.json();
+                
+                await loadAllWeekData();
+                initInterface();
+                updateStatus('FEED ACTIVE');
+            } catch (error) {
+                showError('SYSTEM ERROR: ' + error.message);
+            }
+        }
+        
+        async function loadAllWeekData() {
+            updateStatus('LOADING WEEK DATA...');
+            const weekPromises = indexData.weeks.map(async week => {
+                try {
+                    const response = await fetch(`weeks/${week.week_key}.json`);
+                    if (response.ok) {
+                        allWeekData[week.week_key] = await response.json();
+                    }
+                } catch (error) {
+                    console.warn(`Failed to load week ${week.week_key}:`, error);
+                }
+            });
+            
+            await Promise.all(weekPromises);
+        }
+        
+        function initInterface() {
+            populateWeekList();
+            setupEcosystemTabs();
+            setupScrollHandler();
+            
+            document.getElementById('loading').style.display = 'none';
+            
+            displayAllWeeks();
+        }
+        
+        function populateWeekList() {
+            const weekList = document.getElementById('week-list');
+            weekList.innerHTML = '';
+            
+            const weeks = groupsData[currentEcosystem].weeks.filter(w => w.has_content);
+            
+            weeks.forEach(week => {
+                const item = document.createElement('div');
+                item.className = 'week-item';
+                item.dataset.weekKey = week.week_key;
+                item.onclick = () => scrollToWeek(week.week_key);
+                
+                const weekInfo = indexData.weeks.find(w => w.week_key === week.week_key);
+                const activityLevel = weekInfo?.activity_level || 0;
+                const hasPriority = weekInfo?.has_priority_items || false;
+                
+                // Format date range with month names
+                const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                const [start, end] = week.week_range.split(' to ');
+                
+                const startMonth = monthNames[parseInt(start.slice(5, 7)) - 1];
+                const startDay = start.slice(8, 10);
+                const endMonth = monthNames[parseInt(end.slice(5, 7)) - 1];
+                const endDay = end.slice(8, 10);
+                
+                const year = week.year;
+                
+                // Format display - if same month, show once
+                const dateDisplay = startMonth === endMonth 
+                    ? `${startMonth} ${startDay}-${endDay}`
+                    : `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
+                
+                item.innerHTML = `
+                    <div class="week-header">
+                        <div class="week-num">${dateDisplay}</div>
+                    </div>
+                    <div class="week-date">${year}</div>
+                    <div class="week-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                            <div class="progress-text">${dateDisplay}</div>
+                        </div>
+                    </div>
+                `;
+                
+                if (hasPriority) {
+                    item.classList.add('has-priority');
+                }
+                weekList.appendChild(item);
+            });
+        }
+        
+        function setupEcosystemTabs() {
+            document.querySelectorAll('.eco-tab').forEach(tab => {
+                tab.onclick = () => {
+                    document.querySelectorAll('.eco-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    currentEcosystem = tab.dataset.ecosystem;
+                    populateWeekList();
+                    displayAllWeeks();
+                };
+            });
+        }
+        
+        function setupScrollHandler() {
+            const mainContent = document.querySelector('.main-content');
+            mainContent.addEventListener('scroll', () => {
+                updateSidebarHighlight();
+            });
+        }
+        
+        function scrollToWeek(weekKey) {
+            const weekElement = document.getElementById(`week-${weekKey}`);
+            if (weekElement) {
+                weekElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+        
+        function updateSidebarHighlight() {
+            const mainContent = document.querySelector('.main-content');
+            const scrollTop = mainContent.scrollTop;
+            const weekSections = document.querySelectorAll('.week-section');
+            
+            let currentWeekKey = null;
+            let scrollProgress = 0;
+            
+            weekSections.forEach(section => {
+                const rect = section.getBoundingClientRect();
+                const mainRect = mainContent.getBoundingClientRect();
+                
+                if (rect.top <= mainRect.top + 100 && rect.bottom > mainRect.top + 100) {
+                    currentWeekKey = section.dataset.weekKey;
+                    
+                    // Calculate scroll progress through this week's content
+                    const weekTop = rect.top - mainRect.top;
+                    const weekHeight = rect.height;
+                    const visibleTop = Math.max(0, -weekTop);
+                    const visibleHeight = Math.min(weekHeight, mainRect.height);
+                    
+                    if (weekHeight > 0) {
+                        scrollProgress = Math.min(100, Math.max(0, (visibleTop + visibleHeight / 2) / weekHeight * 100));
+                    }
+                }
+            });
+            
+            if (currentWeekKey) {
+                document.querySelectorAll('.week-item').forEach(item => {
+                    item.classList.remove('active');
+                    const progressFill = item.querySelector('.progress-fill');
+                    if (progressFill) {
+                        progressFill.style.width = '0%';
+                    }
+                });
+                
+                const activeItem = document.querySelector(`[data-week-key="${currentWeekKey}"]`);
+                if (activeItem) {
+                    activeItem.classList.add('active');
+                    const progressFill = activeItem.querySelector('.progress-fill');
+                    if (progressFill) {
+                        progressFill.style.width = scrollProgress + '%';
+                    }
+                }
+            }
+        }
+        
+        function displayAllWeeks() {
+            const display = document.getElementById('main-display');
+            const weeks = groupsData[currentEcosystem].weeks.filter(w => w.has_content);
+            
+            let html = '';
+            
+            weeks.forEach(week => {
+                const weekData = allWeekData[week.week_key];
+                if (!weekData) return;
+                
+                const weekInfo = indexData.weeks.find(w => w.week_key === week.week_key);
+                
+                // Get repos actually in this ecosystem for this week
+                const ecosystemRepos = weekData.repositories.filter(repo => {
+                    if (!groupsData[currentEcosystem]) return false;
+                    return groupsData[currentEcosystem].repositories.includes(repo.repo_full);
+                });
+                
+                // Create repo links
+                const repoLinks = ecosystemRepos.map(repo => {
+                    const [org, name] = repo.repo_full.split('/');
+                    return `<a href="https://github.com/${repo.repo_full}" target="_blank" style="color: var(--link-color); text-decoration: none;">${org}/<strong>${name}</strong></a>`;
+                }).join(' · ');
+                
+                html += `
+                    <div class="week-section" id="week-${week.week_key}" data-week-key="${week.week_key}">
+                        <div class="week-header-main">
+                            <div class="week-title-main">W${week.week}.${week.year} :: ${week.week_range}</div>
+                            <div class="week-subtitle">
+                                ${repoLinks || 'No repositories'}
+                            </div>
+                        </div>
+                        
+                        <div class="week-content">
+                            ${generateWeekContent(weekData)}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (!html) {
+                html = '<div class="loading">NO DATA AVAILABLE FOR CURRENT ECOSYSTEM</div>';
+            }
+            
+            display.innerHTML = html;
+        }
+        
+        function generateWeekContent(weekData) {
+            const filteredGroups = weekData.group_summaries.filter(g => g.group === currentEcosystem);
+            const filteredRepos = weekData.repositories.filter(repo => {
+                if (!groupsData[currentEcosystem]) return false;
+                return groupsData[currentEcosystem].repositories.includes(repo.repo_full);
+            });
+            
+            let leftColumn = '';
+            let rightColumn = '';
+            
+            // Left column - Priority items and key activity
+            if (filteredRepos.length > 1) {
+                // Show group overview only for multi-repo ecosystems
+                filteredGroups.forEach(group => {
+                    if (group.group_overview) {
+                        leftColumn += `<div class="content-block">`;
+                        leftColumn += `<div class="content-label">>>> overview</div>`;
+                        leftColumn += `<div class="content-text">${renderMarkdown(group.group_overview)}</div>`;
+                        leftColumn += `</div>`;
+                    }
+                });
+            }
+            
+            // Repository priority items
+            let hasPriority = false;
+            filteredRepos.forEach(repo => {
+                if (repo.priority_items) {
+                    if (!hasPriority) {
+                        leftColumn += `<div class="content-block">`;
+                        leftColumn += `<div class="content-label">>>> priority</div>`;
+                        hasPriority = true;
+                    }
+                    leftColumn += `<div class="repo-label">${repo.repo_full}</div>`;
+                    leftColumn += `<div class="priority-text">${renderMarkdown(repo.priority_items)}</div>`;
+                }
+            });
+            if (hasPriority) leftColumn += `</div>`;
+            
+            // Repository activity summaries
+            let hasActivity = false;
+            filteredRepos.forEach(repo => {
+                if (repo.brief_summary || repo.overall_activity) {
+                    if (!hasActivity) {
+                        leftColumn += `<div class="content-block">`;
+                        leftColumn += `<div class="content-label">>>> activity</div>`;
+                        hasActivity = true;
+                    }
+                    leftColumn += `<div class="repo-label">${repo.repo_full}</div>`;
+                    if (repo.brief_summary) {
+                        leftColumn += `<div class="content-text"><strong>${repo.brief_summary}</strong></div>`;
+                    }
+                    if (repo.overall_activity) {
+                        leftColumn += `<div class="content-text">${renderMarkdown(repo.overall_activity)}</div>`;
+                    }
+                }
+            });
+            if (hasActivity) leftColumn += `</div>`;
+            
+            // Right column - Ongoing projects, contributors, discussions
+            
+            // Ongoing projects
+            let hasOngoing = false;
+            filteredRepos.forEach(repo => {
+                if (repo.ongoing_projects) {
+                    if (!hasOngoing) {
+                        rightColumn += `<div class="content-block">`;
+                        rightColumn += `<div class="content-label">>>> ongoing</div>`;
+                        hasOngoing = true;
+                    }
+                    rightColumn += `<div class="repo-label">${repo.repo_full}</div>`;
+                    rightColumn += `<div class="content-text">${renderMarkdown(repo.ongoing_projects)}</div>`;
+                }
+            });
+            if (hasOngoing) rightColumn += `</div>`;
+            
+            // Notable discussions
+            let hasDiscussions = false;
+            filteredRepos.forEach(repo => {
+                if (repo.notable_discussions) {
+                    if (!hasDiscussions) {
+                        rightColumn += `<div class="content-block">`;
+                        rightColumn += `<div class="content-label">>>> discussions</div>`;
+                        hasDiscussions = true;
+                    }
+                    rightColumn += `<div class="repo-label">${repo.repo_full}</div>`;
+                    rightColumn += `<div class="content-text">${renderMarkdown(repo.notable_discussions)}</div>`;
+                }
+            });
+            if (hasDiscussions) rightColumn += `</div>`;
+            
+            // Contributors
+            let hasContributors = false;
+            filteredRepos.forEach(repo => {
+                if (repo.contributors) {
+                    if (!hasContributors) {
+                        rightColumn += `<div class="content-block">`;
+                        rightColumn += `<div class="content-label">>>> contributors</div>`;
+                        hasContributors = true;
+                    }
+                    rightColumn += `<div class="repo-label">${repo.repo_full}</div>`;
+                    rightColumn += `<div class="contributor-text">${renderMarkdown(repo.contributors)}</div>`;
+                }
+            });
+            if (hasContributors) rightColumn += `</div>`;
+            
+            // Good first issues
+            let hasIssues = false;
+            filteredRepos.forEach(repo => {
+                if (repo.good_first_issues) {
+                    if (!hasIssues) {
+                        rightColumn += `<div class="content-block">`;
+                        rightColumn += `<div class="content-label">>>> entry points</div>`;
+                        hasIssues = true;
+                    }
+                    rightColumn += `<div class="repo-label">${repo.repo_full}</div>`;
+                    rightColumn += `<div class="content-text">${renderMarkdown(repo.good_first_issues)}</div>`;
+                }
+            });
+            if (hasIssues) rightColumn += `</div>`;
+            
+            if (!leftColumn) leftColumn = '<div class="content-text">No activity this week</div>';
+            if (!rightColumn) rightColumn = '';
+            
+            return `
+                <div class="week-column">${leftColumn}</div>
+                <div class="week-column">${rightColumn}</div>
+            `;
+        }
+        
+        
+        
+        function toggleSection(header) {
+            const content = header.nextElementSibling;
+            const toggle = header.querySelector('.section-toggle');
+            
+            if (content.classList.contains('collapsed')) {
+                content.classList.remove('collapsed');
+                toggle.textContent = '[-]';
+            } else {
+                content.classList.add('collapsed');
+                toggle.textContent = '[+]';
+            }
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status-text').textContent = message;
+        }
+        
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = message;
+            updateStatus('ERROR STATE');
+        }
+        
+        initTheme();
+        initSystem();
+    </script>
+</body>
+</html>

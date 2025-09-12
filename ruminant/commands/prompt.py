@@ -173,6 +173,7 @@ ACTION REQUIRED:
   "year": {year},
   "repo": "{repo}",
   "week_range": "{week_range_str}",
+  "brief_summary": "A single sentence (max 150 chars) summarizing the most important activity this week",
   "overall_activity": "Markdown content for overall activity summary (always include if there's any activity - MUST use bullet points - include key PR/issue numbers)",
   "ongoing_projects": "Markdown content for key ongoing projects (only include if there are identifiable projects - MUST use bullet points - MUST include all relevant issue/PR references)",
   "priority_items": "Markdown content for priority items (only include if there are items needing immediate attention - MUST use bullet points - include specific PR/issue numbers)",
@@ -183,6 +184,7 @@ ACTION REQUIRED:
 }}
 
 IMPORTANT JSON FORMATTING RULES:
+- brief_summary: A single, concise sentence (maximum 150 characters) that captures the most significant activity or theme of the week
 - Each section value should contain the markdown content that would have been in that section
 - ALL sections MUST use bullet points format (starting with "-" or "*") for better readability
 - If a section has no meaningful content, set its value to null (not an empty string)
