@@ -14,7 +14,7 @@ from ..utils.logging import (
     success, error, warning, info, step, summary_table, operation_summary,
     repo_progress, print_repo_list
 )
-from ..utils.github import fetch_issues, fetch_discussions, extract_users_from_data, fetch_user_info
+from ..utils.github import fetch_issues, fetch_discussions, extract_users_from_data, fetch_user_info, fetch_releases
 
 def load_week_cache(repo: str, year: int, week: int, max_age_hours: int = 24) -> Optional[dict]:
     """Load cached data for a specific repo and week."""
@@ -53,9 +53,9 @@ def save_week_cache(repo: str, year: int, week: int, data: dict) -> None:
         'issues': data['issues'],
         'prs': data['prs'],
         'good_first_issues': data['good_first_issues'],
-        'discussions': data['discussions']
+        'discussions': data['discussions'],
+        'releases': data.get('releases', [])
     }
-    
     try:
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, ensure_ascii=False, indent=2)
@@ -161,11 +161,12 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
             prs_count = len(cached_data.get('prs', []))
             discussions_count = len(cached_data.get('discussions', []))
             gfi_count = len(cached_data.get('good_first_issues', []))
+            releases_count = len(cached_data.get('releases', []))
             
             users_count = len(cached_data.get('users', []))
             
             repo_progress(repo, week, year, 
-                         f"{issues_count} issues, {prs_count} PRs, {discussions_count} discussions, {gfi_count} good first issues, {users_count} users (cached)")
+                         f"{issues_count} issues, {prs_count} PRs, {discussions_count} discussions, {gfi_count} good first issues, {releases_count} releases, {users_count} users (cached)")
             return {
                 "success": True,
                 "repo": repo,
@@ -175,6 +176,7 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
                     "prs": prs_count,
                     "discussions": discussions_count,
                     "good_first_issues": gfi_count,
+                    "releases": releases_count,
                     "users": users_count
                 },
                 "users": set(cached_data.get('users', []))
@@ -186,6 +188,7 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
         # Fetch data from GitHub API
         issues, prs, recent_good_first_issues = fetch_issues(repo, token, week_start, week_end)
         discussions = fetch_discussions(repo, token, week_start, week_end)
+        releases = fetch_releases(repo, token, week_start, week_end)
         
         # Extract users from the fetched data
         users = extract_users_from_data(issues, prs, discussions)
@@ -197,13 +200,14 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
             'prs': prs,
             'good_first_issues': recent_good_first_issues,
             'discussions': discussions,
+            'releases': releases,
             'users': list(users)  # Store the list of users in the cache
         }
         save_week_cache(repo, year, week, data_to_cache)
         
         total_items = len(issues) + len(prs) + len(discussions)
         repo_progress(repo, week, year, 
-                     f"{len(issues)} issues, {len(prs)} PRs, {len(discussions)} discussions, {len(recent_good_first_issues)} good first issues")
+                     f"{len(issues)} issues, {len(prs)} PRs, {len(discussions)} discussions, {len(recent_good_first_issues)} good first issues, {len(releases)} releases")
         
         return {
             "success": True,
@@ -214,6 +218,7 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
                 "prs": len(prs),
                 "discussions": len(discussions),
                 "good_first_issues": len(recent_good_first_issues),
+                "releases": len(releases),
                 "users": len(users)
             },
             "users": users

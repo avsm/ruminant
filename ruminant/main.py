@@ -214,6 +214,42 @@ def atom(
     atom_main(output_dir, pretty)
 
 
+@app.command("summarize-week", help="Generate comprehensive weekly summary across all groups")
+def summarize_week(
+    year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
+    week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Process multiple weeks in chronological order (defaults to config value)"),
+    claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Generate prompt without calling Claude"),
+    prompt_only: bool = typer.Option(False, "--prompt-only", help="Only generate prompt without running Claude"),
+    lookback_weeks: int = typer.Option(3, "--lookback", help="Number of previous weeks to include for context"),
+    skip_existing: bool = typer.Option(True, "--skip-existing/--force", help="Skip weeks that already have summaries"),
+) -> None:
+    """
+    Generate comprehensive weekly summaries with release tracking and cross-group insights.
+    
+    When --weeks is specified, summaries are generated in chronological order (oldest first)
+    to ensure proper context building for newer summaries.
+    """
+    from .commands.summarize_week_batch import summarize_weeks_batch_main
+    from .commands.summarize_week import summarize_week_main
+    
+    # Use config default if weeks not specified
+    if weeks is None:
+        if week is not None:
+            weeks = 1  # Single specific week
+        else:
+            config = load_config()
+            weeks = config.reporting.default_weeks
+    
+    if weeks > 1:
+        # Batch mode: process multiple weeks in chronological order
+        summarize_weeks_batch_main(weeks, year, week, claude_args, dry_run, skip_existing, lookback_weeks)
+    else:
+        # Single week mode
+        summarize_week_main(year, week, claude_args, dry_run, prompt_only, lookback_weeks)
+
+
 @app.command()
 def config(
     show_keys: bool = typer.Option(False, "--show-keys", help="Show sensitive configuration (GitHub token)")

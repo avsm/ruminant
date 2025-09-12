@@ -46,11 +46,12 @@ def parse_group_summary_json(file_path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def collect_all_data(data_dir: Path) -> tuple[Dict[str, List[Dict]], Dict[str, List[Dict]]]:
-    """Collect all reports and group summaries organized by week."""
+def collect_all_data(data_dir: Path) -> tuple[Dict[str, List[Dict]], Dict[str, List[Dict]], Dict[str, Dict]]:
+    """Collect all reports, group summaries, and weekly summaries organized by week."""
     
     weeks_data = {}  # key: "year-week", value: list of individual summaries
     group_summaries = {}  # key: "year-week", value: list of group summaries
+    weekly_summaries = {}  # key: "year-week", value: weekly summary dict
     
     # Collect individual repository summaries from data/summaries/<org>/<repo>/
     summaries_dir = data_dir / "summaries"
@@ -101,14 +102,35 @@ def collect_all_data(data_dir: Path) -> tuple[Dict[str, List[Dict]], Dict[str, L
                             
                             group_summaries[week_key].append(summary)
     
-    return weeks_data, group_summaries
+    # Collect weekly summaries from data/summaries/weekly/
+    weekly_summaries_dir = data_dir / "summaries" / "weekly"
+    if weekly_summaries_dir.exists():
+        for summary_file in weekly_summaries_dir.glob("week-*.json"):
+            summary = parse_group_summary_json(summary_file)
+            if summary:
+                # Extract week info from filename (week-NN-YYYY.json)
+                parts = summary_file.stem.split('-')
+                if len(parts) >= 3:
+                    week = int(parts[1])
+                    year = int(parts[2])
+                    week_key = f"{year}-{week:02d}"
+                    
+                    # Ensure metadata is in summary
+                    if 'year' not in summary:
+                        summary['year'] = year
+                    if 'week' not in summary:
+                        summary['week'] = week
+                    
+                    weekly_summaries[week_key] = summary
+    
+    return weeks_data, group_summaries, weekly_summaries
 
 
-def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict[str, List[Dict]]) -> List[Dict[str, Any]]:
+def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict[str, List[Dict]], weekly_summaries: Dict[str, Dict]) -> List[Dict[str, Any]]:
     """Generate index of all weeks with summary information."""
     
     index = []
-    all_weeks = set(weeks_data.keys()) | set(group_summaries.keys())
+    all_weeks = set(weeks_data.keys()) | set(group_summaries.keys()) | set(weekly_summaries.keys())
     
     for week_key in sorted(all_weeks, reverse=True):
         parts = week_key.split('-')
@@ -118,35 +140,37 @@ def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict
         # Get reports for this week
         week_reports = weeks_data.get(week_key, [])
         week_groups = group_summaries.get(week_key, [])
+        week_summary = weekly_summaries.get(week_key)
         
-        # Extract brief summary from first group summary if available
+        # Extract brief summary - prefer weekly summary, then group, then individual
         summary_text = None
-        if week_groups:
+        if week_summary and week_summary.get('brief_summary'):
+            summary_text = week_summary['brief_summary']
+        elif week_groups:
             for group in week_groups:
                 # Use the explicit brief_summary field if available
                 if group.get('brief_summary'):
                     summary_text = group['brief_summary']
                     break
-        
         # Fallback to individual repository summaries if no group summary
-        if not summary_text and week_reports:
+        elif week_reports:
             for report in week_reports:
                 if report.get('brief_summary'):
                     summary_text = report['brief_summary']
                     break
         
-        # Check for priority items in both individual and group summaries
-        has_priority = any(
-            bool(report.get('priority_items')) 
-            for report in week_reports
-        ) or any(
-            bool(group.get('priority_items'))
-            for group in week_groups
+        # Check for priority items in weekly, group, and individual summaries
+        has_priority = (
+            (week_summary and bool(week_summary.get('priority_items'))) or
+            any(bool(report.get('priority_items')) for report in week_reports) or
+            any(bool(group.get('priority_items')) for group in week_groups)
         )
         
-        # Get week range
+        # Get week range - prefer weekly summary, then reports, then groups
         week_range = None
-        if week_reports:
+        if week_summary and week_summary.get('week_range'):
+            week_range = week_summary['week_range']
+        elif week_reports:
             week_range = week_reports[0].get('week_range')
         elif week_groups:
             week_range = week_groups[0].get('week_range')
@@ -162,7 +186,8 @@ def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict
             'groups': [g['group'] for g in week_groups],
             'has_priority_items': has_priority,
             'summary': summary_text,
-            'activity_level': calculate_activity_level(week_reports, week_groups)
+            'activity_level': calculate_activity_level(week_reports, week_groups, week_summary),
+            'has_weekly_summary': week_summary is not None
         }
         
         index.append(week_summary)
@@ -170,7 +195,7 @@ def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict
     return index
 
 
-def calculate_activity_level(reports: List[Dict], groups: List[Dict]) -> int:
+def calculate_activity_level(reports: List[Dict], groups: List[Dict], weekly_summary: Optional[Dict] = None) -> int:
     """Calculate activity level for a week."""
     level = 0
     
@@ -202,19 +227,36 @@ def calculate_activity_level(reports: List[Dict], groups: List[Dict]) -> int:
         if group.get('emerging_trends'):
             level += 2
     
+    # Count weekly summary content (highest weight since it's ecosystem-wide)
+    if weekly_summary:
+        if weekly_summary.get('group_overview'):
+            level += 5
+        if weekly_summary.get('cross_repository_work'):
+            level += 4
+        if weekly_summary.get('key_projects'):
+            level += 4
+        if weekly_summary.get('priority_items'):
+            level += 4
+        if weekly_summary.get('notable_discussions'):
+            level += 2
+        if weekly_summary.get('emerging_trends'):
+            level += 3
+    
     return level
 
 
-def generate_week_detail(week_key: str, reports: List[Dict], groups: List[Dict]) -> Dict[str, Any]:
+def generate_week_detail(week_key: str, reports: List[Dict], groups: List[Dict], weekly_summary: Optional[Dict] = None) -> Dict[str, Any]:
     """Generate detailed week data for a specific week."""
     
     parts = week_key.split('-')
     year = int(parts[0])
     week = int(parts[1])
     
-    # Get week range
+    # Get week range - prefer weekly summary
     week_range = None
-    if reports:
+    if weekly_summary and weekly_summary.get('week_range'):
+        week_range = weekly_summary['week_range']
+    elif reports:
         week_range = reports[0].get('week_range')
     elif groups:
         week_range = groups[0].get('week_range')
@@ -228,12 +270,14 @@ def generate_week_detail(week_key: str, reports: List[Dict], groups: List[Dict])
         'week_range': week_range,
         'repositories': reports,
         'group_summaries': groups,
-        'activity_level': calculate_activity_level(reports, groups),
+        'weekly_summary': weekly_summary,
+        'activity_level': calculate_activity_level(reports, groups, weekly_summary),
         'stats': {
             'total_repos': len(reports),
             'total_groups': len(groups),
-            'has_priority_items': any(r.get('priority_items') for r in reports),
-            'has_emerging_trends': any(r.get('emerging_trends') for r in reports)
+            'has_weekly_summary': weekly_summary is not None,
+            'has_priority_items': any(r.get('priority_items') for r in reports) or any(g.get('priority_items') for g in groups) or (weekly_summary and weekly_summary.get('priority_items')),
+            'has_emerging_trends': any(r.get('emerging_trends') for r in reports) or any(g.get('emerging_trends') for g in groups) or (weekly_summary and weekly_summary.get('emerging_trends'))
         }
     }
 
@@ -294,21 +338,24 @@ def website_json_main(
         output_path = Path(output_dir)
         
         step("Collecting all summary data...")
-        weeks_data, group_summaries = collect_all_data(data_dir)
+        weeks_data, group_summaries, weekly_summaries = collect_all_data(data_dir)
         
-        if not weeks_data and not group_summaries:
-            error("No summaries found. Run 'ruminant summarize' and 'ruminant group' first.")
+        if not weeks_data and not group_summaries and not weekly_summaries:
+            error("No summaries found. Run 'ruminant summarize', 'ruminant group', and 'ruminant summarize-week' first.")
             raise typer.Exit(1)
         
-        total_weeks = len(set(weeks_data.keys()) | set(group_summaries.keys()))
+        total_weeks = len(set(weeks_data.keys()) | set(group_summaries.keys()) | set(weekly_summaries.keys()))
         total_repos = sum(len(repos) for repos in weeks_data.values())
         total_groups = sum(len(groups) for groups in group_summaries.values())
+        total_weeklies = len(weekly_summaries)
         
         info(f"Found data for {total_weeks} weeks")
         if total_repos > 0:
             info(f"  → {total_repos} individual repository summaries")
         if total_groups > 0:
             info(f"  → {total_groups} group summaries")
+        if total_weeklies > 0:
+            info(f"  → {total_weeklies} weekly summaries")
         
         # Create output directory structure
         step("Creating output directory structure...")
@@ -318,12 +365,13 @@ def website_json_main(
         
         # Generate and save week index
         step("Generating week index...")
-        week_index = generate_week_index(weeks_data, group_summaries)
+        week_index = generate_week_index(weeks_data, group_summaries, weekly_summaries)
         
         index_data = {
             'project': config.project_name,
             'generated_at': datetime.now().isoformat(),
             'total_weeks': len(week_index),
+            'total_weekly_summaries': total_weeklies,
             'weeks': week_index
         }
         
@@ -333,13 +381,14 @@ def website_json_main(
         
         # Generate and save individual week files
         step("Generating individual week files...")
-        all_weeks = set(weeks_data.keys()) | set(group_summaries.keys())
+        all_weeks = set(weeks_data.keys()) | set(group_summaries.keys()) | set(weekly_summaries.keys())
         
         for week_key in all_weeks:
             week_reports = weeks_data.get(week_key, [])
             week_groups = group_summaries.get(week_key, [])
+            week_summary = weekly_summaries.get(week_key)
             
-            week_detail = generate_week_detail(week_key, week_reports, week_groups)
+            week_detail = generate_week_detail(week_key, week_reports, week_groups, week_summary)
             
             with open(weeks_dir / f"{week_key}.json", 'w', encoding='utf-8') as f:
                 json.dump(week_detail, f, indent=indent, ensure_ascii=False)
@@ -361,6 +410,7 @@ def website_json_main(
             'version': '1.0',
             'total_weeks': len(week_index),
             'total_groups': len(groups_index),
+            'total_weekly_summaries': total_weeklies,
             'latest_week': week_index[0] if week_index else None,
             'oldest_week': week_index[-1] if week_index else None
         }

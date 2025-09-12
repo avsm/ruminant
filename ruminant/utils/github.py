@@ -417,6 +417,79 @@ def fetch_user_info(username: str, token: Optional[str]) -> Optional[Dict[str, A
         return None
 
 
+def fetch_releases(repo_name: str, token: Optional[str], week_start: datetime, week_end: datetime) -> List[Dict[str, Any]]:
+    """Fetch releases from a GitHub repository for a specific week."""
+    owner, name = repo_name.split("/")
+    
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+    
+    releases = []
+    page = 1
+    per_page = 100
+    
+    while page <= 10:  # Safety limit
+        url = f"https://api.github.com/repos/{owner}/{name}/releases"
+        params = {
+            "per_page": per_page,
+            "page": page
+        }
+        
+        try:
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            if response.status_code == 200:
+                page_releases = response.json()
+                
+                if not page_releases:
+                    break
+                
+                # Filter releases by date
+                for release in page_releases:
+                    published_at = release.get("published_at")
+                    if published_at and is_in_week_range(published_at, week_start, week_end):
+                        # Format release data
+                        formatted_release = {
+                            "tag_name": release.get("tag_name"),
+                            "name": release.get("name"),
+                            "published_at": published_at,
+                            "author": release.get("author", {}).get("login") if release.get("author") else None,
+                            "html_url": release.get("html_url"),
+                            "body": release.get("body", ""),
+                            "prerelease": release.get("prerelease", False),
+                            "draft": release.get("draft", False),
+                            "assets": [
+                                {
+                                    "name": asset.get("name"),
+                                    "download_count": asset.get("download_count", 0),
+                                    "size": asset.get("size", 0)
+                                }
+                                for asset in release.get("assets", [])
+                            ]
+                        }
+                        releases.append(formatted_release)
+                
+                # Check if we've gone past our date range
+                if page_releases:
+                    last_release_date = page_releases[-1].get("published_at")
+                    if last_release_date:
+                        last_date = datetime.fromisoformat(last_release_date.replace("Z", "+00:00"))
+                        if last_date < week_start:
+                            break
+                
+                page += 1
+            else:
+                warning(f"Failed to fetch releases for {repo_name}: {response.status_code}")
+                break
+                
+        except requests.RequestException as e:
+            error(f"Error fetching releases for {repo_name}: {e}")
+            break
+    
+    info(f"Found {len(releases)} releases for {repo_name} in week")
+    return releases
+
+
 def extract_users_from_data(issues: List[Dict], prs: List[Dict], discussions: List[Dict]) -> set:
     """Extract unique usernames from issues, PRs, discussions, and all @mentions in comments."""
     import re

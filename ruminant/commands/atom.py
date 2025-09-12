@@ -184,6 +184,120 @@ def create_opml(feeds: Dict[str, str], config: Any) -> str:
     return reparsed.toprettyxml(indent="  ", encoding='UTF-8').decode('utf-8')
 
 
+def create_weekly_atom_feed(config: Any) -> FeedGenerator:
+    """Create an Atom feed for weekly summaries."""
+    fg = FeedGenerator()
+    
+    # Get atom config from config file
+    atom_config = config.atom if hasattr(config, 'atom') else None
+    if not atom_config:
+        base_url = "https://ocaml.org/ruminant"
+        author_name = "OCaml Community"
+        author_email = "community@ocaml.org"
+    else:
+        base_url = atom_config.base_url
+        author_name = atom_config.author_name
+        author_email = atom_config.author_email
+    
+    # Set feed metadata
+    feed_id = f"{base_url}/feeds/weekly.atom"
+    fg.id(feed_id)
+    fg.title("OCaml Ecosystem - Weekly Summaries")
+    fg.author({'name': author_name, 'email': author_email})
+    fg.link(href=feed_id, rel='self')
+    fg.link(href=f"{base_url}/weekly", rel='alternate')
+    fg.subtitle("Comprehensive weekly summaries across all OCaml ecosystem activity")
+    fg.language('en')
+    
+    # Find all weekly summaries
+    data_dir = get_data_dir()
+    weekly_dir = data_dir / "summaries" / "weekly"
+    
+    if weekly_dir.exists():
+        summaries = []
+        for summary_file in weekly_dir.glob("week-*.json"):
+            # Parse week and year from filename
+            parts = summary_file.stem.split('-')
+            if len(parts) == 3:
+                week = int(parts[1])
+                year = int(parts[2])
+                
+                # Read summary JSON content
+                try:
+                    with open(summary_file, 'r') as f:
+                        summary_data = json.load(f)
+                    
+                    summaries.append({
+                        'year': year,
+                        'week': week,
+                        'data': summary_data,
+                        'file': summary_file
+                    })
+                except:
+                    continue
+        
+        # Sort by date (newest first)
+        summaries.sort(key=lambda x: (x['year'], x['week']), reverse=True)
+        
+        # Add entries
+        for summary in summaries:
+            from ..utils.dates import get_week_date_range
+            week_start, week_end = get_week_date_range(summary['year'], summary['week'])
+            summary_data = summary['data']
+            
+            fe = fg.add_entry()
+            entry_id = f"{base_url}/weekly/{summary['year']}/week-{summary['week']}"
+            fe.id(entry_id)
+            
+            # Use brief_summary for title if available
+            brief_summary = summary_data.get('brief_summary', '')
+            if brief_summary:
+                fe.title(f"Week {summary['week']}, {summary['year']}: {brief_summary}")
+            else:
+                fe.title(f"Week {summary['week']}, {summary['year']} - Ecosystem Summary")
+            
+            fe.link(href=entry_id)
+            fe.published(week_end.replace(tzinfo=pytz.UTC))
+            fe.updated(week_end.replace(tzinfo=pytz.UTC))
+            
+            # Build HTML content from JSON structure
+            content_parts = []
+            
+            if summary_data.get('executive_summary'):
+                content_parts.append(f"<h2>Executive Summary</h2>\n{markdown_to_html(summary_data['executive_summary'])}")
+            
+            if summary_data.get('major_releases'):
+                content_parts.append(f"<h2>Major Releases</h2>\n{markdown_to_html(summary_data['major_releases'])}")
+            
+            if summary_data.get('key_developments'):
+                content_parts.append(f"<h2>Key Developments</h2>\n{markdown_to_html(summary_data['key_developments'])}")
+            
+            if summary_data.get('trending_topics'):
+                content_parts.append(f"<h2>Trending Topics</h2>\n{markdown_to_html(summary_data['trending_topics'])}")
+            
+            if summary_data.get('looking_ahead'):
+                content_parts.append(f"<h2>Looking Ahead</h2>\n{markdown_to_html(summary_data['looking_ahead'])}")
+            
+            # Fall back to raw_output if available
+            if not content_parts and summary_data.get('raw_output'):
+                content_parts.append(markdown_to_html(summary_data['raw_output']))
+            
+            html_content = '\n'.join(content_parts) if content_parts else f"<p>Weekly ecosystem summary for Week {summary['week']}, {summary['year']}</p>"
+            fe.content(html_content, type='html')
+            
+            # Use brief_summary or executive_summary for feed summary
+            feed_summary = (
+                summary_data.get('brief_summary') or 
+                summary_data.get('executive_summary', '')[:200] or 
+                f"Weekly ecosystem summary for Week {summary['week']}, {summary['year']}"
+            )
+            
+            fe.summary(feed_summary)
+    
+    fg.updated(datetime.now(pytz.UTC))
+    return fg
+
+
 def atom_main(output_dir: str, pretty: bool = False) -> None:
     """Main function for generating Atom feeds."""
     try:
@@ -241,6 +355,16 @@ def atom_main(output_dir: str, pretty: bool = False) -> None:
             except Exception as e:
                 error(f"Failed to generate feed for {group_name}: {e}")
                 continue
+        
+        # Generate weekly summary feed
+        try:
+            weekly_fg = create_weekly_atom_feed(config)
+            weekly_feed_path = feeds_dir / "weekly.atom"
+            weekly_fg.atom_file(str(weekly_feed_path), pretty=pretty)
+            generated_feeds['weekly'] = str(weekly_feed_path)
+            success(f"Generated weekly summary feed: {weekly_feed_path}")
+        except Exception as e:
+            warning(f"Failed to generate weekly summary feed: {e}")
         
         # Generate OPML file
         if generated_feeds:
