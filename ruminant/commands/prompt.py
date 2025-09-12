@@ -101,7 +101,17 @@ The report should include the following sections:
 CRITICAL REQUIREMENTS:
 - ALL sections MUST use bullet point format (starting with "-" or "*") for consistency and readability
 - SKIP any section entirely if there is no meaningful content for it
-- DO NOT include placeholder text like "No discussions were recorded" or "There are no XYZ to report"
+- ABSOLUTELY DO NOT include ANY of these phrases or similar:
+  * "No activity recorded"
+  * "No activity"
+  * "No changes"
+  * "Quiet week"
+  * "No updates"
+  * "No discussions were recorded"
+  * "There are no XYZ to report"
+  * "Nothing to report"
+  * "[repo name] repository during this week"
+- If a section has no real activity, set its value to null in the JSON
 - Only include sections that have actual, substantive content
 - Be as concise as possible while maintaining clarity
 
@@ -173,21 +183,30 @@ ACTION REQUIRED:
   "year": {year},
   "repo": "{repo}",
   "week_range": "{week_range_str}",
-  "brief_summary": "A single sentence (max 150 chars) summarizing the most important activity this week",
-  "overall_activity": "Markdown content for overall activity summary (always include if there's any activity - MUST use bullet points - include key PR/issue numbers)",
-  "ongoing_projects": "Markdown content for key ongoing projects (only include if there are identifiable projects - MUST use bullet points - MUST include all relevant issue/PR references)",
-  "priority_items": "Markdown content for priority items (only include if there are items needing immediate attention - MUST use bullet points - include specific PR/issue numbers)",
-  "notable_discussions": "Markdown content for notable discussions (only include if there are actual significant discussions - MUST use bullet points - include discussion numbers if available)",
-  "emerging_trends": "Markdown content for emerging trends (only include if clear patterns are identifiable - MUST use bullet points - support with specific PR/issue examples)",
-  "good_first_issues": "Markdown content for good first issues (only include if there are actual good first issues available - MUST use bullet points - list all issue numbers)",
-  "contributors": "Markdown content for contributors (always include if there are any contributors - reference their specific contributions by PR/issue number)"
+  "brief_summary": "A single sentence (max 150 chars) summarizing the most important activity this week - set to null if NO activity",
+  "overall_activity": "Markdown content for overall activity summary - set to null if no activity exists",
+  "ongoing_summary": "One sentence (max 150 chars) summarizing ongoing projects - set to null if no ongoing projects exist",
+  "ongoing_projects": "Markdown content for key ongoing projects - set to null if no ongoing projects exist",
+  "priority_summary": "One sentence (max 150 chars) highlighting urgent items - set to null if no priority items exist",
+  "priority_items": "Markdown content for priority items - set to null if no priority items exist",
+  "discussions_summary": "One sentence (max 150 chars) about discussions - set to null if no notable discussions exist",
+  "notable_discussions": "Markdown content for notable discussions - set to null if no discussions exist",
+  "trends_summary": "One sentence (max 150 chars) describing trends - set to null if no trends are identifiable",
+  "emerging_trends": "Markdown content for emerging trends - set to null if no clear trends exist",
+  "issues_summary": "One sentence (max 150 chars) about good first issues - set to null if none available",
+  "good_first_issues": "Markdown content for good first issues - set to null if no good first issues exist",
+  "contributors_summary": "One sentence (max 150 chars) highlighting key contributors - set to null if no contributors",
+  "contributors": "Markdown content for contributors - set to null if no contributors this week"
 }}
 
 IMPORTANT JSON FORMATTING RULES:
-- brief_summary: A single, concise sentence (maximum 150 characters) that captures the most significant activity or theme of the week
-- Each section value should contain the markdown content that would have been in that section
-- ALL sections MUST use bullet points format (starting with "-" or "*") for better readability
-- If a section has no meaningful content, set its value to null (not an empty string)
+- ALL fields MUST be set to null if they have no content (not empty strings, not placeholder text)
+- Summary fields (*_summary): Set to null if that section has no activity
+- Content fields: Set to null if no meaningful content exists for that section
+- brief_summary: Set to null if the repository had NO activity at all this week
+- For each section: If no real activity exists, BOTH the summary AND content fields must be null
+- ALL sections with content MUST use bullet points format (starting with "-" or "*")
+- NEVER include text like "No activity recorded" or similar phrases - use null instead
 - The markdown content within each section should follow the same formatting rules:
   - Bullet points for organization
   - Clickable links for all PR/issue references (e.g., [#1234](https://github.com/{repo}/issues/1234))
@@ -200,7 +219,11 @@ IMPORTANT JSON FORMATTING RULES:
 
 Remember: 
 - ALL sections MUST use bullet point format - this is mandatory for consistency
-- Set section values to null if they would be empty or contain only filler text
+- Set BOTH summary AND content fields to null for sections with no activity
+- ABSOLUTELY NEVER write phrases like "No activity recorded" - use null instead
+- If the entire repository had zero activity, set ALL fields to null (every single field)
+- Each section is independent - if ongoing_projects has no content, set both ongoing_summary AND ongoing_projects to null
+- Summary fields should be concise sentences (max 150 chars) that capture the essence of that section
 - EVERY bullet point in the markdown content must include clickable PR/issue links for reader follow-up
 - Check data/users/[username].json files to get full names for user mentions
 - Format all GitHub references as proper markdown links
