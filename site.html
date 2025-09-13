@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCAML.SYS :: Activity Monitor</title>
+    <title>OCaml Thicket</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -12,10 +12,10 @@
             --bg-secondary: #111;
             --bg-tertiary: #222;
             --border-color: #333;
-            --text-primary: #00ff00;
-            --text-secondary: #ccc;
-            --text-muted: #666;
-            --text-dim: #888;
+            --text-primary: #00ff88;
+            --text-secondary: #ddd;
+            --text-muted: #bbb;
+            --text-dim: #ccc;
             --link-color: #999;
             --priority-color: #ffddee;
             --eco-active-bg: #003300;
@@ -26,10 +26,10 @@
             --bg-secondary: #ebe6d9;
             --bg-tertiary: #ddd5c3;
             --border-color: #b8b0a0;
-            --text-primary: #2a4f2a;
-            --text-secondary: #3a5f3a;
-            --text-muted: #5a7f5a;
-            --text-dim: #7a9f7a;
+            --text-primary: #0a1a0a;
+            --text-secondary: #1a2f1a;
+            --text-muted: #2a4f2a;
+            --text-dim: #4a6f4a;
             --link-color: #506850;
             --priority-color: #1a3f1a;
             --eco-active-bg: #c8c0a8;
@@ -65,15 +65,81 @@
         
         .header-title {
             color: var(--text-primary);
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             margin-left: 15px;
             text-transform: uppercase;
             letter-spacing: 2px;
         }
         
+        .header-separator {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin: 0 10px;
+            opacity: 0.3;
+        }
+        
+        .header-groups {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-left: 5px;
+        }
+        
+        .group-tab {
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 6px 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+        
+        .group-tab::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1px;
+            height: 12px;
+            background: var(--border-color);
+            opacity: 0.3;
+        }
+        
+        .group-tab:first-child::before {
+            display: none;
+        }
+        
+        .group-tab:hover {
+            color: var(--text-secondary);
+            opacity: 0.9;
+            background: var(--bg-tertiary);
+        }
+        
+        .group-tab.active {
+            color: var(--text-primary);
+            opacity: 1;
+            background: none;
+            font-weight: 600;
+        }
+        
+        .group-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background: var(--text-primary);
+            opacity: 0.8;
+        }
+        
         .mode-toggle {
-            margin-left: auto;
             margin-right: 15px;
             cursor: pointer;
             font-size: 20px;
@@ -86,151 +152,332 @@
             color: var(--text-primary);
         }
         
-        .ecosystem-nav {
-            display: flex;
-            gap: 2px;
+        /* Repository Dropdown */
+        .repo-dropdown-container {
+            position: relative;
+            margin-left: auto;
+            margin-right: 10px;
         }
         
-        .eco-tab {
-            padding: 6px 12px;
-            background: var(--bg-tertiary);
-            color: var(--text-muted);
-            border: 1px solid var(--border-color);
+        .repo-dropdown-toggle {
             cursor: pointer;
             font-size: 11px;
-            text-transform: lowercase;
-            transition: all 0.2s;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            padding: 6px 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s;
+            user-select: none;
         }
         
-        .eco-tab:hover { 
-            background: var(--border-color); 
-            color: var(--text-primary); 
+        .repo-dropdown-toggle:hover {
+            color: var(--text-primary);
         }
         
-        .eco-tab.active { 
-            background: var(--eco-active-bg); 
-            color: var(--text-primary); 
-            border-color: var(--text-primary); 
+        .dropdown-arrow {
+            font-size: 8px;
+            transition: transform 0.2s;
+        }
+        
+        .repo-dropdown-toggle.active .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+        
+        .repo-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 300px;
+            max-width: 400px;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 2000;
+            display: none;
+        }
+        
+        .repo-dropdown.show {
+            display: block;
+        }
+        
+        .repo-dropdown-content {
+            padding: 8px;
+        }
+        
+        .repo-org-group {
+            margin-bottom: 12px;
+        }
+        
+        .repo-org-name {
+            color: var(--text-primary);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            padding: 2px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .repo-item {
+            display: block;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 11px;
+            font-family: monospace;
+            padding: 2px 8px;
+            border-radius: 2px;
+            transition: all 0.15s;
+        }
+        
+        .repo-item:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
         
         
-        /* Sidebar */
+        
+        /* Sidebar with Timeline */
         .sidebar {
             width: 160px;
             background: var(--bg-secondary);
             border-right: 1px solid var(--border-color);
             margin-top: 40px;
-            overflow-y: auto;
             height: calc(100vh - 40px);
-        }
-        
-        .sidebar-header {
-            padding: 8px 15px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
-            font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            font-family: monospace;
-            font-weight: bold;
-        }
-        
-        .week-item {
-            padding: 8px 8px 8px 12px;
-            border-bottom: 1px solid var(--bg-tertiary);
-            cursor: pointer;
-            font-size: 11px;
-            transition: all 0.2s;
-            position: relative;
-            font-family: monospace;
-        }
-        
-        .week-item:hover { 
-            background: var(--bg-tertiary);
-            padding-left: 16px;
-        }
-        
-        .week-item.active { 
-            background: var(--eco-active-bg); 
-            color: var(--text-primary);
-            padding-left: 20px;
-        }
-        
-        .week-item.active::before {
-            content: '>';
-            position: absolute;
-            left: 8px;
-            color: var(--text-primary);
-            font-weight: bold;
-        }
-        
-        .week-item .week-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-        }
-        
-        .week-item .week-num {
-            font-weight: normal;
-            color: var(--text-primary);
-        }
-        
-        .week-item .week-date {
-            color: var(--text-muted);
-            font-size: 9px;
-            margin-top: 2px;
-            opacity: 0.5;
-            font-family: monospace;
-            letter-spacing: 1px;
-        }
-        
-        .week-item .week-progress {
-            display: none;
-            margin-top: 6px;
-            position: relative;
-        }
-        
-        .week-item.active .week-progress {
-            display: block;
-        }
-        
-        .week-item .progress-bar {
-            height: 12px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            position: relative;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
         
-        .week-item .progress-fill {
+        .timeline-container {
+            display: flex;
+            flex-direction: column;
             height: 100%;
-            background: var(--text-dim);
-            transition: width 0.1s linear;
-            width: 0%;
         }
         
-        .week-item.active .progress-fill {
-            background: var(--text-primary);
+        .year-overview {
+            padding: 8px 10px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
         
-        .week-item .progress-text {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 100%;
+        .year-selector-container {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 8px;
+            margin-bottom: 4px;
+            gap: 12px;
+        }
+        
+        .year-nav-btn {
+            background: none;
+            border: none;
             color: var(--text-muted);
-            mix-blend-mode: difference;
-            font-weight: bold;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 2px 6px;
+            transition: all 0.15s;
+            opacity: 0.6;
+            font-family: inherit;
+        }
+        
+        .year-nav-btn:hover:not(:disabled) {
+            color: var(--text-primary);
+            opacity: 1;
+        }
+        
+        .year-nav-btn:disabled {
+            opacity: 0.2;
+            cursor: not-allowed;
+        }
+        
+        .year-display {
+            color: var(--text-primary);
+            font-size: 11px;
+            font-weight: 600;
+            min-width: 40px;
+            text-align: center;
+        }
+        
+        .weeks-bar {
+            display: flex;
+            gap: 1px;
+            height: 20px;
+            background: var(--bg-secondary);
+            padding: 2px;
+            border-radius: 2px;
+        }
+        
+        .week-tick {
+            flex: 1;
+            background: var(--border-color);
+            border-radius: 1px;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+        }
+        
+        .week-tick.has-data {
+            background: var(--text-muted);
+            opacity: 0.4;
+        }
+        
+        .week-tick.has-activity {
+            background: var(--text-muted);
+            opacity: 0.6;
+        }
+        
+        .week-tick:hover {
+            background: var(--text-primary);
+            opacity: 0.8;
+        }
+        
+        .week-tick.current {
+            background: var(--text-primary);
+            opacity: 1;
+            box-shadow: 0 0 4px var(--text-primary);
+        }
+        
+        .week-tick.viewing {
+            background: var(--text-primary);
+            opacity: 1;
+        }
+        
+        .week-tick-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 2px 6px;
+            border-radius: 2px;
+            border: 1px solid var(--border-color);
+            font-size: 9px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            margin-bottom: 4px;
+            z-index: 1000;
+        }
+        
+        .week-tick:hover .week-tick-tooltip {
+            opacity: 1;
+        }
+        
+        .timeline-weeks {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+        
+        .timeline-week {
+            padding: 8px 15px;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+            border-left: 2px solid transparent;
+            margin-bottom: 2px;
+        }
+        
+        .timeline-week:hover {
+            background: var(--bg-tertiary);
+            border-left-color: var(--border-color);
+        }
+        
+        .timeline-week.active {
+            background: var(--eco-active-bg);
+            border-left-color: var(--text-primary);
+        }
+        
+        .timeline-week.no-data {
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        .timeline-week-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 3px;
+            text-transform: uppercase;
             letter-spacing: 0.5px;
+            opacity: 0.7;
+        }
+        
+        .timeline-week.active .timeline-week-label {
+            color: var(--text-primary);
+            opacity: 1;
+        }
+        
+        .timeline-week-dates {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .timeline-week.active .timeline-week-dates {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        
+        .timeline-year {
+            font-size: 9px;
+            color: var(--text-muted);
+            margin-top: 2px;
+            opacity: 0.5;
+        }
+        
+        .timeline-week.active .timeline-year {
+            opacity: 0.8;
+        }
+        
+        .timeline-indicator {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 4px;
+            height: 4px;
+            background: var(--text-primary);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .timeline-week.has-activity .timeline-indicator {
+            opacity: 0.3;
+        }
+        
+        .timeline-week.active .timeline-indicator {
+            opacity: 1;
+        }
+        
+        /* Timeline scrollbar styling */
+        .timeline-weeks::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .timeline-weeks::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+        
+        .timeline-weeks::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+        
+        .timeline-weeks::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
         }
         
         /* Main content */
@@ -242,47 +489,118 @@
             background: var(--bg-primary);
         }
         
-        .content-header {
-            padding: 8px 15px;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            height: 40px;
-        }
         
         .content-body {
             padding: 0;
         }
         
         .week-section {
-            border-bottom: 2px solid var(--border-color);
-            margin-bottom: 0;
-            padding: 15px 20px 20px 20px;
+            margin-bottom: 30px;
+            padding: 0;
             scroll-margin-top: 40px;
         }
         
         .week-header-main {
-            padding: 10px 0 5px 0;
-            margin-bottom: 10px;
+            padding: 8px 0 12px 20px;
+            margin-bottom: 16px;
             display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+            gap: 12px;
+            font-family: monospace;
+            background: none;
+            position: relative;
+        }
+        
+        .week-header-main::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 20px;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(to right, var(--border-color), transparent);
+            opacity: 0.5;
         }
         
         .week-title-main {
             color: var(--text-primary);
-            font-size: 12px;
-            font-weight: normal;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
-        .week-repos {
-            color: var(--text-muted);
-            font-size: 10px;
-            text-align: right;
+        .week-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
             flex-shrink: 0;
-            max-width: 60%;
+        }
+        
+        .week-icon svg {
+            width: 100%;
+            height: 100%;
+            fill: var(--text-primary);
+        }
+        
+        .week-date-range {
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+        
+        .week-repos-summary {
+            border-left: 2px solid var(--border-color);
+            padding: 0 0 6px 20px;
+            margin-bottom: 8px;
+            font-family: monospace;
+            position: relative;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        
+        .repos-list {
+            color: var(--text-muted);
+            font-size: 11px;
+            opacity: 0.7;
+            line-height: 1.4;
+        }
+        
+        .repos-list-truncated {
+            max-height: 2.8em;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .repos-list-truncated::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 50px;
+            height: 1.4em;
+            background: linear-gradient(to right, transparent, var(--bg-primary));
+        }
+        
+        .reveal-button {
+            background: none;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-family: monospace;
+            font-size: 10px;
+            padding: 2px 8px;
+            margin-left: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .reveal-button:hover {
+            color: var(--text-primary);
+            border-color: var(--text-primary);
         }
         
         .org-group {
@@ -318,7 +636,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 30px;
-            padding: 20px;
+            padding: 0 20px 20px 20px;
             font-size: 11px;
             line-height: 1.5;
         }
@@ -341,11 +659,22 @@
             text-transform: uppercase;
             letter-spacing: 2px;
             opacity: 0.9;
-            border-bottom: 1px solid var(--border-color);
             padding-bottom: 4px;
             display: flex;
+            position: relative;
             align-items: center;
             gap: 6px;
+        }
+        
+        .content-label::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(to right, var(--text-secondary), transparent);
+            opacity: 0.4;
         }
         
         .content-label svg {
@@ -371,95 +700,28 @@
         /* Special styling for internal group navigation links */
         .group-link {
             color: var(--text-primary);
-            font-weight: 600;
             text-decoration: none;
-            padding: 0 2px;
-            margin: 0 1px;
-            display: inline;
-            position: relative;
-            transition: all 0.15s ease;
-            font-size: inherit;
-            letter-spacing: 0.3px;
-            border-bottom: 1px dotted var(--text-primary);
-            opacity: 0.9;
+            font-weight: 500;
+            border: 1px solid var(--border-color);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 0.9em;
+            background: var(--bg-tertiary);
         }
         
-        .group-link::before {
-            content: '⟨';
-            margin-right: 2px;
-            opacity: 0.4;
-            font-weight: normal;
-            transition: all 0.15s ease;
-        }
         
-        .group-link::after {
-            content: '⟩';
-            margin-left: 2px;
-            opacity: 0.4;
-            font-weight: normal;
-            transition: all 0.15s ease;
-        }
-        
+
         .group-link:hover {
-            opacity: 1;
+            background: var(--bg-secondary);
+            border-color: var(--text-muted);
             color: var(--text-primary);
-            text-decoration: none;
-            border-bottom-style: solid;
-            background: linear-gradient(to bottom, transparent 60%, var(--eco-active-bg) 60%);
+            text-decoration: none !important;
         }
         
-        .group-link:hover::before,
-        .group-link:hover::after {
-            opacity: 0.8;
-        }
         
-        /* Light mode adjustments */
-        :root.light-mode .group-link {
-            border-bottom-color: var(--text-primary);
-            opacity: 0.85;
-        }
-        
-        :root.light-mode .group-link:hover {
-            background: linear-gradient(to bottom, transparent 60%, var(--eco-active-bg) 60%);
-            opacity: 1;
-        }
         
         /* Alternative approach with just icon prefix for cleaner look */
-        .group-link[data-group="core"]::before {
-            content: '◆ '; /* Diamond for core */
-            margin-right: 2px;
-            font-size: 0.8em;
-            vertical-align: baseline;
-        }
         
-        .group-link[data-group="tools"]::before {
-            content: '◈ '; /* Diamond variant for tools */
-            margin-right: 2px;
-            font-size: 0.8em;
-            vertical-align: baseline;
-        }
-        
-        .group-link[data-group="ecosystem"]::before {
-            content: '◉ '; /* Circle for ecosystem */
-            margin-right: 2px;
-            font-size: 0.8em;
-            vertical-align: baseline;
-        }
-        
-        .group-link[data-group="oxcaml"]::before {
-            content: '◊ '; /* Lozenge for oxcaml */
-            margin-right: 2px;
-            font-size: 0.8em;
-            vertical-align: baseline;
-        }
-        
-        .group-link[data-group="core"]::after,
-        .group-link[data-group="tools"]::after,
-        .group-link[data-group="ecosystem"]::after,
-        .group-link[data-group="oxcaml"]::after {
-            content: '';
-            margin-left: 0;
-        }
         
         .section-summary {
             color: var(--text-secondary);
@@ -483,6 +745,105 @@
         .section-summary .user-link {
             font-weight: 600;
             font-style: italic;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        /* Interactive hover effect for user links */
+        .user-link:hover {
+            opacity: 1;
+            background: rgba(100, 149, 237, 0.1);
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin: -1px -4px;
+        }
+        
+        /* Enhanced user tooltip container */
+        .user-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            min-width: 200px;
+            max-width: 280px;
+        }
+        
+        /* Show tooltip on parent span hover */
+        .user-link-wrapper:hover .user-tooltip {
+            opacity: 1;
+        }
+        
+        .user-tooltip-content {
+            display: block;
+            position: relative;
+        }
+        
+        .user-tooltip-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            float: left;
+            margin-right: 10px;
+            margin-bottom: 4px;
+            background: var(--bg-tertiary);
+        }
+        
+        .user-tooltip-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+            line-height: 1.3;
+        }
+        
+        .user-tooltip-username {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        
+        .user-tooltip-details {
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-top: 4px;
+        }
+        
+        /* Arrow for enhanced tooltip */
+        .user-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid var(--border-color);
+        }
+        
+        .user-tooltip::before {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-1px);
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid var(--bg-secondary);
         }
         
         
@@ -502,7 +863,7 @@
             position: relative;
             padding-left: 12px;
             line-height: 1.2;
-            padding-bottom: 2px;
+            padding-bottom: 0.8em;
         }
         
         .markdown-list li::before {
@@ -534,6 +895,17 @@
         :root.light-mode .achievement {
             color: #cc6600;
             font-weight: 600;
+        }
+        
+        /* Linked achievements */
+        a.achievement-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        a.achievement-link:hover .achievement {
+            text-decoration: underline;
+            opacity: 0.9;
         }
         
         /* Special styling for issue/PR links */
@@ -717,13 +1089,24 @@
         }
         
         .column-header {
-            color: #666;
+            color: var(--text-muted);
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 1px;
             margin-bottom: 15px;
-            border-bottom: 1px solid #222;
             padding-bottom: 5px;
+            position: relative;
+        }
+        
+        .column-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(to right, var(--border-color), transparent);
+            opacity: 0.4;
         }
         
         .priority-item {
@@ -734,11 +1117,24 @@
         }
         
         .priority-header {
-            color: #ff0066;
+            color: var(--priority-color);
             font-size: 11px;
             font-weight: bold;
             text-transform: uppercase;
             margin-bottom: 8px;
+            padding-bottom: 4px;
+            position: relative;
+        }
+        
+        .priority-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(to right, var(--priority-color), transparent);
+            opacity: 0.3;
         }
         
         .priority-content {
@@ -755,10 +1151,23 @@
         }
         
         .detail-header {
-            color: #00ffff;
+            color: var(--link-color);
             font-size: 11px;
             font-weight: bold;
             margin-bottom: 8px;
+            padding-bottom: 4px;
+            position: relative;
+        }
+        
+        .detail-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(to right, var(--link-color), transparent);
+            opacity: 0.3;
         }
         
         .detail-content {
@@ -845,18 +1254,49 @@
             .header {
                 position: sticky;
                 height: auto;
-                padding: 10px;
-                flex-wrap: wrap;
+                padding: 10px 5px;
+                flex-wrap: nowrap;
+                overflow-x: auto;
             }
             
             .header-title {
                 font-size: 12px;
                 margin-left: 10px;
+                flex-shrink: 0;
+            }
+            
+            .header-separator {
+                flex-shrink: 0;
+            }
+            
+            .header-groups {
+                display: flex;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                flex-shrink: 1;
+                min-width: 0;
+            }
+            
+            .group-tab {
+                flex-shrink: 0;
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+            
+            .repo-dropdown-container {
+                flex-shrink: 0;
+                margin-left: 10px;
+            }
+            
+            .repo-dropdown-toggle {
+                font-size: 10px;
+                padding: 4px 6px;
             }
             
             .mode-toggle {
                 margin-right: 10px;
                 font-size: 18px;
+                flex-shrink: 0;
             }
             
             /* Hide sidebar on mobile */
@@ -902,23 +1342,23 @@
             
             .week-content {
                 padding: 15px 0;
-                font-size: 10px;
+                font-size: 12px;
                 gap: 15px;
             }
             
             .content-label {
-                font-size: 9px;
+                font-size: 11px;
             }
             
             .repo-label {
-                font-size: 11px;
+                font-size: 13px;
                 margin-top: 10px;
             }
             
             .content-text,
             .priority-text,
             .contributor-text {
-                font-size: 10px;
+                font-size: 12px;
             }
             
             /* Hide status bar on mobile */
@@ -945,7 +1385,26 @@
 </head>
 <body>
     <div class="header">
-        <div class="header-title">OCAML.SYS :: Activity Monitor</div>
+        <div class="header-title">OCAML.SYS</div>
+        <div class="header-separator">::</div>
+        <div class="header-groups">
+            <div class="group-tab active" data-group="all">[ALL]</div>
+            <div class="group-tab" data-group="core">[CORE]</div>
+            <div class="group-tab" data-group="ecosystem">[ECOSYSTEM]</div>
+            <div class="group-tab" data-group="tools">[TOOLS]</div>
+            <div class="group-tab" data-group="oxcaml">[OXCAML]</div>
+        </div>
+        <div class="repo-dropdown-container">
+            <div class="repo-dropdown-toggle" onclick="toggleRepoDropdown()">
+                <span>REPOS</span>
+                <span class="dropdown-arrow">▼</span>
+            </div>
+            <div class="repo-dropdown" id="repo-dropdown">
+                <div class="repo-dropdown-content" id="repo-dropdown-content">
+                    <!-- Repository list will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
         <div class="mode-toggle" onclick="toggleTheme()">
             <span id="mode-icon">◐</span>
         </div>
@@ -953,20 +1412,13 @@
 
     <div class="container">
         <div class="sidebar">
-            <div class="sidebar-header">/// TIMELINE</div>
-            <div id="week-list"></div>
+            <div class="timeline-container">
+                <div class="year-overview" id="year-overview"></div>
+                <div class="timeline-weeks" id="timeline-weeks"></div>
+            </div>
         </div>
         
         <div class="main-content">
-            <div class="content-header">
-                <div class="ecosystem-nav">
-                    <div class="eco-tab active" data-ecosystem="all">all</div>
-                    <div class="eco-tab" data-ecosystem="core">core</div>
-                    <div class="eco-tab" data-ecosystem="ecosystem">ecosystem</div>
-                    <div class="eco-tab" data-ecosystem="tools">tools</div>
-                    <div class="eco-tab" data-ecosystem="oxcaml">oxcaml</div>
-                </div>
-            </div>
             <div class="content-body">
                 <div id="loading" class="loading">INITIALIZING FEED...</div>
                 <div id="error" class="error" style="display: none;"></div>
@@ -986,8 +1438,10 @@
         let indexData = null;
         let groupsData = null;
         let allWeekData = {};
+        let usersData = {};
         let currentEcosystem = 'all';
         let currentWeekKey = null;
+        let currentYear = new Date().getFullYear();
         
         // Theme management
         function detectSystemTheme() {
@@ -1035,7 +1489,7 @@
         
         function getSectionIcon(label) {
             const icons = {
-                'overview': '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="8" r="2"/><path d="M12 10 L12 16 M9 14 L15 14"/></svg>',
+                'overview': '',
                 'cross-repo work': '<svg viewBox="0 0 24 24"><path d="M4 6 L4 18 L10 18 M14 6 L20 6 L20 18 L14 18"/><path d="M10 12 L14 12 M11 9 L13 12 L11 15"/></svg>',
                 'key projects': '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="5"/><rect x="5" y="11" width="14" height="5"/><rect x="5" y="18" width="14" height="2"/></svg>',
                 'priorities': '<svg viewBox="0 0 24 24"><path d="M12 2 L12 22 M7 6 L12 2 L17 6"/></svg>',
@@ -1078,19 +1532,97 @@
             });
             
             // Handle simple issue number format [#123](url)
-            text = text.replace(/\[#(\d+)\]\((https:\/\/github\.com\/[^)]+)\)/g, 
-                '<a href="$2" target="_blank" class="issue-link issue-simple">#$1</a>');
+            text = text.replace(/\[#(\d+)\]\((https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/issues\/\d+[^)]*)\)/g, 
+                '<a href="$2" target="_blank" class="issue-link issue-simple" title="$3/$4#$1">#$1</a>');
             
             // Detect user mentions in regular links
-            text = text.replace(/\[(@[^\]]+)\]\(([^)]+)\)/g, 
-                '<a href="$2" target="_blank" class="user-link">$1</a>');
+            text = text.replace(/\[(@[^\]]+)\]\(([^)]+)\)/g, function(match, userText, url) {
+                // Extract username from URL if it's a GitHub URL
+                let username = userText.replace('@', '');
+                const githubMatch = url.match(/github\.com\/([^\/]+)/);
+                if (githubMatch) {
+                    username = githubMatch[1];
+                }
+                
+                // Get user data if available
+                const userData = usersData[username] || {};
+                
+                // Build the enhanced tooltip HTML
+                let tooltipHtml = '<div class="user-tooltip"><div class="user-tooltip-content">';
+                
+                // Add avatar if available
+                if (userData.avatar_url) {
+                    tooltipHtml += `<img src="${userData.avatar_url}" alt="${username}" class="user-tooltip-avatar">`;
+                } else {
+                    tooltipHtml += `<div class="user-tooltip-avatar"></div>`;
+                }
+                
+                // Name and username
+                if (userData.name) {
+                    tooltipHtml += `<div class="user-tooltip-name">${userData.name}</div>`;
+                    tooltipHtml += `<div class="user-tooltip-username">@${username}</div>`;
+                } else {
+                    tooltipHtml += `<div class="user-tooltip-name">@${username}</div>`;
+                }
+                
+                // Additional details
+                let details = [];
+                if (userData.company) {
+                    details.push(userData.company);
+                }
+                if (userData.location) {
+                    details.push(userData.location);
+                }
+                if (details.length > 0) {
+                    tooltipHtml += `<div class="user-tooltip-details">${details.join(' • ')}</div>`;
+                }
+                
+                tooltipHtml += '</div></div>';
+                
+                return `<span class="user-link-wrapper" style="position: relative; display: inline-block;"><a href="${url}" target="_blank" class="user-link">${userText}</a>${tooltipHtml}</span>`;
+            });
             
             // Convert regular markdown links
             text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(match, linkText, url) {
                 // Check if it's a user profile link
                 if (url.includes('github.com/') && url.split('/').length === 4) {
                     const username = url.split('/').pop();
-                    return `<a href="${url}" target="_blank" class="user-link">${linkText}</a>`;
+                    // Get user data if available
+                    const userData = usersData[username] || {};
+                    
+                    // Build the enhanced tooltip HTML
+                    let tooltipHtml = '<div class="user-tooltip"><div class="user-tooltip-content">';
+                    
+                    // Add avatar if available
+                    if (userData.avatar_url) {
+                        tooltipHtml += `<img src="${userData.avatar_url}" alt="${username}" class="user-tooltip-avatar">`;
+                    } else {
+                        tooltipHtml += `<div class="user-tooltip-avatar"></div>`;
+                    }
+                    
+                    // Name and username
+                    if (userData.name) {
+                        tooltipHtml += `<div class="user-tooltip-name">${userData.name}</div>`;
+                        tooltipHtml += `<div class="user-tooltip-username">@${username}</div>`;
+                    } else {
+                        tooltipHtml += `<div class="user-tooltip-name">@${username}</div>`;
+                    }
+                    
+                    // Additional details
+                    let details = [];
+                    if (userData.company) {
+                        details.push(userData.company);
+                    }
+                    if (userData.location) {
+                        details.push(userData.location);
+                    }
+                    if (details.length > 0) {
+                        tooltipHtml += `<div class="user-tooltip-details">${details.join(' • ')}</div>`;
+                    }
+                    
+                    tooltipHtml += '</div></div>';
+                    
+                    return `<span class="user-link-wrapper" style="position: relative; display: inline-block;"><a href="${url}" target="_blank" class="user-link">${linkText}</a>${tooltipHtml}</span>`;
                 }
                 return `<a href="${url}" target="_blank">${linkText}</a>`;
             });
@@ -1124,21 +1656,53 @@
                 processedLines.push('</ul>');
             }
             
-            return processedLines.join('');
+            // Link achievements to their related issues
+            const html = processedLines.join('');
+            return linkAchievements(html);
+        }
+        
+        function linkAchievements(html) {
+            // Process achievements in list items to link them with the first issue link in the same item
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            
+            // Find all list items
+            tempDiv.querySelectorAll('li').forEach(li => {
+                // Check if this list item has an achievement span
+                const achievement = li.querySelector('.achievement');
+                if (achievement && !achievement.parentElement.matches('a')) {
+                    // Find the first issue link in the same list item
+                    const issueLink = li.querySelector('a.issue-link, a[href*="/issues/"], a[href*="/pull/"]');
+                    if (issueLink) {
+                        // Wrap the achievement in a link to the same URL
+                        const link = document.createElement('a');
+                        link.href = issueLink.href;
+                        link.target = '_blank';
+                        link.className = 'achievement-link';
+                        link.title = issueLink.title || issueLink.textContent;
+                        
+                        // Replace the achievement span with the linked version
+                        achievement.parentNode.insertBefore(link, achievement);
+                        link.appendChild(achievement);
+                    }
+                }
+            });
+            
+            return tempDiv.innerHTML;
         }
         
         function switchToGroup(groupName) {
-            // Find and activate the corresponding tab
-            const targetTab = document.querySelector(`[data-ecosystem="${groupName}"]`);
-            if (targetTab) {
-                // Remove active class from all tabs
-                document.querySelectorAll('.eco-tab').forEach(t => t.classList.remove('active'));
-                // Add active class to target tab
-                targetTab.classList.add('active');
+            // Update active tab
+            document.querySelectorAll('.group-tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            const activeTab = document.querySelector(`.group-tab[data-group="${groupName}"]`);
+            if (activeTab) {
+                activeTab.classList.add('active');
                 
                 // Switch ecosystem and refresh content
                 currentEcosystem = groupName;
-                populateWeekList();
+                populateTimeline();
                 displayAllWeeks();
                 
                 // Update URL
@@ -1181,11 +1745,13 @@
             if (ecosystem !== currentEcosystem) {
                 currentEcosystem = ecosystem;
                 
-                // Update tabs
-                document.querySelectorAll('.eco-tab').forEach(t => t.classList.remove('active'));
-                const targetTab = document.querySelector(`[data-ecosystem="${ecosystem}"]`);
-                if (targetTab) {
-                    targetTab.classList.add('active');
+                // Update active tab
+                document.querySelectorAll('.group-tab').forEach(t => {
+                    t.classList.remove('active');
+                });
+                const activeTab = document.querySelector(`.group-tab[data-group="${ecosystem}"]`);
+                if (activeTab) {
+                    activeTab.classList.add('active');
                 }
             }
             
@@ -1202,7 +1768,7 @@
             }
             
             // Refresh the display
-            populateWeekList();
+            populateTimeline();
             displayAllWeeks();
         }
         
@@ -1218,15 +1784,23 @@
         async function initSystem() {
             updateStatus('LOADING INDEX...');
             try {
-                const [indexResp, groupsResp] = await Promise.all([
+                const [indexResp, groupsResp, usersResp] = await Promise.all([
                     fetch('index.json'),
-                    fetch('groups.json')
+                    fetch('groups.json'),
+                    fetch('users.json')
                 ]);
                 
                 if (!indexResp.ok || !groupsResp.ok) throw new Error('FEED CORRUPTED');
                 
                 indexData = await indexResp.json();
                 groupsData = await groupsResp.json();
+                
+                // Load users data - fallback to empty object if not available
+                if (usersResp.ok) {
+                    usersData = await usersResp.json();
+                } else {
+                    usersData = {};
+                }
                 
                 await loadAllWeekData();
                 initInterface();
@@ -1257,18 +1831,21 @@
             const { ecosystem, week } = parseURL();
             if (ecosystem) {
                 currentEcosystem = ecosystem;
-                document.querySelectorAll('.eco-tab').forEach(t => t.classList.remove('active'));
-                const targetTab = document.querySelector(`[data-ecosystem="${ecosystem}"]`);
-                if (targetTab) {
-                    targetTab.classList.add('active');
+                // Update active tab
+                document.querySelectorAll('.group-tab').forEach(t => {
+                    t.classList.remove('active');
+                });
+                const activeTab = document.querySelector(`.group-tab[data-group="${ecosystem}"]`);
+                if (activeTab) {
+                    activeTab.classList.add('active');
                 }
             }
             if (week) {
                 currentWeekKey = week;
             }
             
-            populateWeekList();
-            setupEcosystemTabs();
+            populateTimeline();
+            setupGroupTabs();
             setupScrollHandler();
             
             document.getElementById('loading').style.display = 'none';
@@ -1286,81 +1863,242 @@
             }
         }
         
-        function populateWeekList() {
-            const weekList = document.getElementById('week-list');
-            weekList.innerHTML = '';
+        function populateTimeline() {
+            const timelineWeeks = document.getElementById('timeline-weeks');
+            timelineWeeks.innerHTML = '';
             
             let weeks;
             if (currentEcosystem === 'all') {
-                // For "all" ecosystem, show weeks that have either weekly summaries or any group content
                 weeks = indexData.weeks.filter(w => 
-                    w.has_weekly_summary || w.groups.length > 0
+                    w.year === currentYear && (w.has_weekly_summary || w.groups.length > 0)
                 );
             } else {
-                weeks = groupsData[currentEcosystem].weeks.filter(w => w.has_content);
+                weeks = groupsData[currentEcosystem].weeks.filter(w => {
+                    const weekInfo = indexData.weeks.find(iw => iw.week === w.week && iw.year === currentYear);
+                    return weekInfo && w.has_content;
+                });
             }
             
+            // Populate year overview
+            populateYearOverview();
+            
             weeks.forEach(week => {
-                const item = document.createElement('div');
-                item.className = 'week-item';
-                item.dataset.weekKey = week.week_key;
-                item.onclick = () => scrollToWeek(week.week_key);
-                
-                const weekInfo = indexData.weeks.find(w => w.week_key === week.week_key);
-                const activityLevel = weekInfo?.activity_level || 0;
-                const hasPriority = weekInfo?.has_priority_items || false;
-                
-                // Format date range with month names
-                const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                const [start, end] = week.week_range.split(' to ');
-                
-                const startMonth = monthNames[parseInt(start.slice(5, 7)) - 1];
-                const startDay = parseInt(start.slice(8, 10));
-                const endMonth = monthNames[parseInt(end.slice(5, 7)) - 1];
-                const endDay = parseInt(end.slice(8, 10));
-                
-                const year = week.year;
-                
-                // Add ordinal suffix
-                const getOrdinal = (n) => {
-                    const s = ['th', 'st', 'nd', 'rd'];
-                    const v = n % 100;
-                    return n + (s[(v - 20) % 10] || s[v] || s[0]);
-                };
-                
-                // Always show both months
-                const dateDisplay = `${startMonth} ${getOrdinal(startDay)} - ${endMonth} ${getOrdinal(endDay)}`;
-                
-                item.innerHTML = `
-                    <div class="week-header">
-                        <div class="week-num">${dateDisplay}</div>
-                    </div>
-                    <div class="week-date">.${year}</div>
-                    <div class="week-progress">
-                        <div class="progress-bar">
-                            <div class="progress-fill"></div>
-                            <div class="progress-text">${dateDisplay}</div>
-                        </div>
-                    </div>
-                `;
-                
-                if (hasPriority) {
-                    item.classList.add('has-priority');
-                }
-                weekList.appendChild(item);
+                const weekElement = createTimelineWeek(week);
+                timelineWeeks.appendChild(weekElement);
             });
         }
         
-        function setupEcosystemTabs() {
-            document.querySelectorAll('.eco-tab').forEach(tab => {
+        function populateYearOverview() {
+            const yearOverview = document.getElementById('year-overview');
+            yearOverview.innerHTML = '';
+            
+            // Get available years from data
+            const availableYears = new Set();
+            indexData.weeks.forEach(w => {
+                availableYears.add(w.year);
+            });
+            const yearsArray = Array.from(availableYears).sort((a, b) => a - b);
+            
+            // Create array of all 52/53 weeks
+            const allWeeksInYear = [];
+            for (let i = 1; i <= 52; i++) {
+                allWeeksInYear.push(i);
+            }
+            
+            // Create year selector container
+            const selectorContainer = document.createElement('div');
+            selectorContainer.className = 'year-selector-container';
+            
+            // Create prev button
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'year-nav-btn';
+            prevBtn.innerHTML = '‹';
+            prevBtn.onclick = () => {
+                const currentIndex = yearsArray.indexOf(currentYear);
+                if (currentIndex > 0) {
+                    currentYear = yearsArray[currentIndex - 1];
+                    populateTimeline();
+                    displayAllWeeks();
+                }
+            };
+            // Disable if at first year
+            if (yearsArray[0] === currentYear) {
+                prevBtn.disabled = true;
+            }
+            selectorContainer.appendChild(prevBtn);
+            
+            // Create year display
+            const yearDisplay = document.createElement('div');
+            yearDisplay.className = 'year-display';
+            yearDisplay.textContent = currentYear;
+            selectorContainer.appendChild(yearDisplay);
+            
+            // Create next button
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'year-nav-btn';
+            nextBtn.innerHTML = '›';
+            nextBtn.onclick = () => {
+                const currentIndex = yearsArray.indexOf(currentYear);
+                if (currentIndex < yearsArray.length - 1) {
+                    currentYear = yearsArray[currentIndex + 1];
+                    populateTimeline();
+                    displayAllWeeks();
+                }
+            };
+            // Disable if at last year
+            if (yearsArray[yearsArray.length - 1] === currentYear) {
+                nextBtn.disabled = true;
+            }
+            selectorContainer.appendChild(nextBtn);
+            
+            yearOverview.appendChild(selectorContainer);
+            
+            // Create weeks bar container
+            const weeksBar = document.createElement('div');
+            weeksBar.className = 'weeks-bar';
+            
+            // Get data about which weeks have content for the selected year
+            const weeksWithData = new Set();
+            const weeksWithActivity = new Set();
+            
+            if (currentEcosystem === 'all') {
+                indexData.weeks.forEach(w => {
+                    if (w.year === currentYear && (w.has_weekly_summary || w.groups.length > 0)) {
+                        weeksWithData.add(w.week);
+                        if (w.activity_level > 0.5) {
+                            weeksWithActivity.add(w.week);
+                        }
+                    }
+                });
+            } else if (groupsData[currentEcosystem]) {
+                groupsData[currentEcosystem].weeks.forEach(w => {
+                    const weekInfo = indexData.weeks.find(iw => iw.week === w.week && iw.year === currentYear);
+                    if (weekInfo && w.has_content) {
+                        weeksWithData.add(w.week);
+                        if (weekInfo.activity_level > 0.5) {
+                            weeksWithActivity.add(w.week);
+                        }
+                    }
+                });
+            }
+            
+            // Create tick for each week
+            allWeeksInYear.forEach(weekNum => {
+                const tick = document.createElement('div');
+                tick.className = 'week-tick';
+                tick.dataset.week = weekNum;
+                
+                if (weeksWithData.has(weekNum)) {
+                    tick.classList.add('has-data');
+                    if (weeksWithActivity.has(weekNum)) {
+                        tick.classList.add('has-activity');
+                    }
+                    
+                    // Make clickable
+                    tick.onclick = () => {
+                        const weekKey = `${currentYear}-${weekNum}`;
+                        scrollToWeek(weekKey);
+                    };
+                }
+                
+                // Add tooltip
+                const tooltip = document.createElement('div');
+                tooltip.className = 'week-tick-tooltip';
+                tooltip.textContent = `Week ${weekNum}`;
+                tick.appendChild(tooltip);
+                
+                weeksBar.appendChild(tick);
+            });
+            
+            yearOverview.appendChild(weeksBar);
+        }
+        
+        function createTimelineWeek(week) {
+            const weekDiv = document.createElement('div');
+            weekDiv.className = 'timeline-week';
+            weekDiv.dataset.weekKey = week.week_key;
+            
+            const weekInfo = indexData.weeks.find(w => w.week_key === week.week_key);
+            const hasData = weekInfo && (weekInfo.has_weekly_summary || weekInfo.groups.length > 0);
+            const hasActivity = weekInfo && weekInfo.activity_level > 0.5;
+            
+            if (hasData) {
+                weekDiv.onclick = () => scrollToWeek(week.week_key);
+                if (hasActivity) {
+                    weekDiv.classList.add('has-activity');
+                }
+            } else {
+                weekDiv.classList.add('no-data');
+            }
+            
+            // Parse dates
+            const [startStr, endStr] = week.week_range.split(' to ');
+            const startDate = new Date(startStr);
+            const endDate = new Date(endStr);
+            
+            // Week label
+            const weekLabel = document.createElement('div');
+            weekLabel.className = 'timeline-week-label';
+            weekLabel.textContent = `week ${week.week}`;
+            weekDiv.appendChild(weekLabel);
+            
+            // Date range
+            const datesDiv = document.createElement('div');
+            datesDiv.className = 'timeline-week-dates';
+            
+            // Check if dates are valid
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                datesDiv.textContent = `W${week.week}`;
+            } else {
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const startMonth = monthNames[startDate.getMonth()];
+                const endMonth = monthNames[endDate.getMonth()];
+                const startDay = startDate.getDate();
+                const endDay = endDate.getDate();
+                
+                if (startMonth === endMonth) {
+                    datesDiv.textContent = `${startMonth} ${startDay}-${endDay}`;
+                } else {
+                    datesDiv.textContent = `${startMonth} ${startDay}-${endMonth} ${endDay}`;
+                }
+            }
+            weekDiv.appendChild(datesDiv);
+            
+            // Year
+            const yearDiv = document.createElement('div');
+            yearDiv.className = 'timeline-year';
+            yearDiv.textContent = week.year;
+            weekDiv.appendChild(yearDiv);
+            
+            // Activity indicator
+            const indicator = document.createElement('div');
+            indicator.className = 'timeline-indicator';
+            weekDiv.appendChild(indicator);
+            
+            return weekDiv;
+        }
+        
+        function setupGroupTabs() {
+            document.querySelectorAll('.group-tab').forEach(tab => {
                 tab.onclick = () => {
-                    document.querySelectorAll('.eco-tab').forEach(t => t.classList.remove('active'));
+                    // Remove active class from all tabs
+                    document.querySelectorAll('.group-tab').forEach(t => {
+                        t.classList.remove('active');
+                    });
+                    
+                    // Add active class to clicked tab
                     tab.classList.add('active');
                     
-                    currentEcosystem = tab.dataset.ecosystem;
-                    currentWeekKey = null; // Reset week when changing tabs
-                    populateWeekList();
+                    // Update current ecosystem
+                    currentEcosystem = tab.dataset.group;
+                    currentWeekKey = null; // Reset week when changing groups
+                    populateTimeline();
                     displayAllWeeks();
+                    
+                    // Update repository dropdown if it's open
+                    if (repoDropdownOpen) {
+                        populateRepoDropdown();
+                    }
                     
                     // Update URL
                     updateURL();
@@ -1371,7 +2109,7 @@
         function setupScrollHandler() {
             const mainContent = document.querySelector('.main-content');
             mainContent.addEventListener('scroll', () => {
-                updateSidebarHighlight();
+                updateTimelineHighlight();
             });
         }
         
@@ -1384,13 +2122,12 @@
             }
         }
         
-        function updateSidebarHighlight() {
+        function updateTimelineHighlight() {
             const mainContent = document.querySelector('.main-content');
-            const scrollTop = mainContent.scrollTop;
             const weekSections = document.querySelectorAll('.week-section');
             
             let visibleWeekKey = null;
-            let scrollProgress = 0;
+            let visibleWeekNum = null;
             
             weekSections.forEach(section => {
                 const rect = section.getBoundingClientRect();
@@ -1399,43 +2136,140 @@
                 if (rect.top <= mainRect.top + 100 && rect.bottom > mainRect.top + 100) {
                     visibleWeekKey = section.dataset.weekKey;
                     
+                    // Extract week number from week key (format: YYYY-WW)
+                    if (visibleWeekKey) {
+                        const parts = visibleWeekKey.split('-');
+                        if (parts.length === 2) {
+                            visibleWeekNum = parseInt(parts[1]);
+                        }
+                    }
+                    
                     // Update global currentWeekKey if it changed
                     if (currentWeekKey !== visibleWeekKey) {
                         currentWeekKey = visibleWeekKey;
                         updateURL(true); // Use replaceState for scroll updates
                     }
-                    
-                    // Calculate scroll progress through this week's content
-                    const weekTop = rect.top - mainRect.top;
-                    const weekHeight = rect.height;
-                    const visibleTop = Math.max(0, -weekTop);
-                    const visibleHeight = Math.min(weekHeight, mainRect.height);
-                    
-                    if (weekHeight > 0) {
-                        scrollProgress = Math.min(100, Math.max(0, (visibleTop + visibleHeight / 2) / weekHeight * 100));
-                    }
                 }
             });
             
             if (visibleWeekKey) {
-                document.querySelectorAll('.week-item').forEach(item => {
-                    item.classList.remove('active');
-                    const progressFill = item.querySelector('.progress-fill');
-                    if (progressFill) {
-                        progressFill.style.width = '0%';
-                    }
+                // Update timeline week highlighting
+                document.querySelectorAll('.timeline-week').forEach(week => {
+                    week.classList.remove('active');
                 });
                 
-                const activeItem = document.querySelector(`[data-week-key="${visibleWeekKey}"]`);
-                if (activeItem) {
-                    activeItem.classList.add('active');
-                    const progressFill = activeItem.querySelector('.progress-fill');
-                    if (progressFill) {
-                        progressFill.style.width = scrollProgress + '%';
+                const activeWeek = document.querySelector(`.timeline-week[data-week-key="${visibleWeekKey}"]`);
+                if (activeWeek) {
+                    activeWeek.classList.add('active');
+                    
+                    // Scroll timeline to show active week if needed
+                    const timelineContainer = document.getElementById('timeline-weeks');
+                    const weekRect = activeWeek.getBoundingClientRect();
+                    const containerRect = timelineContainer.getBoundingClientRect();
+                    
+                    if (weekRect.top < containerRect.top || weekRect.bottom > containerRect.bottom) {
+                        activeWeek.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+                
+                // Update year overview highlighting
+                document.querySelectorAll('.week-tick').forEach(tick => {
+                    tick.classList.remove('viewing', 'current');
+                });
+                
+                if (visibleWeekNum) {
+                    const activeTick = document.querySelector(`.week-tick[data-week="${visibleWeekNum}"]`);
+                    if (activeTick) {
+                        activeTick.classList.add('viewing', 'current');
                     }
                 }
             }
         }
+        
+        function toggleReposList(listId, button) {
+            const list = document.getElementById(listId);
+            const isTruncated = list.classList.contains('repos-list-truncated');
+            
+            if (isTruncated) {
+                list.classList.remove('repos-list-truncated');
+                button.textContent = 'show less';
+            } else {
+                list.classList.add('repos-list-truncated');
+                button.textContent = 'show all';
+            }
+        }
+        
+        let repoDropdownOpen = false;
+        
+        function toggleRepoDropdown() {
+            const dropdown = document.getElementById('repo-dropdown');
+            const toggle = document.querySelector('.repo-dropdown-toggle');
+            
+            if (repoDropdownOpen) {
+                dropdown.classList.remove('show');
+                toggle.classList.remove('active');
+                repoDropdownOpen = false;
+            } else {
+                populateRepoDropdown();
+                dropdown.classList.add('show');
+                toggle.classList.add('active');
+                repoDropdownOpen = true;
+            }
+        }
+        
+        function populateRepoDropdown() {
+            const content = document.getElementById('repo-dropdown-content');
+            const allRepos = new Set();
+            
+            // Collect all repositories from current ecosystem
+            if (allWeekData) {
+                Object.values(allWeekData).forEach(weekData => {
+                    if (weekData.repositories) {
+                        weekData.repositories.forEach(repo => {
+                            if (hasRepoActivity(repo)) {
+                                if (currentEcosystem === 'all' || 
+                                    (groupsData[currentEcosystem] && 
+                                     groupsData[currentEcosystem].repositories.includes(repo.repo_full))) {
+                                    allRepos.add(repo.repo_full);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // Group repositories by organization
+            const reposByOrg = {};
+            Array.from(allRepos).forEach(repoFull => {
+                const [org, name] = repoFull.split('/');
+                if (!reposByOrg[org]) {
+                    reposByOrg[org] = [];
+                }
+                reposByOrg[org].push(name);
+            });
+            
+            // Generate HTML
+            let html = '';
+            Object.entries(reposByOrg).sort().forEach(([org, repos]) => {
+                html += `
+                    <div class="repo-org-group">
+                        <div class="repo-org-name">${org}</div>
+                        ${repos.sort().map(name => 
+                            `<a href="https://github.com/${org}/${name}" target="_blank" class="repo-item">${name}</a>`
+                        ).join('')}
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html || '<div style="padding: 8px; color: var(--text-muted);">No repositories found</div>';
+        }
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            if (repoDropdownOpen && !event.target.closest('.repo-dropdown-container')) {
+                toggleRepoDropdown();
+            }
+        });
         
         function hasRepoActivity(repo) {
             // Check if repo has any meaningful content
@@ -1467,6 +2301,7 @@
             });
         }
         
+        
         function displayAllWeeks() {
             const display = document.getElementById('main-display');
             
@@ -1474,10 +2309,13 @@
             if (currentEcosystem === 'all') {
                 // For "all" ecosystem, show weeks from index that have weekly summaries or any group content
                 weeks = indexData.weeks.filter(w => 
-                    w.has_weekly_summary || w.groups.length > 0
+                    w.year === currentYear && (w.has_weekly_summary || w.groups.length > 0)
                 );
             } else {
-                weeks = groupsData[currentEcosystem].weeks.filter(w => w.has_content);
+                weeks = groupsData[currentEcosystem].weeks.filter(w => {
+                    const weekInfo = indexData.weeks.find(iw => iw.week === w.week && iw.year === currentYear);
+                    return weekInfo && w.has_content;
+                });
             }
             
             let html = '';
@@ -1510,34 +2348,38 @@
                     });
                 }
                 
-                // Create header content based on whether we have weekly summary or individual repos
-                let headerContent = '';
+                // Create comprehensive repository summary
+                let allRepos = [];
+                let reposSummary = '';
+                
                 if (currentEcosystem === 'all' && weekData.weekly_summary) {
-                    // For weekly summaries, show ecosystem-wide summary
-                    headerContent = '<span style="color: var(--text-primary); font-style: italic;">ecosystem-wide summary</span>';
-                } else if (ecosystemRepos.length > 0) {
-                    // Group repos by organization
-                    const reposByOrg = {};
-                    ecosystemRepos.forEach(repo => {
-                        const [org, name] = repo.repo_full.split('/');
-                        if (!reposByOrg[org]) {
-                            reposByOrg[org] = [];
-                        }
-                        reposByOrg[org].push(name);
-                    });
+                    // For ecosystem view, aggregate ALL repositories from all week data
+                    const allGroupRepos = new Set();
                     
-                    // Create grouped repo links with better formatting
-                    headerContent = Object.entries(reposByOrg).map(([org, repos]) => {
-                        const repoLinks = repos.map(name => 
-                            `<a href="https://github.com/${org}/${name}" target="_blank" class="repo-link">${name}</a>`
-                        ).join(' | ');
-                        return `<span class="org-group"><a href="https://github.com/${org}" target="_blank" class="org-name">${org}</a> / { ${repoLinks} }</span>`;
-                    }).join('  ');
+                    // Collect repos from all repositories in this week's data
+                    if (weekData.repositories) {
+                        weekData.repositories.forEach(repo => {
+                            if (hasRepoActivity(repo)) {
+                                allGroupRepos.add(repo.repo_full);
+                            }
+                        });
+                    }
+                    
+                    allRepos = Array.from(allGroupRepos);
+                    
+                    if (allRepos.length > 0) {
+                        reposSummary = `Ecosystem activity across ${allRepos.length} repositories`;
+                    } else {
+                        reposSummary = 'Ecosystem summary with no repository activity';
+                    }
+                } else if (ecosystemRepos.length > 0) {
+                    allRepos = ecosystemRepos.map(repo => repo.repo_full);
+                    reposSummary = `${allRepos.length} active repositories`;
                 } else {
-                    headerContent = '<span style="color: var(--text-dim); font-style: italic;">quiet</span>';
+                    reposSummary = 'No active repositories this week';
                 }
                 
-                // Format the date range nicely
+                // Format the date range in words with year
                 const formatWeekDate = (dateStr) => {
                     const date = new Date(dateStr);
                     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1545,20 +2387,62 @@
                     const suffix = day === 1 || day === 21 || day === 31 ? 'st' : 
                                   day === 2 || day === 22 ? 'nd' : 
                                   day === 3 || day === 23 ? 'rd' : 'th';
-                    return `${months[date.getMonth()]} ${day}${suffix}`;
+                    return `${day}${suffix} ${months[date.getMonth()]} ${date.getFullYear()}`;
                 };
                 
                 const [startDate, endDate] = week.week_range.split(' to ');
-                const formattedRange = `${formatWeekDate(startDate)} - ${formatWeekDate(endDate)}`;
+                const startFormatted = formatWeekDate(startDate);
+                const endFormatted = formatWeekDate(endDate);
+                
+                // If same month/year, don't repeat them
+                const startParts = startFormatted.split(' ');
+                const endParts = endFormatted.split(' ');
+                const formattedRange = startParts[1] === endParts[1] && startParts[2] === endParts[2] ? 
+                    `${startParts[0]} - ${endParts[0]} ${endParts[1]} ${endParts[2]}` : 
+                    `${startFormatted} - ${endFormatted}`;
+                
+                // Generate repository list with truncation logic
+                const maxReposBeforeTruncate = 8;
+                const shouldTruncate = allRepos.length > maxReposBeforeTruncate;
+                const truncatedId = `repos-${week.week_key}`;
+                
+                let repoListHtml = '';
+                if (allRepos.length > 0) {
+                    // Group repos by organization
+                    const reposByOrg = {};
+                    allRepos.forEach(repoFull => {
+                        const [org, name] = repoFull.split('/');
+                        if (!reposByOrg[org]) {
+                            reposByOrg[org] = [];
+                        }
+                        reposByOrg[org].push(name);
+                    });
+                    
+                    // Create grouped repo links
+                    const orgGroups = Object.entries(reposByOrg).map(([org, repos]) => {
+                        const repoLinks = repos.map(name => 
+                            `<a href="https://github.com/${org}/${name}" target="_blank" class="repo-link">${name}</a>`
+                        ).join(' | ');
+                        return `<a href="https://github.com/${org}" target="_blank" class="org-name">${org}</a> / { ${repoLinks} }`;
+                    });
+                    
+                    repoListHtml = orgGroups.join(' • ');
+                }
                 
                 html += `
                     <div class="week-section" id="week-${week.week_key}" data-week-key="${week.week_key}">
                         <div class="week-header-main">
-                            <div class="week-title-main">W${week.week}.${week.year}: ${formattedRange}</div>
-                            <div class="week-repos">
-                                ${headerContent}
+                            <div class="week-title-main">
+                                <div class="week-icon">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                                    </svg>
+                                </div>
+                                W${week.week}.${week.year}
                             </div>
+                            <div class="week-date-range">${formattedRange}</div>
                         </div>
+                        
                         
                         <div class="week-content">
                             ${generateWeekContent(weekData, currentEcosystem)}

@@ -12,6 +12,8 @@ from ..config import load_config
 from ..utils.dates import format_week_range
 from ..utils.paths import get_data_dir
 from ..utils.logging import success, error, info, step
+from ..utils.github import extract_users_from_data, fetch_user_info
+import re
 
 
 @dataclass
@@ -326,6 +328,91 @@ def generate_groups_index(all_groups: Dict[str, List[Dict]]) -> Dict[str, Any]:
     return groups_data
 
 
+def collect_all_users(data_dir: Path) -> Dict[str, Any]:
+    """Load all user data from data/users directory."""
+    users_data = {}
+    users_dir = data_dir / "users"
+    
+    if users_dir.exists():
+        info(f"Loading user data from {users_dir}")
+        for user_file in users_dir.glob("*.json"):
+            try:
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_info = json.load(f)
+                    username = user_file.stem  # Get username from filename
+                    users_data[username] = user_info
+            except Exception as e:
+                error(f"Failed to load user file {user_file}: {e}")
+    else:
+        warning("No users directory found, user data will be empty")
+    
+    return users_data
+
+
+def generate_users_data(all_users: Dict[str, Any]) -> Dict[str, Any]:
+    """Format already-loaded user data for JSON output."""
+    users_data = {}
+    
+    info(f"Processing user data for {len(all_users)} users...")
+    
+    for username, user_info in all_users.items():
+        users_data[username] = {
+            'login': user_info.get('login', username),
+            'name': user_info.get('name', ''),
+            'avatar_url': user_info.get('avatar_url', ''),
+            'html_url': user_info.get('html_url', f'https://github.com/{username}'),
+            'bio': user_info.get('bio', ''),
+            'company': user_info.get('company', ''),
+            'location': user_info.get('location', ''),
+            'public_repos': user_info.get('public_repos', 0),
+            'followers': user_info.get('followers', 0),
+            'created_at': user_info.get('created_at', ''),
+        }
+    
+    return users_data
+
+
+def post_process_markdown_with_user_links(text: str, users_data: Dict[str, Any]) -> str:
+    """Replace GitHub user links with full names if available."""
+    if not text:
+        return text
+    
+    # Pattern to match [text](https://github.com/username) 
+    github_user_pattern = re.compile(r'\[([^\]]+)\]\(https://github\.com/([^)]+)\)')
+    
+    def replace_user_link(match):
+        link_text = match.group(1)
+        username = match.group(2)
+        
+        # Check if the link text is just the username (e.g., [@username])
+        if link_text == f'@{username}' or link_text == username:
+            # Replace with full name if available
+            user_info = users_data.get(username, {})
+            if user_info.get('name'):
+                return f'[{user_info["name"]}](https://github.com/{username})'
+        
+        # Keep original link if link text is already customized or no full name available
+        return match.group(0)
+    
+    return github_user_pattern.sub(replace_user_link, text)
+
+
+def post_process_data_with_user_links(data: Any, users_data: Dict[str, Any]) -> Any:
+    """Recursively process all data to replace user links with full names."""
+    if isinstance(data, dict):
+        processed = {}
+        for key, value in data.items():
+            if isinstance(value, str) and any(field in key.lower() for field in ['summary', 'overview', 'body', 'description', 'content']):
+                processed[key] = post_process_markdown_with_user_links(value, users_data)
+            else:
+                processed[key] = post_process_data_with_user_links(value, users_data)
+        return processed
+    elif isinstance(data, list):
+        return [post_process_data_with_user_links(item, users_data) for item in data]
+    else:
+        return data
+
+
 def website_json_main(
     output_dir: Optional[str] = typer.Option("website-json", "--output", "-o", help="Output directory for JSON files"),
     pretty: bool = typer.Option(False, "--pretty", help="Pretty-print JSON output"),
@@ -362,6 +449,18 @@ def website_json_main(
         output_path.mkdir(exist_ok=True)
         weeks_dir = output_path / "weeks"
         weeks_dir.mkdir(exist_ok=True)
+        
+        # Collect and generate users data
+        step("Collecting user data...")
+        all_users = collect_all_users(data_dir)
+        users_data = generate_users_data(all_users)
+        info(f"Generated user data for {len(users_data)} users")
+        
+        # Post-process all data to replace user links with full names
+        step("Post-processing data to replace user links with full names...")
+        weeks_data = post_process_data_with_user_links(weeks_data, users_data)
+        group_summaries = post_process_data_with_user_links(group_summaries, users_data)
+        weekly_summaries = post_process_data_with_user_links(weekly_summaries, users_data)
         
         # Generate and save week index
         step("Generating week index...")
@@ -402,6 +501,11 @@ def website_json_main(
         with open(output_path / "groups.json", 'w', encoding='utf-8') as f:
             json.dump(groups_index, f, indent=indent, ensure_ascii=False)
         
+        # Save users data
+        step("Saving users data...")
+        with open(output_path / "users.json", 'w', encoding='utf-8') as f:
+            json.dump(users_data, f, indent=indent, ensure_ascii=False)
+        
         # Generate metadata file
         step("Generating metadata...")
         metadata = {
@@ -419,7 +523,7 @@ def website_json_main(
             json.dump(metadata, f, indent=indent, ensure_ascii=False)
         
         success(f"JSON export completed successfully in {output_path}")
-        success(f"Generated: index.json, groups.json, metadata.json, and {len(all_weeks)} week files")
+        success(f"Generated: index.json, groups.json, users.json, metadata.json, and {len(all_weeks)} week files")
         info("These files can be served statically and consumed by a JavaScript frontend")
         
     except Exception as e:
