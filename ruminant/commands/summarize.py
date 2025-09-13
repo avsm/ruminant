@@ -209,6 +209,10 @@ def summarize_main(
         # Determine time range
         if year and week:
             target_year, target_week = year, week
+        elif week and not year:
+            # If only week is provided, use current year
+            current_year, _ = get_last_complete_week()
+            target_year, target_week = current_year, week
         else:
             target_year, target_week = get_last_complete_week()
         
