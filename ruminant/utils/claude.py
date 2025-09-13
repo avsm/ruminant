@@ -8,13 +8,13 @@ from typing import List, Dict, Any
 
 
 def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str], log_file: Path) -> Dict[str, Any]:
-    """Run Claude CLI with the given prompt file.
+    """Run Claude CLI with the given prompt file using streaming JSON output.
     
     Args:
         prompt_file: Path to the prompt file
         claude_command: Claude command to run (e.g., 'claude')
         claude_args: List of arguments to pass to Claude
-        log_file: Path to save the session log
+        log_file: Path to save the session log including streaming output
         
     Returns:
         Dictionary with success status, stdout, stderr, and log_file
@@ -29,8 +29,45 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             "log_file": log_file
         }
     
-    # Construct command (without the prompt file as argument)
-    cmd = [claude_command] + claude_args
+    # Ensure we have the required flags for non-interactive mode with streaming JSON
+    # Note: --verbose is required when using --print with --output-format stream-json
+    required_args = ["--print", "--output-format", "stream-json", "--verbose"]
+    
+    # Build the final command arguments
+    final_args = []
+    has_print = False
+    has_output_format = False
+    has_verbose = False
+    
+    # Check existing args to avoid duplicates
+    i = 0
+    while i < len(claude_args):
+        arg = claude_args[i]
+        if arg == "--print" or arg == "-p":
+            has_print = True
+            final_args.append(arg)
+        elif arg == "--output-format":
+            has_output_format = True
+            # Skip this and the next argument (the format value)
+            if i + 1 < len(claude_args):
+                i += 1  # Skip the format value
+        elif arg == "--verbose":
+            has_verbose = True
+            final_args.append(arg)
+        else:
+            final_args.append(arg)
+        i += 1
+    
+    # Add required flags if not present
+    if not has_print:
+        final_args.insert(0, "--print")
+    if not has_output_format:
+        final_args.extend(["--output-format", "stream-json"])
+    if not has_verbose:
+        final_args.append("--verbose")
+    
+    # Construct command
+    cmd = [claude_command] + final_args
     
     try:
         # Run Claude with the prompt as stdin
@@ -42,14 +79,38 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             timeout=300  # 5 minute timeout
         )
         
-        # Save session log
+        # Parse streaming JSON output to extract meaningful content
+        streaming_output = []
+        final_content = ""
+        
+        # Each line in stdout should be a JSON object when using stream-json
+        for line in result.stdout.splitlines():
+            if line.strip():
+                try:
+                    json_obj = json.loads(line)
+                    streaming_output.append(json_obj)
+                    
+                    # Extract content from different event types
+                    if json_obj.get("type") == "content" and "text" in json_obj:
+                        final_content += json_obj["text"]
+                    elif json_obj.get("type") == "text" and "text" in json_obj:
+                        final_content += json_obj["text"]
+                        
+                except json.JSONDecodeError:
+                    # Some lines might not be JSON (e.g., error messages)
+                    pass
+        
+        # Save comprehensive session log
         session_log = {
             "timestamp": datetime.now().isoformat(),
             "command": " ".join(cmd),
             "prompt_file": str(prompt_file),
             "prompt_method": "stdin",
+            "output_format": "stream-json",
             "return_code": result.returncode,
-            "stdout": result.stdout,
+            "streaming_events": streaming_output,
+            "extracted_content": final_content,
+            "raw_stdout": result.stdout,
             "stderr": result.stderr
         }
         
@@ -63,6 +124,7 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
                 "error": result.stderr or "Claude CLI failed",
                 "stdout": result.stdout,
                 "stderr": result.stderr,
+                "streaming_output": streaming_output,
                 "log_file": log_file
             }
         
@@ -70,6 +132,8 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             "success": True,
             "stdout": result.stdout,
             "stderr": result.stderr,
+            "streaming_output": streaming_output,
+            "extracted_content": final_content,
             "log_file": log_file
         }
         
@@ -80,6 +144,7 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             "command": " ".join(cmd),
             "prompt_file": str(prompt_file),
             "prompt_method": "stdin",
+            "output_format": "stream-json",
             "error": "Process timed out after 300 seconds"
         }
         log_file.write_text(json.dumps(session_log, indent=2))
@@ -98,6 +163,7 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             "command": " ".join(cmd),
             "prompt_file": str(prompt_file),
             "prompt_method": "stdin",
+            "output_format": "stream-json",
             "error": str(e)
         }
         log_file.write_text(json.dumps(session_log, indent=2))

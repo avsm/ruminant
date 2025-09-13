@@ -48,6 +48,18 @@ def generate_prompt(repo: str, year: int, week: int, config) -> dict:
         discussions_count = len(original_data.get('discussions', []))
         gfi_count = len(original_data.get('good_first_issues', []))
         
+        # Check if git repository is available
+        owner, name = parse_repo(repo)
+        git_repo_path = Path("data/git") / owner / name
+        git_mirror_path = git_repo_path / ".git"
+        git_available = None
+        
+        # Check for mirror clone first (preferred for analysis)
+        if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
+            git_available = (git_mirror_path, "mirror")
+        elif git_repo_path.exists() and (git_repo_path / ".git").exists():
+            git_available = (git_repo_path, "regular")
+        
         # Get file paths
         ensure_repo_dirs(repo)
         prompt_file = get_prompt_file_path(repo, year, week)
@@ -61,6 +73,30 @@ def generate_prompt(repo: str, year: int, week: int, config) -> dict:
         user_files = []
         if user_data_dir.exists():
             user_files = sorted([f.stem for f in user_data_dir.glob("*.json")])
+        
+        # Build git repository section if available
+        git_section = ""
+        if git_available:
+            git_path, git_type = git_available
+            git_section = f"""
+GIT REPOSITORY AVAILABLE:
+A git {'mirror' if git_type == 'mirror' else 'regular'} clone is available at: {git_path}
+
+You should analyze commits that may not be covered by PRs:
+1. Run git log to find ALL commits during the week:
+   ```bash
+   {'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} log --oneline --all --since="{week_start.strftime('%Y-%m-%d')}" --until="{week_end.strftime('%Y-%m-%d')}" --format="%h %s (%an)"
+   ```
+
+2. Identify commits not associated with PRs, especially:
+   - Direct commits to main/master branches
+   - Maintenance commits (version bumps, changelog updates)
+   - Documentation updates
+   - Emergency fixes or hotfixes
+   - Automated bot commits
+
+3. Include significant direct commits in your summary, noting they were made without PRs.
+"""
         
         # Build the detailed prompt
         base_prompt = f"""You are a software development manager responsible for analyzing GitHub repository activity.
@@ -78,14 +114,15 @@ The data/users/ directory contains JSON files with GitHub user information. Each
 - Other profile information
 
 {len(user_files)} user profiles are available in data/users/
-
+{git_section}
 NOTE: If you need additional information about any PR or issue beyond what's in the JSON data, you can use the GitHub MCP server tools
 (e.g., mcp__github__get_pull_request, mcp__github__get_issue) to fetch more details about specific items.
 
 YOUR TASK:
 1. Read and analyze the GitHub data from: {cache_file}
-2. Generate a comprehensive markdown summary report  
-3. Write this report to the file: {summary_file}
+2. If a git repository is available, analyze commits to find activity not covered by PRs
+3. Generate a comprehensive markdown summary report  
+4. Write this report to the file: {summary_file}
 
 DATA SUMMARY: The JSON file contains {issues_count} issues, {prs_count} PRs, {discussions_count} discussions, and {gfi_count} good first issues.
 
@@ -154,12 +191,19 @@ FORMATTING INSTRUCTIONS:
 - Use bullet points effectively to organize information - this is MANDATORY for all sections
 - EVERY bullet point must have associated PR/issue numbers for reader follow-up
 
+BULLET POINT STYLE REQUIREMENTS:
+- DO NOT use the pattern "**Category:** description" at the start of bullet points
+- Instead, integrate **bold emphasis** naturally within the text to highlight key concepts
+- The bold emphasis should highlight the most important words that make the point
+- Write complete, flowing sentences that incorporate bold emphasis for key terms
+- Avoid formulaic structures - each bullet should read naturally
+
 Example of correct format:
 
-- **Authentication Framework** ([#1234](https://github.com/{repo}/issues/1234), [#5678](https://github.com/{repo}/issues/5678), [#5681](https://github.com/{repo}/issues/5681)): Core authentication implementation by [John Doe](https://github.com/username) with related security improvements
-- **Performance Optimization** ([#5679](https://github.com/{repo}/issues/5679), [#5680](https://github.com/{repo}/issues/5680)): Backend optimizations by [@anotheruser](https://github.com/anotheruser) including database and caching improvements
-- **Bug Fixes**: Memory leak fix by [Jane Smith](https://github.com/developer) ([#5684](https://github.com/{repo}/issues/5684)), UI rendering issues resolved ([#5685](https://github.com/{repo}/issues/5685), [#5686](https://github.com/{repo}/issues/5686))
-- **Documentation Updates** ([#5687](https://github.com/{repo}/issues/5687), [#5688](https://github.com/{repo}/issues/5688)): API documentation improvements and new contributor guide by [@writer](https://github.com/writer)
+- Core **authentication framework** implementation by [John Doe](https://github.com/username) with related **security improvements** across multiple modules ([#1234](https://github.com/{repo}/issues/1234), [#5678](https://github.com/{repo}/issues/5678), [#5681](https://github.com/{repo}/issues/5681))
+- Backend **performance optimizations** by [@anotheruser](https://github.com/anotheruser) including **database query caching** and connection pooling improvements ([#5679](https://github.com/{repo}/issues/5679), [#5680](https://github.com/{repo}/issues/5680))
+- Fixed **memory leak** in request handler by [Jane Smith](https://github.com/developer) ([#5684](https://github.com/{repo}/issues/5684)), resolved **UI rendering issues** affecting mobile devices ([#5685](https://github.com/{repo}/issues/5685), [#5686](https://github.com/{repo}/issues/5686))
+- Improved **API documentation** with usage examples and added comprehensive **contributor guide** by [@writer](https://github.com/writer) ([#5687](https://github.com/{repo}/issues/5687), [#5688](https://github.com/{repo}/issues/5688))
 
 NOTE: Every substantive point MUST include properly formatted, clickable PR/issue links to allow readers to investigate further
 
@@ -260,6 +304,7 @@ IMPORTANT: You must use the Read tool to load and analyze the data from {cache_f
 
 def generate_group_prompt(group_name: str, repositories: List[str], year: int, week: int, config) -> dict:
     """Generate a group-specific Claude prompt for summarizing activity across repositories in a group."""
+    from pathlib import Path
     
     # Get week date range
     week_start, week_end = get_week_date_range(year, week)
@@ -268,10 +313,23 @@ def generate_group_prompt(group_name: str, repositories: List[str], year: int, w
     # Check which repositories have summaries available
     available_repos = []
     missing_repos = []
+    git_repos_available = []
+    
     for repo in repositories:
         summary_file = get_summary_file_path(repo, year, week)
         if summary_file.exists():
             available_repos.append(repo)
+            
+            # Check if git repository is available (either mirror or regular)
+            owner, name = parse_repo(repo)
+            git_repo_path = Path("data/git") / owner / name
+            git_mirror_path = git_repo_path / ".git"
+            
+            # Check for mirror clone first (preferred for analysis)
+            if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
+                git_repos_available.append((repo, git_mirror_path, "mirror"))
+            elif git_repo_path.exists() and (git_repo_path / ".git").exists():
+                git_repos_available.append((repo, git_repo_path, "regular"))
         else:
             missing_repos.append(repo)
     
@@ -305,6 +363,46 @@ def generate_group_prompt(group_name: str, repositories: List[str], year: int, w
             for repo in available_repos
         ])
         
+        # Build git repository information if available
+        git_repos_section = ""
+        if git_repos_available:
+            git_repos_section = f"""
+
+GIT REPOSITORIES FOR COMMIT ANALYSIS:
+The following git repositories are available for direct commit analysis:
+
+"""
+            for repo, git_path, repo_type in git_repos_available:
+                git_repos_section += f"- **{repo}**: `{git_path}` ({repo_type} clone)\n"
+            
+            # Use the first available repo for example, preferring mirror clones
+            example_repo = git_repos_available[0]
+            example_path = example_repo[1]
+            example_type = example_repo[2]
+            
+            git_repos_section += f"""
+IMPORTANT: You should use the Bash tool to analyze commits in these repositories that may not be covered by PRs:
+
+1. For each repository, run git log to find commits during the week period.
+   {'Note: Mirror clones are bare repositories, use --git-dir flag:' if example_type == 'mirror' else ''}
+   ```bash
+   {'git --git-dir=' + str(example_path) if example_type == 'mirror' else 'cd ' + str(example_path) + ' &&'} git log --oneline --all --since="{week_start.strftime('%Y-%m-%d')}" --until="{week_end.strftime('%Y-%m-%d')}" --format="%h %s (%an)"
+   ```
+
+2. Cross-reference these commits with the PRs mentioned in the summaries to identify:
+   - Direct commits to main/master branches without PRs
+   - Maintenance commits (version bumps, changelog updates)
+   - Documentation updates not associated with PRs
+   - Emergency fixes or hotfixes
+   - Automated bot commits
+
+3. Include any significant commits not covered by PRs in your summary, especially:
+   - Direct bug fixes
+   - Configuration changes
+   - Release preparations
+   - Infrastructure updates
+"""
+        
         # Build the group-specific prompt
         prompt = f"""You are a software development manager responsible for creating a high-level weekly summary for the {group_config.name} group.
 
@@ -318,11 +416,12 @@ REPOSITORIES TO ANALYZE:
 {summary_files_list}
 
 {group_config.prompt if group_config.prompt else ""}
-
+{git_repos_section}
 YOUR TASK:
 1. Read and analyze ALL the repository summaries listed above using the Read tool
-2. Generate a comprehensive group summary JSON that captures the week's activity across all repositories in the {group_config.name} group
-3. Write this summary to the file: {summary_file}
+2. If git repositories are available, analyze commits to find activity not covered by PRs
+3. Generate a comprehensive group summary JSON that captures the week's activity across all repositories in the {group_config.name} group
+4. Write this summary to the file: {summary_file}
 
 The aggregate summary should synthesize information across all repositories to provide:
 - A unified view of development activity
@@ -353,6 +452,7 @@ Generate a JSON report with the following structure:
   "priority_items": "Critical issues and PRs needing attention across repos (MUST use bullet points with specific PR/issue references)",
   "notable_discussions": "Important discussions that affect multiple repos or the ecosystem (MUST use bullet points with discussion/issue references)",
   "emerging_patterns": "Trends and patterns observed across repositories (MUST use bullet points with example PR/issue references)",
+  "direct_commits": "Significant commits made directly to branches without PRs (set to null if no git repos available or no direct commits found)",
   "ecosystem_health": "Overall assessment of the ecosystem's development health (MUST use bullet points with supporting PR/issue references)",
   "contributors_spotlight": "Notable contributors and their cross-repository contributions"
 }}
@@ -383,6 +483,8 @@ SYNTHESIS GUIDELINES:
 - Identify dependencies (e.g., "[ocaml/dune#123](https://github.com/ocaml/dune/issues/123) blocked by [ocaml/ocaml#456](https://github.com/ocaml/ocaml/issues/456)")
 - Highlight coordinated efforts (e.g., "LLVM backend work spans [@oxcaml/oxcaml](https://github.com/oxcaml/oxcaml) and [@ocaml/ocaml](https://github.com/ocaml/ocaml)")
 - Note ecosystem-wide impacts (e.g., "Breaking changes in [@ocaml/ocaml](https://github.com/ocaml/ocaml) affecting [@ocaml/dune](https://github.com/ocaml/dune) and [@ocaml/merlin](https://github.com/ocaml/merlin)")
+- When git repositories are available, identify direct commits not associated with PRs and include significant ones in the "direct_commits" section
+- For direct commits, format as: "commit_hash: description (author)" with repository context
 - When referring to issues/PRs, ALWAYS format as clickable markdown links
 
 Remember:

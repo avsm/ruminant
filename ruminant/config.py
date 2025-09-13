@@ -19,7 +19,7 @@ class GitHubConfig:
 class ClaudeConfig:
     """Claude CLI configuration."""
     command: str = "claude"
-    args: List[str] = field(default_factory=lambda: ["-p"])
+    args: List[str] = field(default_factory=lambda: ["--print", "--output-format", "stream-json", "--verbose"])
     parallel_workers: int = 10
 
 
@@ -294,7 +294,7 @@ Note adoption trends and emerging patterns in the ecosystem."""
         ],
         "claude": {
             "command": "claude",
-            "args": ["-p"],
+            "args": ["--print", "--output-format", "stream-json", "--verbose"],
             "parallel_workers": 10
         },
         "reporting": {

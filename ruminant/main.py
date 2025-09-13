@@ -91,6 +91,19 @@ def report(
     report_main(repos, weeks, year, week, force_sync, claude_args, skip_sync, skip_summarize, skip_existing, dry_run)
 
 
+@app.command(help="Clone or update git repositories with full history")
+def git(
+    repos: Optional[List[str]] = typer.Argument(None, help="Repository names (owner/repo format)"),
+    all_repos: bool = typer.Option(False, "--all", help="Clone/update all configured repositories"),
+    parallel: int = typer.Option(4, "--parallel", help="Number of parallel git operations"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed progress"),
+    show_paths: bool = typer.Option(False, "--show-paths", help="Show repository paths after cloning/updating")
+) -> None:
+    """Clone or update git repositories with full history and all branches."""
+    from .commands.git import git_main
+    git_main(repos, all_repos, parallel, verbose, show_paths)
+
+
 @app.command(help="Generate group summaries from individual repository summaries")
 def group(
     group: Optional[str] = typer.Argument(None, help="Group name to generate summary for"),

@@ -232,6 +232,13 @@ IMPORTANT FORMATTING REQUIREMENTS:
 - Highlight specific people's contributions where notable
 - Include specific PR/issue numbers for major items
 
+BULLET POINT FORMATTING STYLE:
+- DO NOT use the pattern "**Category:** description" at the start of bullet points
+- Instead, integrate **bold emphasis** naturally within the text to highlight key concepts
+- The bold emphasis should highlight the most important words that make the point
+- Write complete, flowing sentences that incorporate bold emphasis for key terms
+- Each bullet should read as a natural sentence, not a labeled category
+
 LINKING AND FORMATTING REQUIREMENTS:
 
 1. USER MENTIONS:
