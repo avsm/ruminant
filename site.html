@@ -116,7 +116,7 @@
         
         /* Sidebar */
         .sidebar {
-            width: 200px;
+            width: 160px;
             background: var(--bg-secondary);
             border-right: 1px solid var(--border-color);
             margin-top: 40px;
@@ -140,7 +140,7 @@
         }
         
         .week-item {
-            padding: 8px 12px;
+            padding: 8px 8px 8px 12px;
             border-bottom: 1px solid var(--bg-tertiary);
             cursor: pointer;
             font-size: 11px;
@@ -181,9 +181,11 @@
         
         .week-item .week-date {
             color: var(--text-muted);
-            font-size: 10px;
-            margin-top: 3px;
-            opacity: 0.7;
+            font-size: 9px;
+            margin-top: 2px;
+            opacity: 0.5;
+            font-family: monospace;
+            letter-spacing: 1px;
         }
         
         .week-item .week-progress {
@@ -256,28 +258,60 @@
         .week-section {
             border-bottom: 2px solid var(--border-color);
             margin-bottom: 0;
-            padding: 20px;
+            padding: 15px 20px 20px 20px;
             scroll-margin-top: 40px;
         }
         
         .week-header-main {
-            padding: 10px 0 15px 0;
+            padding: 10px 0 5px 0;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
             border-bottom: 1px solid var(--border-color);
-            margin-bottom: 20px;
         }
         
         .week-title-main {
             color: var(--text-primary);
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 12px;
+            font-weight: normal;
         }
         
-        .week-subtitle {
+        .week-repos {
             color: var(--text-muted);
-            font-size: 11px;
-            margin-top: 5px;
+            font-size: 10px;
+            text-align: right;
+            flex-shrink: 0;
+            max-width: 60%;
+        }
+        
+        .org-group {
+            display: inline;
+            margin-left: 12px;
+        }
+        
+        .org-group:first-child {
+            margin-left: 0;
+        }
+        
+        .org-name {
+            color: var(--text-muted);
+            opacity: 0.8;
+            text-decoration: none;
+        }
+        
+        .org-name:hover {
+            text-decoration: underline;
+        }
+        
+        .repo-link {
+            color: var(--link-color);
+            text-decoration: none;
+            margin-left: 2px;
+        }
+        
+        .repo-link:hover {
+            text-decoration: underline;
         }
         
         .week-content {
@@ -300,26 +334,183 @@
         }
         
         .content-label {
-            color: var(--text-primary);
-            font-weight: bold;
-            margin-bottom: 8px;
-            font-size: 10px;
-            text-transform: lowercase;
-            letter-spacing: 1px;
+            color: var(--text-secondary);
+            font-weight: normal;
+            margin-bottom: 12px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            opacity: 0.9;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .content-label svg {
+            width: 14px;
+            height: 14px;
+            fill: none;
+            stroke: var(--text-secondary);
+            stroke-width: 1.5;
+            opacity: 0.8;
         }
         
         
-        .repo-label {
+        .repo-inline {
             color: var(--link-color);
-            font-weight: bold;
-            margin-top: 12px;
-            margin-bottom: 4px;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .repo-inline:hover {
+            text-decoration: underline;
+        }
+        
+        /* Special styling for internal group navigation links */
+        .group-link {
+            color: var(--text-primary);
+            font-weight: 600;
+            text-decoration: none;
+            padding: 0 2px;
+            margin: 0 1px;
+            display: inline;
+            position: relative;
+            transition: all 0.15s ease;
+            font-size: inherit;
+            letter-spacing: 0.3px;
+            border-bottom: 1px dotted var(--text-primary);
+            opacity: 0.9;
+        }
+        
+        .group-link::before {
+            content: '⟨';
+            margin-right: 2px;
+            opacity: 0.4;
+            font-weight: normal;
+            transition: all 0.15s ease;
+        }
+        
+        .group-link::after {
+            content: '⟩';
+            margin-left: 2px;
+            opacity: 0.4;
+            font-weight: normal;
+            transition: all 0.15s ease;
+        }
+        
+        .group-link:hover {
+            opacity: 1;
+            color: var(--text-primary);
+            text-decoration: none;
+            border-bottom-style: solid;
+            background: linear-gradient(to bottom, transparent 60%, var(--eco-active-bg) 60%);
+        }
+        
+        .group-link:hover::before,
+        .group-link:hover::after {
+            opacity: 0.8;
+        }
+        
+        /* Light mode adjustments */
+        :root.light-mode .group-link {
+            border-bottom-color: var(--text-primary);
+            opacity: 0.85;
+        }
+        
+        :root.light-mode .group-link:hover {
+            background: linear-gradient(to bottom, transparent 60%, var(--eco-active-bg) 60%);
+            opacity: 1;
+        }
+        
+        /* Alternative approach with just icon prefix for cleaner look */
+        .group-link[data-group="core"]::before {
+            content: '◆ '; /* Diamond for core */
+            margin-right: 2px;
+            font-size: 0.8em;
+            vertical-align: baseline;
+        }
+        
+        .group-link[data-group="tools"]::before {
+            content: '◈ '; /* Diamond variant for tools */
+            margin-right: 2px;
+            font-size: 0.8em;
+            vertical-align: baseline;
+        }
+        
+        .group-link[data-group="ecosystem"]::before {
+            content: '◉ '; /* Circle for ecosystem */
+            margin-right: 2px;
+            font-size: 0.8em;
+            vertical-align: baseline;
+        }
+        
+        .group-link[data-group="oxcaml"]::before {
+            content: '◊ '; /* Lozenge for oxcaml */
+            margin-right: 2px;
+            font-size: 0.8em;
+            vertical-align: baseline;
+        }
+        
+        .group-link[data-group="core"]::after,
+        .group-link[data-group="tools"]::after,
+        .group-link[data-group="ecosystem"]::after,
+        .group-link[data-group="oxcaml"]::after {
+            content: '';
+            margin-left: 0;
+        }
+        
+        .section-summary {
+            color: var(--text-secondary);
+            font-size: 11px;
+            margin-bottom: 12px;
+            padding-left: 12px;
+            border-left: 2px solid var(--bg-tertiary);
+            font-style: italic;
+            line-height: 1.4;
+        }
+        
+        .section-summary a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+        
+        .section-summary a:hover {
+            text-decoration: underline;
+        }
+        
+        .section-summary .user-link {
+            font-weight: 600;
+            font-style: italic;
         }
         
         
         .content-text {
             color: var(--text-secondary);
             margin-bottom: 8px;
+        }
+        
+        /* Markdown list styling */
+        .markdown-list {
+            margin: 4px 0 8px 0;
+            padding-left: 0;
+            list-style: none;
+        }
+        
+        .markdown-list li {
+            position: relative;
+            padding-left: 12px;
+            line-height: 1.2;
+            padding-bottom: 2px;
+        }
+        
+        .markdown-list li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--text-dim);
+            font-size: 10px;
         }
         
         .content-text a {
@@ -346,22 +537,60 @@
         }
         
         /* Special styling for issue/PR links */
-        .content-text a.issue-link {
-            font-weight: 600;
+        .content-text a.issue-link,
+        .section-summary a.issue-link {
+            font-weight: normal;
             font-style: italic;
+            position: relative;
+            white-space: nowrap;
+            opacity: 0.85;
+            padding-right: 8px;
         }
         
-        .content-text a.issue-link::before {
-            content: '#';
-            margin-right: 1px;
+        .content-text a.issue-link::after,
+        .section-summary a.issue-link::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 7px;
+            height: 7px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M5 0 L8 0 L8 3 M8 0 L2 6' stroke='%23999' stroke-width='1.2' fill='none' opacity='0.6'/%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        
+        /* Tooltip styling for issue links */
+        a.issue-link[title]:hover::before {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 4px 8px;
+            border-radius: 3px;
+            border: 1px solid var(--border-color);
+            font-size: 11px;
+            white-space: nowrap;
+            z-index: 1000;
+            pointer-events: none;
+            margin-bottom: 4px;
         }
         
         
         
         .priority-text {
-            color: var(--priority-color);
-            font-weight: 500;
+            color: var(--text-secondary);
             margin-bottom: 8px;
+        }
+        
+        .priority-text .markdown-list li::before {
+            color: var(--text-dim);
+            content: '▸';
         }
         
         
@@ -379,17 +608,36 @@
         }
         
         .priority-text a.issue-link {
-            font-weight: 600;
+            font-weight: normal;
             font-style: italic;
+            position: relative;
+            white-space: nowrap;
+            opacity: 0.85;
+            padding-right: 8px;
         }
         
-        .priority-text a.issue-link::before {
-            content: '#';
-            margin-right: 1px;
+        .priority-text a.issue-link::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 7px;
+            height: 7px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M5 0 L8 0 L8 3 M8 0 L2 6' stroke='%23999' stroke-width='1.2' fill='none' opacity='0.6'/%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
         }
         
         .contributor-text {
             color: var(--text-secondary);
+        }
+        
+        .contributor-text .markdown-list li::before {
+            content: '·';
+            font-size: 14px;
+            top: -2px;
         }
         
         .contributor-text a {
@@ -406,13 +654,26 @@
         }
         
         .contributor-text a.issue-link {
-            font-weight: 600;
+            font-weight: normal;
             font-style: italic;
+            position: relative;
+            white-space: nowrap;
+            opacity: 0.85;
+            padding-right: 8px;
         }
         
-        .contributor-text a.issue-link::before {
-            content: '#';
-            margin-right: 1px;
+        .contributor-text a.issue-link::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 7px;
+            height: 7px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M5 0 L8 0 L8 3 M8 0 L2 6' stroke='%23999' stroke-width='1.2' fill='none' opacity='0.6'/%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
         }
         
         .content-section {
@@ -565,7 +826,7 @@
             }
             
             .sidebar {
-                width: 160px;
+                width: 140px;
             }
         }
         
@@ -699,7 +960,8 @@
         <div class="main-content">
             <div class="content-header">
                 <div class="ecosystem-nav">
-                    <div class="eco-tab active" data-ecosystem="core">core</div>
+                    <div class="eco-tab active" data-ecosystem="all">all</div>
+                    <div class="eco-tab" data-ecosystem="core">core</div>
                     <div class="eco-tab" data-ecosystem="ecosystem">ecosystem</div>
                     <div class="eco-tab" data-ecosystem="tools">tools</div>
                     <div class="eco-tab" data-ecosystem="oxcaml">oxcaml</div>
@@ -724,7 +986,8 @@
         let indexData = null;
         let groupsData = null;
         let allWeekData = {};
-        let currentEcosystem = 'core';
+        let currentEcosystem = 'all';
+        let currentWeekKey = null;
         
         // Theme management
         function detectSystemTheme() {
@@ -770,12 +1033,53 @@
             }
         }
         
+        function getSectionIcon(label) {
+            const icons = {
+                'overview': '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="8" r="2"/><path d="M12 10 L12 16 M9 14 L15 14"/></svg>',
+                'cross-repo work': '<svg viewBox="0 0 24 24"><path d="M4 6 L4 18 L10 18 M14 6 L20 6 L20 18 L14 18"/><path d="M10 12 L14 12 M11 9 L13 12 L11 15"/></svg>',
+                'key projects': '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="5"/><rect x="5" y="11" width="14" height="5"/><rect x="5" y="18" width="14" height="2"/></svg>',
+                'priorities': '<svg viewBox="0 0 24 24"><path d="M12 2 L12 22 M7 6 L12 2 L17 6"/></svg>',
+                'discussions': '<svg viewBox="0 0 24 24"><path d="M21 11 C21 7 17 4 12 4 C7 4 3 7 3 11 C3 14 5 16 8 17 L8 20 L12 17 C17 17 21 14 21 11 Z"/></svg>',
+                'emerging trends': '<svg viewBox="0 0 24 24"><path d="M4 20 L8 16 L12 18 L16 10 L20 14"/><path d="M16 10 L20 10 L20 14"/></svg>',
+                'good first issues': '<svg viewBox="0 0 24 24"><path d="M12 2 L15 9 L22 9 L17 14 L19 21 L12 17 L5 21 L7 14 L2 9 L9 9 Z"/></svg>',
+                'contributors': '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="15" cy="8" r="3"/><path d="M4 18 C4 14 6 12 9 12 C12 12 12 12 15 12 C18 12 20 14 20 18"/></svg>',
+                'activity': '<svg viewBox="0 0 24 24"><path d="M3 12 L7 8 L11 14 L15 6 L19 12 L21 10"/></svg>',
+                'ongoing': '<svg viewBox="0 0 24 24"><path d="M12 2 L12 12 L17 17"/><circle cx="12" cy="12" r="9"/></svg>'
+            };
+            return icons[label.toLowerCase()] || '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="10"/></svg>';
+        }
+
         function renderMarkdown(text) {
             if (!text) return '';
             
+            // Substitute __RUMINANT:groupname__ tokens with clickable links
+            text = text.replace(/__RUMINANT:([^_]+)__/g, function(match, groupName) {
+                const groupDisplayName = {
+                    'core': 'core',
+                    'tools': 'tools',
+                    'ecosystem': 'ecosystem',
+                    'oxcaml': 'oxcaml'
+                }[groupName] || groupName;
+                
+                return `<a href="javascript:void(0)" onclick="switchToGroup('${groupName}')" class="group-link" data-group="${groupName}" title="View detailed ${groupDisplayName} group activity">${groupDisplayName}</a>`;
+            });
+            
             // Convert GitHub issue/PR links with special styling
+            // Handle both [#123](url) and [user/repo#123](url) formats
+            text = text.replace(/\[([^\/\]]+\/[^#\]]+#\d+)\]\((https:\/\/github\.com\/[^)]+)\)/g, function(match, linkText, url) {
+                // Extract parts from linkText like "user/repo#123"
+                const parts = linkText.match(/^([^\/]+)\/([^#]+)#(\d+)$/);
+                if (parts) {
+                    const [, user, repo, issueNum] = parts;
+                    // Just show the issue number, but keep full reference in tooltip
+                    return `<a href="${url}" target="_blank" class="issue-link issue-full" title="${linkText}">#${issueNum}</a>`;
+                }
+                return `<a href="${url}" target="_blank" class="issue-link issue-full">${linkText}</a>`;
+            });
+            
+            // Handle simple issue number format [#123](url)
             text = text.replace(/\[#(\d+)\]\((https:\/\/github\.com\/[^)]+)\)/g, 
-                '<a href="$2" target="_blank" class="issue-link">$1</a>');
+                '<a href="$2" target="_blank" class="issue-link issue-simple">#$1</a>');
             
             // Detect user mentions in regular links
             text = text.replace(/\[(@[^\]]+)\]\(([^)]+)\)/g, 
@@ -792,10 +1096,124 @@
             });
             
             text = text.replace(/\*\*([^*]+)\*\*/g, '<span class="achievement">$1</span>');
-            text = text.replace(/^- (.+)$/gm, '• $1');
-            text = text.replace(/\n/g, '<br>');
-            return text;
+            
+            // Handle lists - split by newlines and process
+            const lines = text.split('\n');
+            let inList = false;
+            let processedLines = [];
+            
+            lines.forEach(line => {
+                if (line.match(/^- /)) {
+                    if (!inList) {
+                        processedLines.push('<ul class="markdown-list">');
+                        inList = true;
+                    }
+                    processedLines.push('<li>' + line.substring(2) + '</li>');
+                } else {
+                    if (inList) {
+                        processedLines.push('</ul>');
+                        inList = false;
+                    }
+                    if (line.trim()) {
+                        processedLines.push(line + '<br>');
+                    }
+                }
+            });
+            
+            if (inList) {
+                processedLines.push('</ul>');
+            }
+            
+            return processedLines.join('');
         }
+        
+        function switchToGroup(groupName) {
+            // Find and activate the corresponding tab
+            const targetTab = document.querySelector(`[data-ecosystem="${groupName}"]`);
+            if (targetTab) {
+                // Remove active class from all tabs
+                document.querySelectorAll('.eco-tab').forEach(t => t.classList.remove('active'));
+                // Add active class to target tab
+                targetTab.classList.add('active');
+                
+                // Switch ecosystem and refresh content
+                currentEcosystem = groupName;
+                populateWeekList();
+                displayAllWeeks();
+                
+                // Update URL
+                updateURL();
+            }
+        }
+        
+        // URL management functions
+        function updateURL(replaceOnly = false) {
+            const params = new URLSearchParams();
+            if (currentEcosystem && currentEcosystem !== 'all') {
+                params.set('group', currentEcosystem);
+            }
+            if (currentWeekKey) {
+                params.set('week', currentWeekKey);
+            }
+            
+            const newURL = params.toString() ? `?${params.toString()}` : window.location.pathname;
+            
+            // Use replaceState for scroll updates to avoid flooding history
+            if (replaceOnly) {
+                window.history.replaceState({ ecosystem: currentEcosystem, week: currentWeekKey }, '', newURL);
+            } else {
+                window.history.pushState({ ecosystem: currentEcosystem, week: currentWeekKey }, '', newURL);
+            }
+        }
+        
+        function parseURL() {
+            const params = new URLSearchParams(window.location.search);
+            const ecosystem = params.get('group') || 'all';
+            const week = params.get('week');
+            
+            return { ecosystem, week };
+        }
+        
+        function restoreStateFromURL() {
+            const { ecosystem, week } = parseURL();
+            
+            // Set the ecosystem
+            if (ecosystem !== currentEcosystem) {
+                currentEcosystem = ecosystem;
+                
+                // Update tabs
+                document.querySelectorAll('.eco-tab').forEach(t => t.classList.remove('active'));
+                const targetTab = document.querySelector(`[data-ecosystem="${ecosystem}"]`);
+                if (targetTab) {
+                    targetTab.classList.add('active');
+                }
+            }
+            
+            // Set the week
+            if (week) {
+                currentWeekKey = week;
+                // Scroll to the week after content is loaded
+                setTimeout(() => {
+                    const weekElement = document.getElementById(`week-${week}`);
+                    if (weekElement) {
+                        weekElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 100);
+            }
+            
+            // Refresh the display
+            populateWeekList();
+            displayAllWeeks();
+        }
+        
+        // Handle browser back/forward buttons
+        window.addEventListener('popstate', (event) => {
+            if (event.state) {
+                currentEcosystem = event.state.ecosystem || 'all';
+                currentWeekKey = event.state.week || null;
+                restoreStateFromURL();
+            }
+        });
         
         async function initSystem() {
             updateStatus('LOADING INDEX...');
@@ -835,6 +1253,20 @@
         }
         
         function initInterface() {
+            // Restore state from URL first
+            const { ecosystem, week } = parseURL();
+            if (ecosystem) {
+                currentEcosystem = ecosystem;
+                document.querySelectorAll('.eco-tab').forEach(t => t.classList.remove('active'));
+                const targetTab = document.querySelector(`[data-ecosystem="${ecosystem}"]`);
+                if (targetTab) {
+                    targetTab.classList.add('active');
+                }
+            }
+            if (week) {
+                currentWeekKey = week;
+            }
+            
             populateWeekList();
             setupEcosystemTabs();
             setupScrollHandler();
@@ -842,13 +1274,31 @@
             document.getElementById('loading').style.display = 'none';
             
             displayAllWeeks();
+            
+            // Scroll to week if specified in URL
+            if (currentWeekKey) {
+                setTimeout(() => {
+                    const weekElement = document.getElementById(`week-${currentWeekKey}`);
+                    if (weekElement) {
+                        weekElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 100);
+            }
         }
         
         function populateWeekList() {
             const weekList = document.getElementById('week-list');
             weekList.innerHTML = '';
             
-            const weeks = groupsData[currentEcosystem].weeks.filter(w => w.has_content);
+            let weeks;
+            if (currentEcosystem === 'all') {
+                // For "all" ecosystem, show weeks that have either weekly summaries or any group content
+                weeks = indexData.weeks.filter(w => 
+                    w.has_weekly_summary || w.groups.length > 0
+                );
+            } else {
+                weeks = groupsData[currentEcosystem].weeks.filter(w => w.has_content);
+            }
             
             weeks.forEach(week => {
                 const item = document.createElement('div');
@@ -865,22 +1315,27 @@
                 const [start, end] = week.week_range.split(' to ');
                 
                 const startMonth = monthNames[parseInt(start.slice(5, 7)) - 1];
-                const startDay = start.slice(8, 10);
+                const startDay = parseInt(start.slice(8, 10));
                 const endMonth = monthNames[parseInt(end.slice(5, 7)) - 1];
-                const endDay = end.slice(8, 10);
+                const endDay = parseInt(end.slice(8, 10));
                 
                 const year = week.year;
                 
-                // Format display - if same month, show once
-                const dateDisplay = startMonth === endMonth 
-                    ? `${startMonth} ${startDay}-${endDay}`
-                    : `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
+                // Add ordinal suffix
+                const getOrdinal = (n) => {
+                    const s = ['th', 'st', 'nd', 'rd'];
+                    const v = n % 100;
+                    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+                };
+                
+                // Always show both months
+                const dateDisplay = `${startMonth} ${getOrdinal(startDay)} - ${endMonth} ${getOrdinal(endDay)}`;
                 
                 item.innerHTML = `
                     <div class="week-header">
                         <div class="week-num">${dateDisplay}</div>
                     </div>
-                    <div class="week-date">${year}</div>
+                    <div class="week-date">.${year}</div>
                     <div class="week-progress">
                         <div class="progress-bar">
                             <div class="progress-fill"></div>
@@ -903,8 +1358,12 @@
                     tab.classList.add('active');
                     
                     currentEcosystem = tab.dataset.ecosystem;
+                    currentWeekKey = null; // Reset week when changing tabs
                     populateWeekList();
                     displayAllWeeks();
+                    
+                    // Update URL
+                    updateURL();
                 };
             });
         }
@@ -920,6 +1379,8 @@
             const weekElement = document.getElementById(`week-${weekKey}`);
             if (weekElement) {
                 weekElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                currentWeekKey = weekKey;
+                updateURL();
             }
         }
         
@@ -928,7 +1389,7 @@
             const scrollTop = mainContent.scrollTop;
             const weekSections = document.querySelectorAll('.week-section');
             
-            let currentWeekKey = null;
+            let visibleWeekKey = null;
             let scrollProgress = 0;
             
             weekSections.forEach(section => {
@@ -936,7 +1397,13 @@
                 const mainRect = mainContent.getBoundingClientRect();
                 
                 if (rect.top <= mainRect.top + 100 && rect.bottom > mainRect.top + 100) {
-                    currentWeekKey = section.dataset.weekKey;
+                    visibleWeekKey = section.dataset.weekKey;
+                    
+                    // Update global currentWeekKey if it changed
+                    if (currentWeekKey !== visibleWeekKey) {
+                        currentWeekKey = visibleWeekKey;
+                        updateURL(true); // Use replaceState for scroll updates
+                    }
                     
                     // Calculate scroll progress through this week's content
                     const weekTop = rect.top - mainRect.top;
@@ -950,7 +1417,7 @@
                 }
             });
             
-            if (currentWeekKey) {
+            if (visibleWeekKey) {
                 document.querySelectorAll('.week-item').forEach(item => {
                     item.classList.remove('active');
                     const progressFill = item.querySelector('.progress-fill');
@@ -959,7 +1426,7 @@
                     }
                 });
                 
-                const activeItem = document.querySelector(`[data-week-key="${currentWeekKey}"]`);
+                const activeItem = document.querySelector(`[data-week-key="${visibleWeekKey}"]`);
                 if (activeItem) {
                     activeItem.classList.add('active');
                     const progressFill = activeItem.querySelector('.progress-fill');
@@ -970,9 +1437,48 @@
             }
         }
         
+        function hasRepoActivity(repo) {
+            // Check if repo has any meaningful content
+            const contentFields = [
+                'overall_activity', 'brief_summary',
+                'ongoing_projects', 'ongoing_summary',
+                'priority_items', 'priority_summary',
+                'notable_discussions', 'discussions_summary',
+                'emerging_trends', 'trends_summary',
+                'good_first_issues', 'issues_summary',
+                'contributors', 'contributors_summary'
+            ];
+            
+            return contentFields.some(field => {
+                const value = repo[field];
+                // Check for non-null, non-empty values
+                if (!value || value.toString().trim() === '') return false;
+                
+                // Still filter out any "no activity" messages that slip through
+                const lowerValue = value.toString().toLowerCase();
+                const hasNoActivityPhrase = 
+                    lowerValue.includes('no activity') ||
+                    lowerValue.includes('no changes') ||
+                    lowerValue.includes('no updates') ||
+                    lowerValue.includes('quiet week') ||
+                    lowerValue.includes('nothing to report');
+                
+                return !hasNoActivityPhrase;
+            });
+        }
+        
         function displayAllWeeks() {
             const display = document.getElementById('main-display');
-            const weeks = groupsData[currentEcosystem].weeks.filter(w => w.has_content);
+            
+            let weeks;
+            if (currentEcosystem === 'all') {
+                // For "all" ecosystem, show weeks from index that have weekly summaries or any group content
+                weeks = indexData.weeks.filter(w => 
+                    w.has_weekly_summary || w.groups.length > 0
+                );
+            } else {
+                weeks = groupsData[currentEcosystem].weeks.filter(w => w.has_content);
+            }
             
             let html = '';
             
@@ -982,29 +1488,80 @@
                 
                 const weekInfo = indexData.weeks.find(w => w.week_key === week.week_key);
                 
-                // Get repos actually in this ecosystem for this week
-                const ecosystemRepos = weekData.repositories.filter(repo => {
-                    if (!groupsData[currentEcosystem]) return false;
-                    return groupsData[currentEcosystem].repositories.includes(repo.repo_full);
-                });
+                // Get repos for this week
+                let ecosystemRepos;
+                if (currentEcosystem === 'all') {
+                    // For "all" ecosystem, show all active repositories or none if we have a weekly summary
+                    if (weekData.weekly_summary) {
+                        ecosystemRepos = []; // Weekly summaries don't show individual repos
+                    } else {
+                        ecosystemRepos = weekData.repositories.filter(repo => {
+                            if (!repo || !repo.repo_full) return false;
+                            return hasRepoActivity(repo);
+                        });
+                    }
+                } else {
+                    // Filter repos to only those in current ecosystem AND have actual content
+                    ecosystemRepos = weekData.repositories.filter(repo => {
+                        if (!repo || !repo.repo_full) return false; // Skip empty or invalid entries
+                        if (!groupsData[currentEcosystem]) return false;
+                        if (!groupsData[currentEcosystem].repositories.includes(repo.repo_full)) return false;
+                        return hasRepoActivity(repo);
+                    });
+                }
                 
-                // Create repo links
-                const repoLinks = ecosystemRepos.map(repo => {
-                    const [org, name] = repo.repo_full.split('/');
-                    return `<a href="https://github.com/${repo.repo_full}" target="_blank" style="color: var(--link-color); text-decoration: none;">${org}/<strong>${name}</strong></a>`;
-                }).join(' · ');
+                // Create header content based on whether we have weekly summary or individual repos
+                let headerContent = '';
+                if (currentEcosystem === 'all' && weekData.weekly_summary) {
+                    // For weekly summaries, show ecosystem-wide summary
+                    headerContent = '<span style="color: var(--text-primary); font-style: italic;">ecosystem-wide summary</span>';
+                } else if (ecosystemRepos.length > 0) {
+                    // Group repos by organization
+                    const reposByOrg = {};
+                    ecosystemRepos.forEach(repo => {
+                        const [org, name] = repo.repo_full.split('/');
+                        if (!reposByOrg[org]) {
+                            reposByOrg[org] = [];
+                        }
+                        reposByOrg[org].push(name);
+                    });
+                    
+                    // Create grouped repo links with better formatting
+                    headerContent = Object.entries(reposByOrg).map(([org, repos]) => {
+                        const repoLinks = repos.map(name => 
+                            `<a href="https://github.com/${org}/${name}" target="_blank" class="repo-link">${name}</a>`
+                        ).join(' | ');
+                        return `<span class="org-group"><a href="https://github.com/${org}" target="_blank" class="org-name">${org}</a> / { ${repoLinks} }</span>`;
+                    }).join('  ');
+                } else {
+                    headerContent = '<span style="color: var(--text-dim); font-style: italic;">quiet</span>';
+                }
+                
+                // Format the date range nicely
+                const formatWeekDate = (dateStr) => {
+                    const date = new Date(dateStr);
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const day = date.getDate();
+                    const suffix = day === 1 || day === 21 || day === 31 ? 'st' : 
+                                  day === 2 || day === 22 ? 'nd' : 
+                                  day === 3 || day === 23 ? 'rd' : 'th';
+                    return `${months[date.getMonth()]} ${day}${suffix}`;
+                };
+                
+                const [startDate, endDate] = week.week_range.split(' to ');
+                const formattedRange = `${formatWeekDate(startDate)} - ${formatWeekDate(endDate)}`;
                 
                 html += `
                     <div class="week-section" id="week-${week.week_key}" data-week-key="${week.week_key}">
                         <div class="week-header-main">
-                            <div class="week-title-main">W${week.week}.${week.year} :: ${week.week_range}</div>
-                            <div class="week-subtitle">
-                                ${repoLinks || 'No repositories'}
+                            <div class="week-title-main">W${week.week}.${week.year}: ${formattedRange}</div>
+                            <div class="week-repos">
+                                ${headerContent}
                             </div>
                         </div>
                         
                         <div class="week-content">
-                            ${generateWeekContent(weekData)}
+                            ${generateWeekContent(weekData, currentEcosystem)}
                         </div>
                     </div>
                 `;
@@ -1017,127 +1574,205 @@
             display.innerHTML = html;
         }
         
-        function generateWeekContent(weekData) {
-            const filteredGroups = weekData.group_summaries.filter(g => g.group === currentEcosystem);
+        function generateWeekContent(weekData, ecosystem) {
+            // Handle "all" ecosystem - show weekly summary
+            if (ecosystem === 'all') {
+                return generateWeeklySummaryContent(weekData);
+            }
+            
+            const filteredGroups = weekData.group_summaries.filter(g => g.group === ecosystem);
+            // Filter repos to only those in current ecosystem AND have actual content
             const filteredRepos = weekData.repositories.filter(repo => {
+                if (!repo || !repo.repo_full) return false; // Skip empty or invalid entries
                 if (!groupsData[currentEcosystem]) return false;
-                return groupsData[currentEcosystem].repositories.includes(repo.repo_full);
+                if (!groupsData[currentEcosystem].repositories.includes(repo.repo_full)) return false;
+                return hasRepoActivity(repo);
             });
             
             let leftColumn = '';
             let rightColumn = '';
             
-            // Left column - Priority items and key activity
+            // Left column - Activity, Ongoing
+            
+            // Show group overview only for multi-repo ecosystems
             if (filteredRepos.length > 1) {
-                // Show group overview only for multi-repo ecosystems
                 filteredGroups.forEach(group => {
                     if (group.group_overview) {
                         leftColumn += `<div class="content-block">`;
-                        leftColumn += `<div class="content-label">>>> overview</div>`;
+                        leftColumn += `<div class="content-label">${getSectionIcon('overview')}overview</div>`;
                         leftColumn += `<div class="content-text">${renderMarkdown(group.group_overview)}</div>`;
                         leftColumn += `</div>`;
                     }
                 });
             }
             
-            // Repository priority items
-            let hasPriority = false;
-            filteredRepos.forEach(repo => {
-                if (repo.priority_items) {
-                    if (!hasPriority) {
-                        leftColumn += `<div class="content-block">`;
-                        leftColumn += `<div class="content-label">>>> priority</div>`;
-                        hasPriority = true;
-                    }
-                    leftColumn += `<div class="repo-label">${repo.repo_full}</div>`;
-                    leftColumn += `<div class="priority-text">${renderMarkdown(repo.priority_items)}</div>`;
-                }
-            });
-            if (hasPriority) leftColumn += `</div>`;
+            // Repository activity summaries (FIRST)
+            const singleRepo = filteredRepos.length === 1;
+            const activityRepos = filteredRepos.filter(repo => repo.brief_summary || repo.overall_activity);
             
-            // Repository activity summaries
-            let hasActivity = false;
-            filteredRepos.forEach(repo => {
-                if (repo.brief_summary || repo.overall_activity) {
-                    if (!hasActivity) {
-                        leftColumn += `<div class="content-block">`;
-                        leftColumn += `<div class="content-label">>>> activity</div>`;
-                        hasActivity = true;
+            if (activityRepos.length > 0) {
+                leftColumn += `<div class="content-block">`;
+                leftColumn += `<div class="content-label">${getSectionIcon('activity')}activity</div>`;
+                
+                // Use brief_summary as section summary for single repo
+                if (singleRepo && activityRepos[0].brief_summary) {
+                    leftColumn += `<div class="section-summary">${activityRepos[0].brief_summary}</div>`;
+                }
+                
+                activityRepos.forEach(repo => {
+                    if (!singleRepo && repo.brief_summary) {
+                        const [org, name] = repo.repo_full.split('/');
+                        // Integrate repo name into the summary text
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.brief_summary)}`;
+                        leftColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
                     }
-                    leftColumn += `<div class="repo-label">${repo.repo_full}</div>`;
-                    if (repo.brief_summary) {
-                        leftColumn += `<div class="content-text"><strong>${repo.brief_summary}</strong></div>`;
-                    }
+                    
                     if (repo.overall_activity) {
                         leftColumn += `<div class="content-text">${renderMarkdown(repo.overall_activity)}</div>`;
                     }
+                });
+                
+                leftColumn += `</div>`;
+            }
+            
+            // Ongoing projects (SECOND)
+            const ongoingRepos = filteredRepos.filter(repo => repo.ongoing_projects || repo.ongoing_summary);
+            
+            if (ongoingRepos.length > 0) {
+                leftColumn += `<div class="content-block">`;
+                leftColumn += `<div class="content-label">${getSectionIcon('ongoing')}ongoing</div>`;
+                
+                if (singleRepo && ongoingRepos[0].ongoing_summary) {
+                    leftColumn += `<div class="section-summary">${ongoingRepos[0].ongoing_summary}</div>`;
                 }
-            });
-            if (hasActivity) leftColumn += `</div>`;
-            
-            // Right column - Ongoing projects, contributors, discussions
-            
-            // Ongoing projects
-            let hasOngoing = false;
-            filteredRepos.forEach(repo => {
-                if (repo.ongoing_projects) {
-                    if (!hasOngoing) {
-                        rightColumn += `<div class="content-block">`;
-                        rightColumn += `<div class="content-label">>>> ongoing</div>`;
-                        hasOngoing = true;
+                
+                ongoingRepos.forEach(repo => {
+                    if (!singleRepo && repo.ongoing_summary) {
+                        const [org, name] = repo.repo_full.split('/');
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.ongoing_summary)}`;
+                        leftColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
                     }
-                    rightColumn += `<div class="repo-label">${repo.repo_full}</div>`;
-                    rightColumn += `<div class="content-text">${renderMarkdown(repo.ongoing_projects)}</div>`;
+                    
+                    if (repo.ongoing_projects) {
+                        leftColumn += `<div class="content-text">${renderMarkdown(repo.ongoing_projects)}</div>`;
+                    }
+                });
+                
+                leftColumn += `</div>`;
+            }
+            
+            // Right column - Priorities, Contributors, Discussions
+            
+            // Repository priority items (THIRD)
+            const priorityRepos = filteredRepos.filter(repo => repo.priority_items || repo.priority_summary);
+            
+            if (priorityRepos.length > 0) {
+                rightColumn += `<div class="content-block">`;
+                rightColumn += `<div class="content-label">${getSectionIcon('priorities')}priorities</div>`;
+                
+                if (singleRepo && priorityRepos[0].priority_summary) {
+                    rightColumn += `<div class="section-summary">${priorityRepos[0].priority_summary}</div>`;
                 }
-            });
-            if (hasOngoing) rightColumn += `</div>`;
+                
+                priorityRepos.forEach(repo => {
+                    if (!singleRepo && repo.priority_summary) {
+                        const [org, name] = repo.repo_full.split('/');
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.priority_summary)}`;
+                        rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                    }
+                    
+                    if (repo.priority_items) {
+                        rightColumn += `<div class="priority-text">${renderMarkdown(repo.priority_items)}</div>`;
+                    }
+                });
+                
+                rightColumn += `</div>`;
+            }
+            
+            // Contributors (FOURTH)
+            const contributorRepos = filteredRepos.filter(repo => repo.contributors || repo.contributors_summary);
+            
+            if (contributorRepos.length > 0) {
+                rightColumn += `<div class="content-block">`;
+                rightColumn += `<div class="content-label">${getSectionIcon('contributors')}contributors</div>`;
+                
+                if (singleRepo && contributorRepos[0].contributors_summary) {
+                    rightColumn += `<div class="section-summary">${contributorRepos[0].contributors_summary}</div>`;
+                }
+                
+                contributorRepos.forEach(repo => {
+                    if (!singleRepo && repo.contributors_summary) {
+                        const [org, name] = repo.repo_full.split('/');
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.contributors_summary)}`;
+                        rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                    }
+                    
+                    if (repo.contributors) {
+                        rightColumn += `<div class="contributor-text">${renderMarkdown(repo.contributors)}</div>`;
+                    }
+                });
+                
+                rightColumn += `</div>`;
+            }
             
             // Notable discussions
-            let hasDiscussions = false;
-            filteredRepos.forEach(repo => {
-                if (repo.notable_discussions) {
-                    if (!hasDiscussions) {
-                        rightColumn += `<div class="content-block">`;
-                        rightColumn += `<div class="content-label">>>> discussions</div>`;
-                        hasDiscussions = true;
-                    }
-                    rightColumn += `<div class="repo-label">${repo.repo_full}</div>`;
-                    rightColumn += `<div class="content-text">${renderMarkdown(repo.notable_discussions)}</div>`;
-                }
-            });
-            if (hasDiscussions) rightColumn += `</div>`;
+            const discussionRepos = filteredRepos.filter(repo => repo.notable_discussions || repo.discussions_summary);
             
-            // Contributors
-            let hasContributors = false;
-            filteredRepos.forEach(repo => {
-                if (repo.contributors) {
-                    if (!hasContributors) {
-                        rightColumn += `<div class="content-block">`;
-                        rightColumn += `<div class="content-label">>>> contributors</div>`;
-                        hasContributors = true;
-                    }
-                    rightColumn += `<div class="repo-label">${repo.repo_full}</div>`;
-                    rightColumn += `<div class="contributor-text">${renderMarkdown(repo.contributors)}</div>`;
+            if (discussionRepos.length > 0) {
+                rightColumn += `<div class="content-block">`;
+                rightColumn += `<div class="content-label">${getSectionIcon('discussions')}discussions</div>`;
+                
+                if (singleRepo && discussionRepos[0].discussions_summary) {
+                    rightColumn += `<div class="section-summary">${discussionRepos[0].discussions_summary}</div>`;
                 }
-            });
-            if (hasContributors) rightColumn += `</div>`;
+                
+                discussionRepos.forEach(repo => {
+                    if (!singleRepo && repo.discussions_summary) {
+                        const [org, name] = repo.repo_full.split('/');
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.discussions_summary)}`;
+                        rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                    }
+                    
+                    if (repo.notable_discussions) {
+                        rightColumn += `<div class="content-text">${renderMarkdown(repo.notable_discussions)}</div>`;
+                    }
+                });
+                
+                rightColumn += `</div>`;
+            }
             
             // Good first issues
-            let hasIssues = false;
-            filteredRepos.forEach(repo => {
-                if (repo.good_first_issues) {
-                    if (!hasIssues) {
-                        rightColumn += `<div class="content-block">`;
-                        rightColumn += `<div class="content-label">>>> entry points</div>`;
-                        hasIssues = true;
-                    }
-                    rightColumn += `<div class="repo-label">${repo.repo_full}</div>`;
-                    rightColumn += `<div class="content-text">${renderMarkdown(repo.good_first_issues)}</div>`;
-                }
-            });
-            if (hasIssues) rightColumn += `</div>`;
+            const issueRepos = filteredRepos.filter(repo => repo.good_first_issues || repo.issues_summary);
             
-            if (!leftColumn) leftColumn = '<div class="content-text">No activity this week</div>';
+            if (issueRepos.length > 0) {
+                rightColumn += `<div class="content-block">`;
+                rightColumn += `<div class="content-label">entry points</div>`;
+                
+                if (singleRepo && issueRepos[0].issues_summary) {
+                    rightColumn += `<div class="section-summary">${issueRepos[0].issues_summary}</div>`;
+                }
+                
+                issueRepos.forEach(repo => {
+                    if (!singleRepo && repo.issues_summary) {
+                        const [org, name] = repo.repo_full.split('/');
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.issues_summary)}`;
+                        rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                    }
+                    
+                    if (repo.good_first_issues) {
+                        rightColumn += `<div class="content-text">${renderMarkdown(repo.good_first_issues)}</div>`;
+                    }
+                });
+                
+                rightColumn += `</div>`;
+            }
+            
+            // If no content at all, return empty or minimal display
+            if (!leftColumn && !rightColumn) {
+                return '<div class="week-column"><div class="content-text" style="color: var(--text-dim); font-style: italic;">quiet week</div></div><div class="week-column"></div>';
+            }
+            
+            if (!leftColumn) leftColumn = '';
             if (!rightColumn) rightColumn = '';
             
             return `
@@ -1146,7 +1781,92 @@
             `;
         }
         
-        
+        function generateWeeklySummaryContent(weekData) {
+            const weeklySummary = weekData.weekly_summary;
+            
+            if (!weeklySummary) {
+                // Fallback to showing all group summaries if no weekly summary
+                let leftColumn = '';
+                let rightColumn = '';
+                
+                // Show brief overview of all groups
+                const allGroups = weekData.group_summaries || [];
+                if (allGroups.length > 0) {
+                    leftColumn += `<div class="content-block">`;
+                    leftColumn += `<div class="content-label">${getSectionIcon('activity')}group activity</div>;`
+                    
+                    allGroups.forEach(group => {
+                        if (group.brief_summary) {
+                            leftColumn += `<div class="section-summary"><strong>${group.group}:</strong> ${renderMarkdown(group.brief_summary)}</div>`;
+                        }
+                    });
+                    
+                    leftColumn += `</div>`;
+                }
+                
+                return `
+                    <div class="week-column">${leftColumn}</div>
+                    <div class="week-column">${rightColumn}</div>
+                `;
+            }
+            
+            let leftColumn = '';
+            let rightColumn = '';
+            
+            // Left column - Overview and Cross-Repository Work
+            if (weeklySummary.group_overview) {
+                leftColumn += `<div class="content-block">`;
+                leftColumn += `<div class="content-label">${getSectionIcon('overview')}overview</div>`;
+                leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.group_overview)}</div>`;
+                leftColumn += `</div>`;
+            }
+            
+            if (weeklySummary.cross_repository_work) {
+                leftColumn += `<div class="content-block">`;
+                leftColumn += `<div class="content-label">${getSectionIcon('cross-repo work')}cross-repo work</div>`;
+                leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.cross_repository_work)}</div>`;
+                leftColumn += `</div>`;
+            }
+            
+            if (weeklySummary.key_projects) {
+                leftColumn += `<div class="content-block">`;
+                leftColumn += `<div class="content-label">${getSectionIcon('key projects')}key projects</div>`;
+                leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.key_projects)}</div>`;
+                leftColumn += `</div>`;
+            }
+            
+            // Right column - Priorities, Discussions, Trends
+            if (weeklySummary.priority_items) {
+                rightColumn += `<div class="content-block">`;
+                rightColumn += `<div class="content-label">${getSectionIcon('priorities')}priorities</div>`;
+                rightColumn += `<div class="priority-text">${renderMarkdown(weeklySummary.priority_items)}</div>`;
+                rightColumn += `</div>`;
+            }
+            
+            if (weeklySummary.notable_discussions) {
+                rightColumn += `<div class="content-block">`;
+                rightColumn += `<div class="content-label">${getSectionIcon('discussions')}discussions</div>`;
+                rightColumn += `<div class="content-text">${renderMarkdown(weeklySummary.notable_discussions)}</div>`;
+                rightColumn += `</div>`;
+            }
+            
+            if (weeklySummary.emerging_trends) {
+                rightColumn += `<div class="content-block">`;
+                rightColumn += `<div class="content-label">${getSectionIcon('emerging trends')}emerging trends</div>`;
+                rightColumn += `<div class="content-text">${renderMarkdown(weeklySummary.emerging_trends)}</div>`;
+                rightColumn += `</div>`;
+            }
+            
+            // If no content at all, return empty
+            if (!leftColumn && !rightColumn) {
+                return '<div class="week-column"><div class="content-text" style="color: var(--text-dim); font-style: italic;">no weekly summary available</div></div><div class="week-column"></div>';
+            }
+            
+            return `
+                <div class="week-column">${leftColumn}</div>
+                <div class="week-column">${rightColumn}</div>
+            `;
+        }
         
         function toggleSection(header) {
             const content = header.nextElementSibling;
