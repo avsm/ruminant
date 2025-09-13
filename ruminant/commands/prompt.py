@@ -2,7 +2,8 @@
 
 import json
 import typer
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+from datetime import datetime
 
 from ..config import load_config
 from ..utils.dates import get_last_complete_week, get_week_list, get_week_date_range, format_week_range
@@ -15,6 +16,73 @@ from ..utils.logging import (
     success, error, warning, info, step, summary_table, operation_summary,
     print_repo_list, print_file_paths
 )
+
+
+def calculate_weekly_stats(data: Dict[str, Any], week_start: datetime, week_end: datetime) -> Dict[str, Any]:
+    """Calculate factual statistics from GitHub data for the specified week."""
+    from dateutil.parser import parse
+    
+    stats = {
+        'prs_merged': 0,
+        'prs_opened': 0,
+        'prs_closed': 0,
+        'issues_opened': 0,
+        'issues_closed': 0,
+        'releases': 0,
+        'contributors': set(),
+        'new_contributors': set(),
+        'tags_created': [],
+        'release_names': []
+    }
+    
+    # Analyze PRs
+    for pr in data.get('prs', []):
+        if pr.get('merged_at'):
+            merged_date = parse(pr['merged_at'])
+            if week_start <= merged_date <= week_end:
+                stats['prs_merged'] += 1
+                if pr.get('user', {}).get('login'):
+                    stats['contributors'].add(pr['user']['login'])
+        
+        if pr.get('created_at'):
+            created_date = parse(pr['created_at'])
+            if week_start <= created_date <= week_end:
+                stats['prs_opened'] += 1
+        
+        if pr.get('closed_at') and not pr.get('merged_at'):
+            closed_date = parse(pr['closed_at'])
+            if week_start <= closed_date <= week_end:
+                stats['prs_closed'] += 1
+    
+    # Analyze issues
+    for issue in data.get('issues', []):
+        if issue.get('created_at'):
+            created_date = parse(issue['created_at'])
+            if week_start <= created_date <= week_end:
+                stats['issues_opened'] += 1
+        
+        if issue.get('closed_at'):
+            closed_date = parse(issue['closed_at'])
+            if week_start <= closed_date <= week_end:
+                stats['issues_closed'] += 1
+    
+    # Look for releases in PR titles/descriptions or issues
+    for pr in data.get('prs', []):
+        title = pr.get('title', '').lower()
+        if any(keyword in title for keyword in ['release', 'version', 'v1.', 'v2.', 'v3.', 'v4.', 'v5.']):
+            if pr.get('merged_at'):
+                merged_date = parse(pr['merged_at'])
+                if week_start <= merged_date <= week_end:
+                    stats['releases'] += 1
+                    stats['release_names'].append(pr.get('title', ''))
+    
+    # Convert sets to counts
+    stats['unique_contributors'] = len(stats['contributors'])
+    stats['contributors'] = list(stats['contributors'])
+    stats['new_contributors'] = list(stats['new_contributors'])
+    
+    return stats
+
 
 def generate_prompt(repo: str, year: int, week: int, config) -> dict:
     """Generate a Claude prompt for summarizing repository activity."""
@@ -47,6 +115,9 @@ def generate_prompt(repo: str, year: int, week: int, config) -> dict:
         prs_count = len(original_data.get('prs', []))
         discussions_count = len(original_data.get('discussions', []))
         gfi_count = len(original_data.get('good_first_issues', []))
+        
+        # Calculate weekly statistics for context
+        week_stats = calculate_weekly_stats(original_data, week_start, week_end)
         
         # Check if git repository is available (unless skipped)
         owner, name = parse_repo(repo)
@@ -128,6 +199,17 @@ YOUR TASK:
 
 DATA SUMMARY: The JSON file contains {issues_count} issues, {prs_count} PRs, {discussions_count} discussions, and {gfi_count} good first issues.
 
+WEEKLY ACTIVITY STATISTICS (for your context only - DO NOT include these numbers in your summary):
+- PRs merged: {week_stats['prs_merged']}
+- PRs opened: {week_stats['prs_opened']} 
+- PRs closed (not merged): {week_stats['prs_closed']}
+- Issues opened: {week_stats['issues_opened']}
+- Issues closed: {week_stats['issues_closed']}
+- Unique contributors: {week_stats['unique_contributors']}
+- Potential releases: {week_stats['releases']}
+
+IMPORTANT: These statistics are provided for your understanding of the week's scope. The UI will display aggregate statistics separately, so your summary should focus on SPECIFIC, INTERESTING activities rather than repeating these numbers.
+
 The report should include the following sections:
 
 1. A concise summary of the overall activity and key themes (MUST use bullet points)
@@ -140,6 +222,8 @@ The report should include the following sections:
 CRITICAL REQUIREMENTS:
 - ALL sections MUST use bullet point format (starting with "-" or "*") for consistency and readability
 - SKIP any section entirely if there is no meaningful content for it
+- DO NOT include aggregate statistics (number of PRs merged, issues opened, etc.) - the UI provides these separately
+- Focus on SPECIFIC, INTERESTING activities and developments rather than summary statistics
 - ABSOLUTELY DO NOT include ANY of these phrases or similar:
   * "No activity recorded"
   * "No activity"
@@ -156,11 +240,11 @@ CRITICAL REQUIREMENTS:
 
 TONE AND LANGUAGE REQUIREMENTS:
 - Use factual, objective language - avoid hyperbolic terms like "major", "massive", "critical", "significant", "groundbreaking"
-- Prefer specific, quantifiable descriptions: "15 PRs merged", "3 bug fixes", "2 new features", "affects 5 modules"  
-- Instead of "major refactoring" → "refactoring affecting 12 files"
+- Prefer specific, concrete descriptions over vague generalizations
+- Instead of "major refactoring" → "refactoring affecting authentication and database modules"
 - Instead of "critical bug fix" → "bug fix for memory leak affecting startup"
-- Instead of "massive performance improvement" → "30% performance improvement in query processing"
-- Focus on concrete changes and measurable impacts
+- Instead of "massive performance improvement" → "performance improvement in query processing"
+- Focus on concrete changes and their specific impacts rather than aggregate counts
 
 IMPORTANT: For each PR or issue you mention, ALWAYS include the contributor's GitHub username properly formatted. This is critical for recognizing contributors' work.
 
