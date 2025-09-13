@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OCaml Thicket</title>
+    
+    <!-- Atom/RSS Feeds -->
+    <link rel="alternate" type="application/atom+xml" title="OCaml Ecosystem - Weekly Summaries" href="feeds/weekly.xml">
+    <!-- Group-specific feeds will be dynamically added -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -61,6 +65,17 @@
             display: flex;
             align-items: center;
             z-index: 1000;
+        }
+        
+        /* Desktop: hide row wrappers */
+        .header-row-1,
+        .header-row-2 {
+            display: contents;
+        }
+        
+        /* Hide mobile-only elements on desktop */
+        .repo-dropdown-header {
+            display: none;
         }
         
         .header-title {
@@ -131,26 +146,14 @@
         .group-tab.active::after {
             content: '';
             position: absolute;
-            bottom: 0;
-            left: 10%;
-            right: 10%;
-            height: 2px;
+            bottom: 2px;
+            left: 15%;
+            right: 15%;
+            height: 1px;
             background: var(--text-primary);
             opacity: 0.8;
         }
         
-        .mode-toggle {
-            margin-right: 15px;
-            cursor: pointer;
-            font-size: 20px;
-            color: var(--text-muted);
-            user-select: none;
-            transition: color 0.3s;
-        }
-        
-        .mode-toggle:hover {
-            color: var(--text-primary);
-        }
         
         /* Repository Dropdown */
         .repo-dropdown-container {
@@ -701,11 +704,11 @@
         .group-link {
             color: var(--text-primary);
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 400;
             border: 1px solid var(--border-color);
-            padding: 1px 4px;
-            border-radius: 3px;
-            font-size: 0.9em;
+            padding: 0px 2px;
+            border-radius: 1px;
+            font-size: 0.80em;
             background: var(--bg-tertiary);
         }
         
@@ -1213,18 +1216,159 @@
             bottom: 0;
             left: 0;
             right: 0;
-            height: 20px;
+            height: 24px;
             background: var(--bg-tertiary);
             border-top: 1px solid var(--border-color);
             display: flex;
             align-items: center;
-            font-size: 10px;
+            justify-content: space-between;
+            font-size: 11px;
             color: var(--text-muted);
             padding: 0 15px;
         }
         
-        .status-info {
-            margin-left: auto;
+        .status-left {
+            display: flex;
+            align-items: center;
+        }
+        
+        .status-left a {
+            color: var(--link-color);
+            text-decoration: none;
+            margin: 0 2px;
+        }
+        
+        .status-left a:hover {
+            text-decoration: underline;
+        }
+        
+        .status-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .status-action {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            color: var(--text-muted);
+            transition: color 0.3s;
+        }
+        
+        .status-action:hover {
+            color: var(--text-primary);
+        }
+        
+        .mode-action {
+            font-size: 16px;
+        }
+        
+        /* Feeds Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 0;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+        
+        .modal-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .modal-close {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 24px;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .feed-item-link {
+            display: block;
+            text-decoration: none;
+            margin-bottom: 10px;
+        }
+        
+        .feed-item-link:last-child {
+            margin-bottom: 0;
+        }
+        
+        .feed-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            transition: background 0.2s;
+        }
+        
+        .feed-item-link:hover .feed-item {
+            background: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+        
+        .feed-info {
+            flex: 1;
+        }
+        
+        .feed-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        
+        .feed-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        .feed-icon {
+            padding: 8px;
+            color: var(--text-muted);
+            transition: color 0.2s;
+        }
+        
+        .feed-item-link:hover .feed-icon {
+            color: var(--text-primary);
         }
         
         /* Tablet breakpoint - single column layout */
@@ -1250,54 +1394,126 @@
                 height: auto;
             }
             
-            /* Make header mobile-friendly */
+            /* Make header mobile-friendly with two rows */
             .header {
                 position: sticky;
                 height: auto;
-                padding: 10px 5px;
-                flex-wrap: nowrap;
-                overflow-x: auto;
+                padding: 8px 5px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            /* First row: title and mode toggle */
+            .header-row-1 {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 8px;
+            }
+            
+            /* Second row: groups and repo button */
+            .header-row-2 {
+                display: flex;
+                align-items: center;
+                gap: 8px;
             }
             
             .header-title {
-                font-size: 12px;
+                font-size: 14px;
                 margin-left: 10px;
                 flex-shrink: 0;
             }
             
             .header-separator {
-                flex-shrink: 0;
+                margin: 0 4px;
+                font-size: 11px;
             }
             
             .header-groups {
                 display: flex;
                 flex-wrap: nowrap;
                 overflow-x: auto;
-                flex-shrink: 1;
-                min-width: 0;
+                flex: 1;
+                gap: 2px;
+                -webkit-overflow-scrolling: touch;
             }
             
             .group-tab {
                 flex-shrink: 0;
                 font-size: 10px;
-                padding: 4px 8px;
+                padding: 4px 6px;
+                white-space: nowrap;
             }
+            
+            /* Dynamic abbreviations for longer group names on mobile */
+            /* These can be added dynamically via JavaScript if needed */
             
             .repo-dropdown-container {
                 flex-shrink: 0;
-                margin-left: 10px;
             }
             
             .repo-dropdown-toggle {
-                font-size: 10px;
-                padding: 4px 6px;
+                font-size: 11px;
+                padding: 6px 10px;
+                background: var(--bg-tertiary);
+                border-radius: 3px;
             }
             
-            .mode-toggle {
-                margin-right: 10px;
-                font-size: 18px;
-                flex-shrink: 0;
+            /* Mobile modal for repo dropdown */
+            .repo-dropdown {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: var(--bg-primary);
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
+                max-width: none;
+                max-height: none;
+                overflow-y: auto;
+                z-index: 9999;
+                display: none;
+                flex-direction: column;
             }
+            
+            .repo-dropdown.show {
+                display: flex;
+            }
+            
+            .repo-dropdown-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 15px;
+                border-bottom: 1px solid var(--border-color);
+                background: var(--bg-secondary);
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+            
+            .repo-dropdown-title {
+                font-size: 16px;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
+            
+            .repo-dropdown-close {
+                font-size: 24px;
+                color: var(--text-muted);
+                cursor: pointer;
+                padding: 0 5px;
+                line-height: 1;
+            }
+            
+            .repo-dropdown-content {
+                flex: 1;
+                overflow-y: auto;
+                padding: 15px;
+            }
+            
             
             /* Hide sidebar on mobile */
             .sidebar {
@@ -1385,28 +1601,30 @@
 </head>
 <body>
     <div class="header">
-        <div class="header-title">OCAML.SYS</div>
-        <div class="header-separator">::</div>
-        <div class="header-groups">
-            <div class="group-tab active" data-group="all">[ALL]</div>
-            <div class="group-tab" data-group="core">[CORE]</div>
-            <div class="group-tab" data-group="ecosystem">[ECOSYSTEM]</div>
-            <div class="group-tab" data-group="tools">[TOOLS]</div>
-            <div class="group-tab" data-group="oxcaml">[OXCAML]</div>
+        <div class="header-row-1">
+            <div class="header-title">OCAML.SYS</div>
         </div>
-        <div class="repo-dropdown-container">
-            <div class="repo-dropdown-toggle" onclick="toggleRepoDropdown()">
-                <span>REPOS</span>
-                <span class="dropdown-arrow">▼</span>
+        <div class="header-row-2">
+            <div class="header-separator">::</div>
+            <div class="header-groups" id="header-groups">
+                <div class="group-tab active" data-group="all">[ALL]</div>
+                <!-- Groups will be dynamically added here -->
             </div>
-            <div class="repo-dropdown" id="repo-dropdown">
-                <div class="repo-dropdown-content" id="repo-dropdown-content">
-                    <!-- Repository list will be populated by JavaScript -->
+            <div class="repo-dropdown-container">
+                <div class="repo-dropdown-toggle" onclick="toggleRepoDropdown()">
+                    <span>REPOS</span>
+                    <span class="dropdown-arrow">▼</span>
+                </div>
+                <div class="repo-dropdown" id="repo-dropdown">
+                    <div class="repo-dropdown-header">
+                        <div class="repo-dropdown-title">Select Repository</div>
+                        <div class="repo-dropdown-close" onclick="closeRepoDropdown()">×</div>
+                    </div>
+                    <div class="repo-dropdown-content" id="repo-dropdown-content">
+                        <!-- Repository list will be populated by JavaScript -->
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="mode-toggle" onclick="toggleTheme()">
-            <span id="mode-icon">◐</span>
         </div>
     </div>
 
@@ -1428,9 +1646,20 @@
     </div>
     
     <div class="status-bar">
-        <span>STATUS: ONLINE</span>
-        <div class="status-info">
-            <span id="status-text">Ready</span>
+        <div class="status-left">
+            Generated by <a href="https://github.com/avsm/thicket" target="_blank">Thicket</a> and Claude, by <a href="https://anil.recoil.org" target="_blank">Anil Madhavapeddy</a>
+        </div>
+        <div class="status-right">
+            <div class="status-action feed-action" onclick="showFeeds()" title="RSS/Atom Feeds">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 11a9 9 0 0 1 9 9"/>
+                    <path d="M4 4a16 16 0 0 1 16 16"/>
+                    <circle cx="5" cy="19" r="1"/>
+                </svg>
+            </div>
+            <div class="status-action mode-action" onclick="toggleTheme()" title="Toggle Theme">
+                <span id="mode-icon-bottom">◐</span>
+            </div>
         </div>
     </div>
 
@@ -1453,15 +1682,15 @@
         
         function setTheme(theme) {
             const root = document.documentElement;
-            const icon = document.getElementById('mode-icon');
+            const iconBottom = document.getElementById('mode-icon-bottom');
             
             if (theme === 'light') {
                 root.classList.add('light-mode');
-                icon.textContent = '☀';
+                iconBottom.textContent = '☀';
                 localStorage.setItem('theme', 'light');
             } else {
                 root.classList.remove('light-mode');
-                icon.textContent = '☾';
+                iconBottom.textContent = '☾';
                 localStorage.setItem('theme', 'dark');
             }
         }
@@ -1531,8 +1760,8 @@
                 return `<a href="${url}" target="_blank" class="issue-link issue-full">${linkText}</a>`;
             });
             
-            // Handle simple issue number format [#123](url)
-            text = text.replace(/\[#(\d+)\]\((https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/issues\/\d+[^)]*)\)/g, 
+            // Handle simple issue/PR number format [#123](url) for both /issues/ and /pull/ URLs
+            text = text.replace(/\[#(\d+)\]\((https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/(issues|pull)\/\d+[^)]*)\)/g, 
                 '<a href="$2" target="_blank" class="issue-link issue-simple" title="$3/$4#$1">#$1</a>');
             
             // Detect user mentions in regular links
@@ -1801,6 +2030,10 @@
                 } else {
                     usersData = {};
                 }
+                
+                // Dynamically generate group tabs and feed links
+                generateDynamicGroups();
+                generateDynamicFeeds();
                 
                 await loadAllWeekData();
                 initInterface();
@@ -2209,11 +2442,31 @@
                 dropdown.classList.remove('show');
                 toggle.classList.remove('active');
                 repoDropdownOpen = false;
+                // Re-enable body scroll on mobile
+                if (window.innerWidth <= 768) {
+                    document.body.style.overflow = '';
+                }
             } else {
                 populateRepoDropdown();
                 dropdown.classList.add('show');
                 toggle.classList.add('active');
                 repoDropdownOpen = true;
+                // Disable body scroll on mobile when modal is open
+                if (window.innerWidth <= 768) {
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+        }
+        
+        function closeRepoDropdown() {
+            const dropdown = document.getElementById('repo-dropdown');
+            const toggle = document.querySelector('.repo-dropdown-toggle');
+            dropdown.classList.remove('show');
+            toggle.classList.remove('active');
+            repoDropdownOpen = false;
+            // Re-enable body scroll on mobile
+            if (window.innerWidth <= 768) {
+                document.body.style.overflow = '';
             }
         }
         
@@ -2264,9 +2517,9 @@
             content.innerHTML = html || '<div style="padding: 8px; color: var(--text-muted);">No repositories found</div>';
         }
         
-        // Close dropdown when clicking outside
+        // Close dropdown when clicking outside (desktop only)
         document.addEventListener('click', function(event) {
-            if (repoDropdownOpen && !event.target.closest('.repo-dropdown-container')) {
+            if (repoDropdownOpen && window.innerWidth > 768 && !event.target.closest('.repo-dropdown-container')) {
                 toggleRepoDropdown();
             }
         });
@@ -2766,7 +3019,8 @@
         }
         
         function updateStatus(message) {
-            document.getElementById('status-text').textContent = message;
+            // Status updates are no longer displayed - function kept for compatibility
+            console.log('Status:', message);
         }
         
         function showError(message) {
@@ -2776,8 +3030,204 @@
             updateStatus('ERROR STATE');
         }
         
+        // Feeds modal functions
+        function generateDynamicGroups() {
+            const headerGroups = document.getElementById('header-groups');
+            if (!headerGroups || !groupsData) return;
+            
+            // Get existing ALL tab
+            const allTab = headerGroups.querySelector('[data-group="all"]');
+            
+            // Create mobile abbreviations CSS dynamically
+            const mobileAbbreviations = {
+                'ecosystem': 'ECO',
+                'oxcaml': 'OX'
+            };
+            
+            // Add dynamic CSS for mobile abbreviations
+            const style = document.createElement('style');
+            let mobileCSS = '';
+            
+            // Add group tabs dynamically (excluding 'all' which is already there)
+            Object.keys(groupsData).forEach(groupKey => {
+                if (groupKey !== 'all') {
+                    const tab = document.createElement('div');
+                    tab.className = 'group-tab';
+                    tab.dataset.group = groupKey;
+                    tab.textContent = `[${groupKey.toUpperCase()}]`;
+                    tab.onclick = () => switchGroup(groupKey);
+                    headerGroups.appendChild(tab);
+                    
+                    // Add mobile abbreviation CSS if group name is long
+                    if (groupKey.length > 5 || mobileAbbreviations[groupKey]) {
+                        const abbrev = mobileAbbreviations[groupKey] || 
+                                      groupKey.substring(0, 3).toUpperCase();
+                        mobileCSS += `
+                            @media screen and (max-width: 768px) {
+                                .group-tab[data-group="${groupKey}"] {
+                                    font-size: 0;
+                                }
+                                .group-tab[data-group="${groupKey}"]::after {
+                                    content: "[${abbrev}]";
+                                    font-size: 10px;
+                                }
+                            }
+                        `;
+                    }
+                }
+            });
+            
+            if (mobileCSS) {
+                style.textContent = mobileCSS;
+                document.head.appendChild(style);
+            }
+            
+            // Re-add click handler for ALL tab
+            if (allTab) {
+                allTab.onclick = () => switchGroup('all');
+            }
+            
+            // Add dynamic feed links to head
+            const head = document.head;
+            Object.keys(groupsData).forEach(groupKey => {
+                if (groupKey !== 'all') {
+                    const link = document.createElement('link');
+                    link.rel = 'alternate';
+                    link.type = 'application/atom+xml';
+                    link.title = `OCaml ${groupKey.charAt(0).toUpperCase() + groupKey.slice(1)}`;
+                    link.href = `feeds/${groupKey}.xml`;
+                    head.appendChild(link);
+                }
+            });
+        }
+        
+        function generateDynamicFeeds() {
+            const modalBody = document.getElementById('feeds-modal-body');
+            if (!modalBody || !groupsData) return;
+            
+            // Keep the weekly feed (first item)
+            const weeklyFeed = modalBody.querySelector('.feed-item-link');
+            modalBody.innerHTML = '';
+            if (weeklyFeed) {
+                modalBody.appendChild(weeklyFeed);
+            }
+            
+            // Add group feeds dynamically
+            Object.keys(groupsData).forEach(groupKey => {
+                if (groupKey !== 'all') {
+                    const groupName = groupKey.charAt(0).toUpperCase() + groupKey.slice(1);
+                    const groupDesc = getGroupDescription(groupKey);
+                    
+                    const feedLink = document.createElement('a');
+                    feedLink.href = `feeds/${groupKey}.xml`;
+                    feedLink.className = 'feed-item-link';
+                    feedLink.target = '_blank';
+                    feedLink.title = `Subscribe to ${groupName} Feed`;
+                    
+                    feedLink.innerHTML = `
+                        <div class="feed-item">
+                            <div class="feed-info">
+                                <div class="feed-title">${groupName}</div>
+                                <div class="feed-desc">${groupDesc}</div>
+                            </div>
+                            <div class="feed-icon">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M4 11a9 9 0 0 1 9 9"/>
+                                    <path d="M4 4a16 16 0 0 1 16 16"/>
+                                    <circle cx="5" cy="19" r="1"/>
+                                </svg>
+                            </div>
+                        </div>
+                    `;
+                    
+                    modalBody.appendChild(feedLink);
+                }
+            });
+        }
+        
+        function getGroupDescription(groupKey) {
+            const descriptions = {
+                'core': 'OCaml compiler and runtime updates',
+                'tools': 'Build systems, package managers, and developer tools',
+                'ecosystem': 'Libraries, frameworks, and community projects',
+                'oxcaml': 'Jane Street and extended ecosystem'
+            };
+            return descriptions[groupKey] || `${groupKey.charAt(0).toUpperCase() + groupKey.slice(1)} repositories`;
+        }
+        
+        function switchGroup(groupName) {
+            // Update active tab styling
+            document.querySelectorAll('.group-tab').forEach(t => {
+                t.classList.remove('active');
+                if (t.dataset.group === groupName) {
+                    t.classList.add('active');
+                }
+            });
+            
+            // Switch ecosystem and refresh content
+            currentEcosystem = groupName;
+            populateTimeline();
+            displayAllWeeks();
+            updateURL();
+        }
+        
+        function showFeeds() {
+            const modal = document.getElementById('feeds-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        }
+        
+        function closeFeeds() {
+            const modal = document.getElementById('feeds-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Initialize on load
         initTheme();
         initSystem();
+        
+        // Set up modal event listener after DOM loads
+        window.addEventListener('load', function() {
+            const feedsModal = document.getElementById('feeds-modal');
+            if (feedsModal) {
+                feedsModal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeFeeds();
+                    }
+                });
+            }
+        });
     </script>
+    
+    <!-- Feeds Modal -->
+    <div id="feeds-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">RSS/Atom Feeds</span>
+                <span class="modal-close" onclick="closeFeeds()">&times;</span>
+            </div>
+            <div class="modal-body" id="feeds-modal-body">
+                <!-- Feed items will be dynamically added here -->
+                <a href="feeds/weekly.xml" class="feed-item-link" target="_blank" title="Subscribe to Weekly Feed">
+                    <div class="feed-item">
+                        <div class="feed-info">
+                            <div class="feed-title">Weekly Summaries</div>
+                            <div class="feed-desc">All ecosystem activity aggregated weekly</div>
+                        </div>
+                        <div class="feed-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 11a9 9 0 0 1 9 9"/>
+                                <path d="M4 4a16 16 0 0 1 16 16"/>
+                                <circle cx="5" cy="19" r="1"/>
+                            </svg>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

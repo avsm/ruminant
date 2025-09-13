@@ -10,11 +10,11 @@ from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
 
 from ..config import load_config
-from ..utils.logging import console, success, error, info
+from ..utils.logging import console, success, error, info, warning
 from ..utils.paths import get_data_dir
 
 
-def create_atom_feed(group_name: str, summaries: List[Dict[str, Any]], config: Any) -> FeedGenerator:
+def create_atom_feed(group_name: str, summaries: List[Dict[str, Any]], config: Any, users_data: Optional[Dict[str, Any]] = None) -> FeedGenerator:
     """Create an Atom feed for a specific group."""
     fg = FeedGenerator()
     
@@ -36,7 +36,7 @@ def create_atom_feed(group_name: str, summaries: List[Dict[str, Any]], config: A
     group_description = group_config.description if group_config else f"Activity reports for {group_name}"
     
     # Set feed metadata
-    feed_id = f"{base_url}/feeds/{group_name}.atom"
+    feed_id = f"{base_url}/feeds/{group_name}.xml"
     fg.id(feed_id)
     fg.title(f"{group_title} - Weekly Activity")
     fg.author({'name': author_name, 'email': author_email})
@@ -82,22 +82,22 @@ def create_atom_feed(group_name: str, summaries: List[Dict[str, Any]], config: A
         content_parts = []
         
         if summary.get('group_overview'):
-            content_parts.append(f"<h2>Group Overview</h2>\n{markdown_to_html(summary['group_overview'])}")
+            content_parts.append(f"<h2>Group Overview</h2>\n{markdown_to_html(summary['group_overview'], users_data)}")
         
         if summary.get('cross_repository_work'):
-            content_parts.append(f"<h2>Cross-Repository Work</h2>\n{markdown_to_html(summary['cross_repository_work'])}")
+            content_parts.append(f"<h2>Cross-Repository Work</h2>\n{markdown_to_html(summary['cross_repository_work'], users_data)}")
         
         if summary.get('key_projects'):
-            content_parts.append(f"<h2>Key Projects and Initiatives</h2>\n{markdown_to_html(summary['key_projects'])}")
+            content_parts.append(f"<h2>Key Projects and Initiatives</h2>\n{markdown_to_html(summary['key_projects'], users_data)}")
         
         if summary.get('priority_items'):
-            content_parts.append(f"<h2>Priority Items</h2>\n{markdown_to_html(summary['priority_items'])}")
+            content_parts.append(f"<h2>Priority Items</h2>\n{markdown_to_html(summary['priority_items'], users_data)}")
         
         if summary.get('notable_discussions'):
-            content_parts.append(f"<h2>Notable Discussions</h2>\n{markdown_to_html(summary['notable_discussions'])}")
+            content_parts.append(f"<h2>Notable Discussions</h2>\n{markdown_to_html(summary['notable_discussions'], users_data)}")
         
         if summary.get('emerging_trends'):
-            content_parts.append(f"<h2>Emerging Trends</h2>\n{markdown_to_html(summary['emerging_trends'])}")
+            content_parts.append(f"<h2>Emerging Trends</h2>\n{markdown_to_html(summary['emerging_trends'], users_data)}")
         
         content = '\n'.join(content_parts)
         fe.content(content, type='html')
@@ -124,20 +124,139 @@ def create_atom_feed(group_name: str, summaries: List[Dict[str, Any]], config: A
     return fg
 
 
-def markdown_to_html(markdown_text: str) -> str:
-    """Convert markdown to HTML for feed content."""
+def markdown_to_html(markdown_text: str, users_data: Optional[Dict[str, Any]] = None) -> str:
+    """Convert markdown to HTML for feed content with enhanced processing."""
     import markdown2
+    import re
     
     if not markdown_text:
         return ""
     
+    # Pre-process markdown to enhance user links with full names
+    if users_data:
+        # Replace [@username](url) with full name if available
+        def replace_user_mention(match):
+            user_text = match.group(1)
+            url = match.group(2)
+            username = user_text.replace('@', '')
+            
+            # Check if it's a GitHub user URL
+            github_match = re.match(r'https://github\.com/([^/]+)/?$', url)
+            if github_match:
+                username = github_match.group(1)
+            
+            if username in users_data:
+                user_info = users_data[username]
+                if user_info.get('name'):
+                    # Include both name and username for clarity in feeds
+                    return f"[{user_info['name']} (@{username})]({url})"
+            
+            return match.group(0)
+        
+        markdown_text = re.sub(r'\[(@[^\]]+)\]\(([^)]+)\)', replace_user_mention, markdown_text)
+        
+        # Also replace plain GitHub user profile links
+        def replace_user_link(match):
+            link_text = match.group(1)
+            url = match.group(2)
+            
+            # Check if it's a GitHub user profile link
+            if 'github.com/' in url and url.count('/') == 3:
+                username = url.split('/')[-1]
+                if username in users_data:
+                    user_info = users_data[username]
+                    if user_info.get('name') and link_text != user_info['name']:
+                        # Don't replace if the link text already is the full name
+                        return f"[{user_info['name']}]({url})"
+            
+            return match.group(0)
+        
+        markdown_text = re.sub(r'\[([^\]]+)\]\((https://github\.com/[^/)]+)\)', replace_user_link, markdown_text)
+    
     # Convert markdown to HTML with GitHub-flavored markdown support
     html = markdown2.markdown(
         markdown_text,
-        extras=['fenced-code-blocks', 'tables']
+        extras=['fenced-code-blocks', 'tables', 'break-on-newline']
     )
     
+    # Post-process HTML to add achievement linking
+    html = link_achievements_in_html(html)
+    
+    # Add styling for achievements
+    html = html.replace('<strong>', '<strong style="color: #cc6600;">')
+    
     return html
+
+
+def link_achievements_in_html(html: str) -> str:
+    """Link achievements to their associated issues in HTML."""
+    import re
+    from html.parser import HTMLParser
+    
+    class AchievementLinker(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.result = []
+            self.in_li = False
+            self.current_li = []
+            self.issue_links = []
+        
+        def handle_starttag(self, tag, attrs):
+            if tag == 'li':
+                self.in_li = True
+                self.current_li = []
+                self.issue_links = []
+            
+            attrs_str = ' '.join(f'{k}="{v}"' for k, v in attrs)
+            if attrs_str:
+                self.current_li.append(f'<{tag} {attrs_str}>')
+            else:
+                self.current_li.append(f'<{tag}>')
+            
+            # Track issue links
+            if tag == 'a' and self.in_li:
+                for k, v in attrs:
+                    if k == 'href' and ('/issues/' in v or '/pull/' in v):
+                        self.issue_links.append(v)
+                        break
+        
+        def handle_endtag(self, tag):
+            self.current_li.append(f'</{tag}>')
+            
+            if tag == 'li':
+                # Process the completed list item
+                li_html = ''.join(self.current_li)
+                
+                # Check if there's a <strong> tag (achievement) and an issue link
+                if '<strong>' in li_html and self.issue_links:
+                    # Link the first <strong> tag to the first issue link
+                    first_issue = self.issue_links[0]
+                    # Replace the first <strong>...</strong> with a linked version
+                    li_html = re.sub(
+                        r'<strong([^>]*)>([^<]+)</strong>',
+                        f'<a href="{first_issue}" style="text-decoration: none;"><strong\\1>\\2</strong></a>',
+                        li_html,
+                        count=1
+                    )
+                
+                self.result.append(li_html)
+                self.in_li = False
+            elif not self.in_li:
+                self.result.append(f'</{tag}>')
+        
+        def handle_data(self, data):
+            if self.in_li:
+                self.current_li.append(data)
+            else:
+                self.result.append(data)
+    
+    try:
+        parser = AchievementLinker()
+        parser.feed(html)
+        return ''.join(parser.result)
+    except:
+        # If parsing fails, return original HTML
+        return html
 
 
 def create_opml(feeds: Dict[str, str], config: Any) -> str:
@@ -172,7 +291,7 @@ def create_opml(feeds: Dict[str, str], config: Any) -> str:
                            text=group_title,
                            title=group_title,
                            type='rss',
-                           xmlUrl=f"{base_url}/feeds/{group_name}.atom",
+                           xmlUrl=f"{base_url}/feeds/{group_name}.xml",
                            htmlUrl=f"{base_url}/groups/{group_name}")
         
         if group_description:
@@ -184,7 +303,7 @@ def create_opml(feeds: Dict[str, str], config: Any) -> str:
     return reparsed.toprettyxml(indent="  ", encoding='UTF-8').decode('utf-8')
 
 
-def create_weekly_atom_feed(config: Any) -> FeedGenerator:
+def create_weekly_atom_feed(config: Any, users_data: Optional[Dict[str, Any]] = None) -> FeedGenerator:
     """Create an Atom feed for weekly summaries."""
     fg = FeedGenerator()
     
@@ -200,7 +319,7 @@ def create_weekly_atom_feed(config: Any) -> FeedGenerator:
         author_email = atom_config.author_email
     
     # Set feed metadata
-    feed_id = f"{base_url}/feeds/weekly.atom"
+    feed_id = f"{base_url}/feeds/weekly.xml"
     fg.id(feed_id)
     fg.title("OCaml Ecosystem - Weekly Summaries")
     fg.author({'name': author_name, 'email': author_email})
@@ -264,23 +383,23 @@ def create_weekly_atom_feed(config: Any) -> FeedGenerator:
             content_parts = []
             
             if summary_data.get('executive_summary'):
-                content_parts.append(f"<h2>Executive Summary</h2>\n{markdown_to_html(summary_data['executive_summary'])}")
+                content_parts.append(f"<h2>Executive Summary</h2>\n{markdown_to_html(summary_data['executive_summary'], users_data)}")
             
             if summary_data.get('major_releases'):
-                content_parts.append(f"<h2>Major Releases</h2>\n{markdown_to_html(summary_data['major_releases'])}")
+                content_parts.append(f"<h2>Major Releases</h2>\n{markdown_to_html(summary_data['major_releases'], users_data)}")
             
             if summary_data.get('key_developments'):
-                content_parts.append(f"<h2>Key Developments</h2>\n{markdown_to_html(summary_data['key_developments'])}")
+                content_parts.append(f"<h2>Key Developments</h2>\n{markdown_to_html(summary_data['key_developments'], users_data)}")
             
             if summary_data.get('trending_topics'):
-                content_parts.append(f"<h2>Trending Topics</h2>\n{markdown_to_html(summary_data['trending_topics'])}")
+                content_parts.append(f"<h2>Trending Topics</h2>\n{markdown_to_html(summary_data['trending_topics'], users_data)}")
             
             if summary_data.get('looking_ahead'):
-                content_parts.append(f"<h2>Looking Ahead</h2>\n{markdown_to_html(summary_data['looking_ahead'])}")
+                content_parts.append(f"<h2>Looking Ahead</h2>\n{markdown_to_html(summary_data['looking_ahead'], users_data)}")
             
             # Fall back to raw_output if available
             if not content_parts and summary_data.get('raw_output'):
-                content_parts.append(markdown_to_html(summary_data['raw_output']))
+                content_parts.append(markdown_to_html(summary_data['raw_output'], users_data))
             
             html_content = '\n'.join(content_parts) if content_parts else f"<p>Weekly ecosystem summary for Week {summary['week']}, {summary['year']}</p>"
             fe.content(html_content, type='html')
@@ -313,6 +432,23 @@ def atom_main(output_dir: str, pretty: bool = False) -> None:
         
         info(f"Generating Atom feeds in {output_path}")
         
+        # Load user data if available
+        users_data = {}
+        users_dir = data_dir / "users"
+        if users_dir.exists():
+            info("Loading user data for enhanced feed generation...")
+            for user_file in users_dir.glob("*.json"):
+                try:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_info = json.load(f)
+                        username = user_file.stem  # Get username from filename
+                        users_data[username] = user_info
+                except Exception as e:
+                    # Silently skip failed user files
+                    pass
+            if users_data:
+                info(f"Loaded data for {len(users_data)} users")
+        
         # Track generated feeds for OPML
         generated_feeds = {}
         
@@ -343,10 +479,10 @@ def atom_main(output_dir: str, pretty: bool = False) -> None:
             
             # Generate Atom feed for this group
             try:
-                fg = create_atom_feed(group_name, summaries, config)
+                fg = create_atom_feed(group_name, summaries, config, users_data)
                 
                 # Save the feed
-                feed_path = feeds_dir / f"{group_name}.atom"
+                feed_path = feeds_dir / f"{group_name}.xml"
                 fg.atom_file(str(feed_path), pretty=pretty)
                 
                 generated_feeds[group_name] = str(feed_path)
@@ -358,8 +494,8 @@ def atom_main(output_dir: str, pretty: bool = False) -> None:
         
         # Generate weekly summary feed
         try:
-            weekly_fg = create_weekly_atom_feed(config)
-            weekly_feed_path = feeds_dir / "weekly.atom"
+            weekly_fg = create_weekly_atom_feed(config, users_data)
+            weekly_feed_path = feeds_dir / "weekly.xml"
             weekly_fg.atom_file(str(weekly_feed_path), pretty=pretty)
             generated_feeds['weekly'] = str(weekly_feed_path)
             success(f"Generated weekly summary feed: {weekly_feed_path}")
@@ -389,4 +525,5 @@ def atom_main(output_dir: str, pretty: bool = False) -> None:
         
     except Exception as e:
         error(f"Failed to generate Atom feeds: {e}")
+        import typer
         raise typer.Exit(1)

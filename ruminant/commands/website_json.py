@@ -284,8 +284,8 @@ def generate_week_detail(week_key: str, reports: List[Dict], groups: List[Dict],
     }
 
 
-def generate_groups_index(all_groups: Dict[str, List[Dict]]) -> Dict[str, Any]:
-    """Generate index of all groups with their history."""
+def generate_groups_index(all_groups: Dict[str, List[Dict]], config) -> Dict[str, Any]:
+    """Generate index of all groups with their history, preserving config order."""
     
     groups_data = {}
     
@@ -325,7 +325,21 @@ def generate_groups_index(all_groups: Dict[str, List[Dict]]) -> Dict[str, Any]:
         # Sort weeks
         groups_data[group_name]['weeks'].sort(key=lambda x: x['week_key'], reverse=True)
     
-    return groups_data
+    # Create ordered dict based on config file order
+    ordered_groups = {}
+    if hasattr(config, 'groups'):
+        # First add groups in config order
+        for group_name in config.groups.keys():
+            if group_name in groups_data:
+                ordered_groups[group_name] = groups_data[group_name]
+        # Then add any remaining groups not in config
+        for group_name in groups_data:
+            if group_name not in ordered_groups:
+                ordered_groups[group_name] = groups_data[group_name]
+    else:
+        ordered_groups = groups_data
+    
+    return ordered_groups
 
 
 def collect_all_users(data_dir: Path) -> Dict[str, Any]:
@@ -496,7 +510,7 @@ def website_json_main(
         
         # Generate groups index
         step("Generating groups index...")
-        groups_index = generate_groups_index(group_summaries)
+        groups_index = generate_groups_index(group_summaries, config)
         
         with open(output_path / "groups.json", 'w', encoding='utf-8') as f:
             json.dump(groups_index, f, indent=indent, ensure_ascii=False)
