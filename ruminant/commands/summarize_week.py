@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
-import subprocess
 import concurrent.futures
 import typer
 
@@ -12,6 +11,7 @@ from ..config import load_config
 from ..utils.dates import get_week_date_range, get_last_complete_week, get_week_list
 from ..utils.paths import get_data_dir
 from ..utils.logging import console, success, error, warning, info, step
+from ..utils.claude import run_claude_cli
 
 
 def collect_releases_for_week(year: int, week: int) -> List[Dict]:
@@ -286,8 +286,55 @@ TONE AND LANGUAGE REQUIREMENTS:
 
 The summary should be suitable for:
 - Developers wanting a quick overview of ecosystem activity
-- Project maintainers tracking cross-project developments  
+- Project maintainers tracking cross-project developments
 - Community members interested in the project's direction
+
+FINAL VERIFICATION STEP - ABSOLUTELY CRITICAL:
+
+Before writing your final JSON output to the file, you MUST perform this comprehensive link verification:
+
+1. **SCAN EVERY SECTION** of your generated content systematically:
+   - group_overview
+   - cross_repository_work
+   - key_projects
+   - priority_items
+   - notable_discussions
+   - emerging_trends
+
+2. **VERIFY COMPREHENSIVE LINKING** for each section:
+   - ✓ Every PR/issue number → [owner/repo#number](https://github.com/owner/repo/issues/number)
+   - ✓ Every contributor name → Check data/users/[username].json for full name
+   - ✓ Every repository mention → Properly formatted with owner/repo
+   - ✓ Every __RUMINANT:groupname__ reference is present where group-specific work is mentioned
+
+3. **COMMON PATTERNS TO FIX**:
+   - "PR #123" or "issue #456" → MUST be [owner/repo#123](...)
+   - "merged 5 PRs" → List specific PR numbers with links if known
+   - "@username" → Check user data and format as [Full Name](https://github.com/username)
+   - "ocaml/dune repository" → Include link to https://github.com/ocaml/dune
+   - "cross-repository work" → Specify which repositories with links
+
+4. **DOUBLE-CHECK THESE AREAS** (often missed):
+   - Contributors mentioned in passing (not just main authors)
+   - Issue numbers in priority_items section
+   - Repository references in cross_repository_work
+   - PR numbers mentioned in emerging_trends
+   - All usernames in notable_discussions
+
+5. **IF YOU FIND MISSING LINKS**:
+   - STOP immediately
+   - Add the proper link formatting
+   - Re-scan that entire section for other missed links
+   - Do NOT proceed until ALL links are added
+
+6. **QUALITY METRICS** - Your summary should have:
+   - 100% of PR/issue numbers converted to clickable links
+   - 100% of contributor names checked against user data
+   - 100% of repository references properly formatted
+   - __RUMINANT:groupname__ links throughout all sections
+
+This verification is MANDATORY. A summary without comprehensive linking fails to serve its purpose
+of helping readers navigate to the actual work being discussed. Take the time to get this right.
 """
     
     return prompt
@@ -299,6 +346,15 @@ def get_week_summary_path(year: int, week: int) -> Path:
     summaries_dir = data_dir / "summaries" / "weekly"
     summaries_dir.mkdir(parents=True, exist_ok=True)
     return summaries_dir / f"week-{week}-{year}.json"
+
+
+def get_week_summary_log_path(year: int, week: int) -> Path:
+    """Get the path for a weekly summary session log file."""
+    data_dir = get_data_dir()
+    log_dir = data_dir / "logs" / "summaries" / "weekly"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return log_dir / f"week-{week}-{year}-{timestamp}.json"
 
 
 def save_week_summary_metadata(year: int, week: int) -> Path:
@@ -366,19 +422,19 @@ def summarize_week_main(
         # Collect previous weeks data for context (in reverse chronological order for display)
         step(f"Collecting previous {lookback_weeks} weeks for context...")
         previous_weeks_data = []
-        
-        for i in range(1, lookback_weeks + 1):
-            # Calculate previous week
-            prev_date = datetime.strptime(f"{target_year}-W{target_week:02d}-1", "%Y-W%W-%w") - timedelta(weeks=i)
-            prev_year = prev_date.year
-            prev_week = prev_date.isocalendar()[1]
-            
+
+        # Use get_week_list to get the previous weeks correctly
+        all_weeks = get_week_list(lookback_weeks + 1, target_year, target_week)
+        # Remove the current week (last one) and keep only the previous weeks
+        previous_weeks = all_weeks[:-1]
+
+        for prev_year, prev_week in previous_weeks:
             prev_releases = collect_releases_for_week(prev_year, prev_week)
             prev_summaries = collect_group_summaries_for_week(prev_year, prev_week)
-            
+
             # Check for existing week summaries to include in context
             week_summary = None
-            
+
             # Check new location first
             new_summary_path = get_week_summary_path(prev_year, prev_week)
             if new_summary_path.exists():
@@ -397,7 +453,7 @@ def summarize_week_main(
                             week_summary = week_summary_data.get('summary')
                     except:
                         pass
-            
+
             if prev_summaries or week_summary:  # Include if we have any data
                 previous_weeks_data.append({
                     'year': prev_year,
@@ -446,37 +502,41 @@ def summarize_week_main(
         # Call Claude CLI
         step("Calling Claude CLI to generate summary...")
         step(f"Output will be written to: {output_file}")
-        
+
+        # Get log file path
+        log_file = get_week_summary_log_path(target_year, target_week)
+
         claude_command = config.claude.command
         claude_base_args = config.claude.args.copy() if config.claude.args else []
-        
+
         # Add custom args if provided
         if claude_args:
             claude_base_args.extend(claude_args.split())
-        
-        # Build command
-        cmd = [claude_command] + claude_base_args
-        
-        info(f"Running command: {' '.join(cmd)}")
-        info(f"Prompt length: {len(prompt)} characters")
-        
+
+        info(f"Running Claude command with {len(prompt)} character prompt")
+        info(f"Session log will be saved to: {log_file}")
+
+        # Use the common Claude CLI runner that handles logging
+        result = run_claude_cli(
+            prompt_file=prompt_file,
+            claude_command=claude_command,
+            claude_args=claude_base_args,
+            log_file=log_file
+        )
+
+        if not result["success"]:
+            error(f"Claude CLI failed: {result.get('error', 'Unknown error')}")
+            if result.get('stderr'):
+                error(f"Error output: {result['stderr']}")
+            error(f"Session log saved to: {log_file}")
+            raise typer.Exit(1)
+
         try:
-            # Run Claude CLI - it should write directly to the output file
-            result = subprocess.run(
-                cmd,
-                input=prompt,
-                capture_output=True,
-                text=True,
-                check=True,
-                timeout=300  # 5 minute timeout
-            )
-            
+
             # Check if Claude created the output file successfully
             if not output_file.exists():
                 error("Claude did not create the expected output file")
-                error(f"Return code: {result.returncode}")
-                error(f"Stderr: {result.stderr}")
-                error(f"Stdout: {result.stdout}")
+                error(f"Session log saved to: {log_file}")
                 raise typer.Exit(1)
             
             # Read and validate the generated file
@@ -545,17 +605,16 @@ def summarize_week_main(
                 raise typer.Exit(1)
             
             success(f"Weekly summary saved to {output_file}")
-            
+            info(f"Session log saved to {log_file}")
+
             # Save metadata
             metadata_file = save_week_summary_metadata(target_year, target_week)
             info(f"Metadata saved to {metadata_file}")
-            
-        except subprocess.CalledProcessError as e:
-            error(f"Claude CLI failed: {e}")
-            if e.stderr:
-                error(f"Error output: {e.stderr}")
+
+        except Exception as e:
+            error(f"Unexpected error during summary processing: {e}")
             raise typer.Exit(1)
-        
+
     except KeyboardInterrupt:
         warning("Summary generation interrupted by user")
         raise typer.Exit(1)

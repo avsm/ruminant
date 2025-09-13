@@ -34,22 +34,22 @@ def get_week_list(num_weeks: int, end_year: int = None, end_week: int = None) ->
     """Get a list of (year, week) tuples for the last num_weeks weeks."""
     if end_year is None or end_week is None:
         end_year, end_week = get_last_complete_week()
-    
+
     weeks = []
-    current_year, current_week = end_year, end_week
-    
+
+    # Start from the Monday of the end week
+    # ISO 8601: Week 1 is the week with January 4th in it
+    jan_4 = datetime(end_year, 1, 4)
+    week_1_start = jan_4 - timedelta(days=jan_4.weekday())
+    current_date = week_1_start + timedelta(weeks=end_week - 1)
+
     for i in range(num_weeks):
-        weeks.append((current_year, current_week))
-        
+        iso_date = current_date.isocalendar()
+        weeks.append((iso_date[0], iso_date[1]))
+
         # Move to previous week
-        current_week -= 1
-        if current_week < 1:
-            # Move to previous year
-            current_year -= 1
-            # Get the last week of the previous year
-            dec_31 = datetime(current_year, 12, 31)
-            current_week = dec_31.isocalendar()[1]
-    
+        current_date = current_date - timedelta(weeks=1)
+
     # Return in chronological order (oldest first)
     return list(reversed(weeks))
 

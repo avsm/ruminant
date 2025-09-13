@@ -365,7 +365,66 @@ Remember:
 - Use GitHub MCP server tools if you need additional information about specific PRs/issues
 - The output file MUST be written with the complete JSON summary
 
-IMPORTANT: You must use the Read tool to load and analyze the data from {cache_file}"""
+IMPORTANT: You must use the Read tool to load and analyze the data from {cache_file}
+
+FINAL VERIFICATION STEP - ABSOLUTELY CRITICAL:
+
+Before writing your final JSON output to the file, you MUST perform this comprehensive link verification:
+
+1. **SCAN EVERY SECTION** of your generated content systematically:
+   - overall_activity
+   - ongoing_projects
+   - priority_items
+   - notable_discussions
+   - emerging_trends
+   - good_first_issues
+   - contributors
+
+2. **VERIFY COMPREHENSIVE LINKING** for each section:
+   - ✓ Every PR/issue number → [#number](https://github.com/{repo}/issues/number) or [owner/repo#number](https://github.com/owner/repo/issues/number)
+   - ✓ Every contributor name → Check data/users/[username].json for full name
+   - ✓ Every repository mention → Properly formatted with owner/repo
+   - ✓ EVERY BULLET POINT should include at least one clickable issue/PR link where possible
+
+3. **COMMON PATTERNS TO FIX**:
+   - "PR #123" or "issue #456" → MUST be [#123](https://github.com/{repo}/issues/123)
+   - "merged 5 PRs" → List specific PR numbers with links if known
+   - "@username" → Check user data and format as [Full Name](https://github.com/username)
+   - "ocaml/dune repository" → Include link to [ocaml/dune](https://github.com/ocaml/dune)
+   - "cross-repository work" → Specify which repositories with links
+   - Generic statements → Find and include specific issue/PR references
+
+4. **DOUBLE-CHECK THESE AREAS** (often missed):
+   - Contributors mentioned in passing (not just main authors)
+   - Issue numbers in priority_items section
+   - Repository references in cross-repository mentions
+   - PR numbers mentioned in emerging_trends
+   - All usernames in notable_discussions
+   - Background context that references past work
+
+5. **IF YOU FIND MISSING LINKS**:
+   - STOP immediately
+   - Add the proper link formatting
+   - Re-scan that entire section for other missed links
+   - Do NOT proceed until ALL links are added
+
+6. **QUALITY METRICS** - Your summary should have:
+   - 100% of PR/issue numbers converted to clickable links
+   - 100% of contributor names checked against user data
+   - 100% of repository references properly formatted
+   - 90%+ of bullet points containing at least one issue/PR link
+   - Zero generic statements without supporting issue/PR references
+
+7. **ISSUE INCLUSION REQUIREMENT**:
+   - EVERY bullet point should strive to include at least one relevant issue or PR link
+   - If discussing a feature → Link to the tracking issue or implementation PR
+   - If mentioning a bug fix → Link to the bug report and fix PR
+   - If referencing discussions → Link to the discussion issue or PR comments
+   - Only omit links if truly no relevant issue/PR exists (rare)
+
+This verification is MANDATORY. A summary without comprehensive linking fails to serve its purpose
+of helping readers navigate to the actual work being discussed. Every bullet point should provide
+a direct path to the underlying issues and PRs. Take the time to get this right."""
         
         # Save prompt to file
         with open(prompt_file, 'w', encoding='utf-8') as f:
