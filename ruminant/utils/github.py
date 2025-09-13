@@ -113,7 +113,9 @@ def format_issue_entry(issue: Dict[str, Any]) -> Dict[str, Any]:
         "title": issue["title"],
         "url": issue["url"],
         "user": issue["author"]["login"] if issue["author"] else "ghost",
+        "created_at": issue["createdAt"],
         "updated_at": issue["updatedAt"],
+        "closed_at": issue.get("closedAt"),
         "body": issue.get("bodyText", "") or "",
         "labels": [label["name"] for label in issue.get("labels", {}).get("nodes", [])],
         "state": issue["state"].lower(),
@@ -136,7 +138,10 @@ def format_pr_entry(pr: Dict[str, Any]) -> Dict[str, Any]:
         "title": pr["title"],
         "url": pr["url"],
         "user": pr["author"]["login"] if pr["author"] else "ghost",
+        "created_at": pr["createdAt"],
         "updated_at": pr["updatedAt"],
+        "closed_at": pr.get("closedAt"),
+        "merged_at": pr.get("mergedAt"),
         "body": pr.get("bodyText", "") or "",
         "labels": [label["name"] for label in pr.get("labels", {}).get("nodes", [])],
         "state": pr["state"].lower(),
@@ -188,6 +193,7 @@ def fetch_issues(repo: str, token: Optional[str], week_start: datetime, week_end
                     }
                     createdAt
                     updatedAt
+                    closedAt
                     bodyText
                     state
                     labels(first: 20) {
@@ -241,6 +247,8 @@ def fetch_issues(repo: str, token: Optional[str], week_start: datetime, week_end
                     }
                     createdAt
                     updatedAt
+                    closedAt
+                    mergedAt
                     bodyText
                     state
                     labels(first: 20) {

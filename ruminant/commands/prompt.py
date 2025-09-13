@@ -41,13 +41,18 @@ def calculate_weekly_stats(data: Dict[str, Any], week_start: datetime, week_end:
             merged_date = parse(pr['merged_at'])
             if week_start <= merged_date <= week_end:
                 stats['prs_merged'] += 1
-                if pr.get('user', {}).get('login'):
-                    stats['contributors'].add(pr['user']['login'])
+                # The user field is already a string (username), not a dict
+                username = pr.get('user')
+                if username:
+                    stats['contributors'].add(username)
         
         if pr.get('created_at'):
             created_date = parse(pr['created_at'])
             if week_start <= created_date <= week_end:
                 stats['prs_opened'] += 1
+                username = pr.get('user')
+                if username:
+                    stats['contributors'].add(username)
         
         if pr.get('closed_at') and not pr.get('merged_at'):
             closed_date = parse(pr['closed_at'])
