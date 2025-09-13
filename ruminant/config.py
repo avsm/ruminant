@@ -38,6 +38,7 @@ class RepositoryConfig:
     name: str
     group: str
     custom_prompt: Optional[str] = None
+    skip_git_analysis: bool = False
 
 
 @dataclass
@@ -65,6 +66,7 @@ class Config:
     repository_configs: List[RepositoryConfig] = field(default_factory=list)  # New: repo configs with groups
     groups: Dict[str, GroupConfig] = field(default_factory=dict)  # Group definitions
     custom_prompts: Dict[str, str] = field(default_factory=dict)
+    skip_git_analysis: Dict[str, bool] = field(default_factory=dict)  # Track which repos skip git analysis
     github: GitHubConfig = field(default_factory=GitHubConfig)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     reporting: ReportingConfig = field(default_factory=ReportingConfig)
@@ -80,6 +82,10 @@ class Config:
             if repo.name == repo_name:
                 return repo.group
         return None
+    
+    def should_skip_git_analysis(self, repo_name: str) -> bool:
+        """Check if a repository should skip git analysis."""
+        return self.skip_git_analysis.get(repo_name, False)
 
 
 def find_config_file() -> Optional[Path]:
@@ -156,7 +162,8 @@ def load_config() -> Config:
                             repo_config = RepositoryConfig(
                                 name=repo_name,
                                 group=repo_group,
-                                custom_prompt=repo_data.get("custom_prompt")
+                                custom_prompt=repo_data.get("custom_prompt"),
+                                skip_git_analysis=repo_data.get("skip_git_analysis", False)
                             )
                             config.repository_configs.append(repo_config)
                             config.repositories.append(repo_name)  # Maintain backward compatibility
@@ -167,6 +174,10 @@ def load_config() -> Config:
                             # Store custom prompt if provided
                             if repo_config.custom_prompt:
                                 config.custom_prompts[repo_name] = repo_config.custom_prompt
+                            
+                            # Store skip_git_analysis flag
+                            if repo_config.skip_git_analysis:
+                                config.skip_git_analysis[repo_name] = True
                 
                 elif isinstance(data["repositories"], dict):
                     # Legacy format compatibility

@@ -48,17 +48,19 @@ def generate_prompt(repo: str, year: int, week: int, config) -> dict:
         discussions_count = len(original_data.get('discussions', []))
         gfi_count = len(original_data.get('good_first_issues', []))
         
-        # Check if git repository is available
+        # Check if git repository is available (unless skipped)
         owner, name = parse_repo(repo)
         git_repo_path = Path("data/git") / owner / name
         git_mirror_path = git_repo_path / ".git"
         git_available = None
         
-        # Check for mirror clone first (preferred for analysis)
-        if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
-            git_available = (git_mirror_path, "mirror")
-        elif git_repo_path.exists() and (git_repo_path / ".git").exists():
-            git_available = (git_repo_path, "regular")
+        # Only check for git repo if not configured to skip
+        if not config.should_skip_git_analysis(repo):
+            # Check for mirror clone first (preferred for analysis)
+            if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
+                git_available = (git_mirror_path, "mirror")
+            elif git_repo_path.exists() and (git_repo_path / ".git").exists():
+                git_available = (git_repo_path, "regular")
         
         # Get file paths
         ensure_repo_dirs(repo)
@@ -320,16 +322,17 @@ def generate_group_prompt(group_name: str, repositories: List[str], year: int, w
         if summary_file.exists():
             available_repos.append(repo)
             
-            # Check if git repository is available (either mirror or regular)
-            owner, name = parse_repo(repo)
-            git_repo_path = Path("data/git") / owner / name
-            git_mirror_path = git_repo_path / ".git"
-            
-            # Check for mirror clone first (preferred for analysis)
-            if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
-                git_repos_available.append((repo, git_mirror_path, "mirror"))
-            elif git_repo_path.exists() and (git_repo_path / ".git").exists():
-                git_repos_available.append((repo, git_repo_path, "regular"))
+            # Check if git repository is available (unless skipped)
+            if not config.should_skip_git_analysis(repo):
+                owner, name = parse_repo(repo)
+                git_repo_path = Path("data/git") / owner / name
+                git_mirror_path = git_repo_path / ".git"
+                
+                # Check for mirror clone first (preferred for analysis)
+                if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
+                    git_repos_available.append((repo, git_mirror_path, "mirror"))
+                elif git_repo_path.exists() and (git_repo_path / ".git").exists():
+                    git_repos_available.append((repo, git_repo_path, "regular"))
         else:
             missing_repos.append(repo)
     
