@@ -234,11 +234,21 @@ IMPORTANT FORMATTING REQUIREMENTS:
 
 BULLET POINT FORMATTING STYLE:
 - Start each bullet with the group reference (__RUMINANT:groupname__) when applicable
+- Include group-internal href links within each bullet point where relevant to the specific content being discussed
 - Integrate **bold emphasis** naturally within the text to highlight the most important concepts, technologies, or features
 - The bold emphasis should highlight key technical terms, feature names, or critical concepts that make the point
 - Write complete, flowing sentences that incorporate bold emphasis for significant terms
 - Each bullet should read as a natural sentence with the group context leading
 - Avoid formulaic "**Category:** description" patterns - instead make bold text flow naturally within sentences
+
+GROUP-INTERNAL HREF USAGE:
+- Use __RUMINANT:groupname__ links not just at the beginning of overview bullets, but throughout all sections
+- For cross_repository_work: Include __RUMINANT:groupname__ for each group involved in the coordination
+- For key_projects: Include __RUMINANT:groupname__ for the primary group driving each project
+- For priority_items: Include __RUMINANT:groupname__ for the group responsible for each critical issue
+- For notable_discussions: Include __RUMINANT:groupname__ for the group where each discussion is taking place
+- For emerging_trends: Include __RUMINANT:groupname__ when trends are specific to particular groups
+- This allows readers to quickly navigate to the detailed group context for any specific item mentioned
 
 LINKING AND FORMATTING REQUIREMENTS:
 
