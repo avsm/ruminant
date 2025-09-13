@@ -4,6 +4,7 @@ import json
 import typer
 from typing import Optional, List
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ..config import load_config, get_github_token
 from ..utils.dates import get_last_complete_week, get_week_list, get_week_date_range
@@ -261,10 +262,17 @@ def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], 
     try:
         info(f"Fetching data for {repo} week {week} of {year}")
         
-        # Fetch data from GitHub API
-        issues, prs, recent_good_first_issues = fetch_issues(repo, token, week_start, week_end)
-        discussions = fetch_discussions(repo, token, week_start, week_end)
-        releases = fetch_releases(repo, token, week_start, week_end)
+        # Fetch data from GitHub API concurrently
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Submit all fetch operations
+            future_issues = executor.submit(fetch_issues, repo, token, week_start, week_end)
+            future_discussions = executor.submit(fetch_discussions, repo, token, week_start, week_end)
+            future_releases = executor.submit(fetch_releases, repo, token, week_start, week_end)
+            
+            # Wait for all to complete and get results
+            issues, prs, recent_good_first_issues = future_issues.result()
+            discussions = future_discussions.result()
+            releases = future_releases.result()
         
         # Extract users from the fetched data
         users = extract_users_from_data(issues, prs, discussions)
@@ -384,23 +392,49 @@ def sync_main(
         all_results = []
         all_users = set()
         total_operations = len(repositories_to_sync) * len(week_list)
-        current_operation = 0
         
-        for repo in repositories_to_sync:
-            for w_year, w_week in week_list:
-                current_operation += 1
-                info(f"[{current_operation}/{total_operations}] Processing {repo} week {w_week}/{w_year}")
-                
-                # Use releases-only sync if specified
-                if releases_only:
-                    result = sync_releases_only(repo, w_year, w_week, token, force)
-                else:
-                    result = sync_repository_data(repo, w_year, w_week, token, force)
-                all_results.append(result)
-                
-                # Collect users from this repo/week (not applicable for releases-only)
-                if not releases_only and result["success"] and "users" in result:
-                    all_users.update(result["users"])
+        # Use ThreadPoolExecutor for concurrent repository processing
+        # Limit workers to avoid overwhelming GitHub API rate limits
+        max_workers = min(4, len(repositories_to_sync))  # Process up to 4 repos concurrently
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all sync operations
+            futures = {}
+            operation_counter = 0
+            
+            for repo in repositories_to_sync:
+                for w_year, w_week in week_list:
+                    operation_counter += 1
+                    info(f"[{operation_counter}/{total_operations}] Submitting {repo} week {w_week}/{w_year}")
+                    
+                    # Use releases-only sync if specified
+                    if releases_only:
+                        future = executor.submit(sync_releases_only, repo, w_year, w_week, token, force)
+                    else:
+                        future = executor.submit(sync_repository_data, repo, w_year, w_week, token, force)
+                    
+                    futures[future] = (repo, w_year, w_week)
+            
+            # Process completed futures as they finish
+            for future in as_completed(futures):
+                repo, w_year, w_week = futures[future]
+                try:
+                    result = future.result()
+                    all_results.append(result)
+                    
+                    # Collect users from this repo/week (not applicable for releases-only)
+                    if not releases_only and result["success"] and "users" in result:
+                        all_users.update(result["users"])
+                    
+                    info(f"Completed: {repo} week {w_week}/{w_year}")
+                except Exception as e:
+                    error(f"Failed to sync {repo} week {w_week}/{w_year}: {e}")
+                    all_results.append({
+                        "success": False,
+                        "repo": repo,
+                        "details": str(e),
+                        "counts": {"issues": 0, "prs": 0, "discussions": 0, "good_first_issues": 0}
+                    })
         
         # Print summary
         successful_results = [r for r in all_results if r["success"]]
