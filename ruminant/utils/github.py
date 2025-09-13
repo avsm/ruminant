@@ -51,6 +51,26 @@ def fetch_graphql_data(query: str, variables: Dict[str, Any], headers: Dict[str,
                     return None
                     
                 return result
+            elif response.status_code == 403:
+                # Handle rate limiting and forbidden access
+                error(f"HTTP 403 Forbidden: Access denied or rate limit exceeded")
+                
+                # Check for rate limit headers
+                rate_limit_remaining = response.headers.get('X-RateLimit-Remaining')
+                rate_limit_reset = response.headers.get('X-RateLimit-Reset')
+                
+                if rate_limit_remaining == '0':
+                    reset_time = datetime.fromtimestamp(int(rate_limit_reset)) if rate_limit_reset else None
+                    if reset_time:
+                        wait_time = (reset_time - datetime.now()).total_seconds()
+                        error(f"Rate limit exceeded. Resets at {reset_time} (in {wait_time:.0f} seconds)")
+                    else:
+                        error("Rate limit exceeded. Please wait before retrying.")
+                else:
+                    error("Access forbidden. Check your token permissions and repository access.")
+                
+                # Don't retry on 403 errors
+                return None
             elif response.status_code in [502, 503, 504]:
                 if attempt < max_retries - 1:
                     warning(f"GitHub API returned {response.status_code}, retrying in {2 ** attempt} seconds...")
@@ -414,6 +434,14 @@ def fetch_user_info(username: str, token: Optional[str]) -> Optional[Dict[str, A
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             return response.json()
+        elif response.status_code == 403:
+            # Handle rate limiting
+            rate_limit_remaining = response.headers.get('X-RateLimit-Remaining')
+            if rate_limit_remaining == '0':
+                error(f"Rate limit exceeded when fetching user {username}")
+            else:
+                error(f"HTTP 403: Access forbidden for user {username}. Check token permissions.")
+            return None
         elif response.status_code == 404:
             warning(f"User {username} not found")
             return None
@@ -486,6 +514,14 @@ def fetch_releases(repo_name: str, token: Optional[str], week_start: datetime, w
                             break
                 
                 page += 1
+            elif response.status_code == 403:
+                # Handle rate limiting
+                rate_limit_remaining = response.headers.get('X-RateLimit-Remaining')
+                if rate_limit_remaining == '0':
+                    error(f"Rate limit exceeded when fetching releases for {repo_name}")
+                else:
+                    error(f"HTTP 403: Access forbidden for {repo_name}. Check token permissions.")
+                break
             else:
                 warning(f"Failed to fetch releases for {repo_name}: {response.status_code}")
                 break
@@ -798,7 +834,15 @@ def fetch_discussions(repo: str, token: Optional[str], week_start: datetime, wee
     )
 
     discussions = []
-    if response.status_code != 200:
+    if response.status_code == 403:
+        # Handle rate limiting
+        rate_limit_remaining = response.headers.get('X-RateLimit-Remaining')
+        if rate_limit_remaining == '0':
+            error(f"Rate limit exceeded when fetching discussions for {repo}")
+        else:
+            error(f"HTTP 403: Access forbidden for {repo} discussions. Check token permissions.")
+        return discussions
+    elif response.status_code != 200:
         error(f"Error fetching discussions: {response.status_code}")
         return discussions
 

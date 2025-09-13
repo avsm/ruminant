@@ -395,7 +395,7 @@ def sync_main(
         
         # Use ThreadPoolExecutor for concurrent repository processing
         # Limit workers to avoid overwhelming GitHub API rate limits
-        max_workers = min(4, len(repositories_to_sync))  # Process up to 4 repos concurrently
+        max_workers = min(2, len(repositories_to_sync))  # Process up to 2 repos concurrently to reduce 403 errors
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all sync operations
