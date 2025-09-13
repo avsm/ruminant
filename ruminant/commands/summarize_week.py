@@ -223,21 +223,22 @@ continuing work, and completed items that were in progress in earlier weeks. Thi
 narrative thread connecting the weekly summaries.
 
 IMPORTANT FORMATTING REQUIREMENTS:
-- Use the special syntax __RUMINANT:groupname__ to link to specific group weekly notes
-  Example: "The core team made significant progress on multicore improvements __RUMINANT:core__"
-- This allows readers to navigate directly to detailed group summaries
-- Use these links whenever referencing specific group activities
+- Start each bullet point with the group reference link using syntax __RUMINANT:groupname__ followed by the content
+  Example: "__RUMINANT:core__ The **multicore runtime** implementation progressed with [ocaml/ocaml#12345](https://github.com/ocaml/ocaml/issues/12345)"
+- This allows readers to navigate directly to detailed group summaries and see group context first
+- Use these group links at the beginning of every bullet point when referencing group-specific activities
 - Keep the summary concise but comprehensive (aim for 500-800 words)
 - Use bullet points for clarity on each of the items like cross repository work, key projects, priority items, notable discussions and emerging trends
 - Highlight specific people's contributions where notable
 - Include specific PR/issue numbers for major items
 
 BULLET POINT FORMATTING STYLE:
-- DO NOT use the pattern "**Category:** description" at the start of bullet points
-- Instead, integrate **bold emphasis** naturally within the text to highlight key concepts
-- The bold emphasis should highlight the most important words that make the point
-- Write complete, flowing sentences that incorporate bold emphasis for key terms
-- Each bullet should read as a natural sentence, not a labeled category
+- Start each bullet with the group reference (__RUMINANT:groupname__) when applicable
+- Integrate **bold emphasis** naturally within the text to highlight the most important concepts, technologies, or features
+- The bold emphasis should highlight key technical terms, feature names, or critical concepts that make the point
+- Write complete, flowing sentences that incorporate bold emphasis for significant terms
+- Each bullet should read as a natural sentence with the group context leading
+- Avoid formulaic "**Category:** description" patterns - instead make bold text flow naturally within sentences
 
 LINKING AND FORMATTING REQUIREMENTS:
 

@@ -404,24 +404,11 @@ def generate_group_prompt(group_name: str, repositories: List[str], year: int, w
     # Check which repositories have summaries available
     available_repos = []
     missing_repos = []
-    git_repos_available = []
-    
+
     for repo in repositories:
         summary_file = get_summary_file_path(repo, year, week)
         if summary_file.exists():
             available_repos.append(repo)
-            
-            # Check if git repository is available (unless skipped)
-            if not config.should_skip_git_analysis(repo):
-                owner, name = parse_repo(repo)
-                git_repo_path = Path("data/git") / owner / name
-                git_mirror_path = git_repo_path / ".git"
-                
-                # Check for mirror clone first (preferred for analysis)
-                if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
-                    git_repos_available.append((repo, git_mirror_path, "mirror"))
-                elif git_repo_path.exists() and (git_repo_path / ".git").exists():
-                    git_repos_available.append((repo, git_repo_path, "regular"))
         else:
             missing_repos.append(repo)
     
@@ -457,43 +444,6 @@ def generate_group_prompt(group_name: str, repositories: List[str], year: int, w
         
         # Build git repository information if available
         git_repos_section = ""
-        if git_repos_available:
-            git_repos_section = f"""
-
-GIT REPOSITORIES FOR COMMIT ANALYSIS:
-The following git repositories are available for direct commit analysis:
-
-"""
-            for repo, git_path, repo_type in git_repos_available:
-                git_repos_section += f"- **{repo}**: `{git_path}` ({repo_type} clone)\n"
-            
-            # Use the first available repo for example, preferring mirror clones
-            example_repo = git_repos_available[0]
-            example_path = example_repo[1]
-            example_type = example_repo[2]
-            
-            git_repos_section += f"""
-IMPORTANT: You should use the Bash tool to analyze commits in these repositories that may not be covered by PRs:
-
-1. For each repository, run git log to find commits during the week period.
-   {'Note: Mirror clones are bare repositories, use --git-dir flag:' if example_type == 'mirror' else ''}
-   ```bash
-   {'git --git-dir=' + str(example_path) if example_type == 'mirror' else 'cd ' + str(example_path) + ' &&'} git log --oneline --all --since="{week_start.strftime('%Y-%m-%d')}" --until="{week_end.strftime('%Y-%m-%d')}" --format="%h %s (%an)"
-   ```
-
-2. Cross-reference these commits with the PRs mentioned in the summaries to identify:
-   - Direct commits to main/master branches without PRs
-   - Maintenance commits (version bumps, changelog updates)
-   - Documentation updates not associated with PRs
-   - Emergency fixes or hotfixes
-   - Automated bot commits
-
-3. Include any significant commits not covered by PRs in your summary, especially:
-   - Direct bug fixes
-   - Configuration changes
-   - Release preparations
-   - Infrastructure updates
-"""
         
         # Build the group-specific prompt
         prompt = f"""You are a software development manager responsible for creating a high-level weekly summary for the {group_config.name} group.
@@ -508,12 +458,11 @@ REPOSITORIES TO ANALYZE:
 {summary_files_list}
 
 {group_config.prompt if group_config.prompt else ""}
-{git_repos_section}
+
 YOUR TASK:
 1. Read and analyze ALL the repository summaries listed above using the Read tool
-2. If git repositories are available, analyze commits to find activity not covered by PRs
-3. Generate a comprehensive group summary JSON that captures the week's activity across all repositories in the {group_config.name} group
-4. Write this summary to the file: {summary_file}
+2. Generate a comprehensive group summary JSON that captures the week's activity across all repositories in the {group_config.name} group
+3. Write this summary to the file: {summary_file}
 
 The aggregate summary should synthesize information across all repositories to provide:
 - A unified view of development activity
@@ -544,7 +493,6 @@ Generate a JSON report with the following structure:
   "priority_items": "Critical issues and PRs needing attention across repos (MUST use bullet points with specific PR/issue references)",
   "notable_discussions": "Important discussions that affect multiple repos or the ecosystem (MUST use bullet points with discussion/issue references)",
   "emerging_patterns": "Trends and patterns observed across repositories (MUST use bullet points with example PR/issue references)",
-  "direct_commits": "Significant commits made directly to branches without PRs (set to null if no git repos available or no direct commits found)",
   "ecosystem_health": "Overall assessment of the ecosystem's development health (MUST use bullet points with supporting PR/issue references)",
   "contributors_spotlight": "Notable contributors and their cross-repository contributions"
 }}
@@ -575,8 +523,6 @@ SYNTHESIS GUIDELINES:
 - Identify dependencies (e.g., "[ocaml/dune#123](https://github.com/ocaml/dune/issues/123) blocked by [ocaml/ocaml#456](https://github.com/ocaml/ocaml/issues/456)")
 - Highlight coordinated efforts (e.g., "LLVM backend work spans [@oxcaml/oxcaml](https://github.com/oxcaml/oxcaml) and [@ocaml/ocaml](https://github.com/ocaml/ocaml)")
 - Note ecosystem-wide impacts (e.g., "Breaking changes in [@ocaml/ocaml](https://github.com/ocaml/ocaml) affecting [@ocaml/dune](https://github.com/ocaml/dune) and [@ocaml/merlin](https://github.com/ocaml/merlin)")
-- When git repositories are available, identify direct commits not associated with PRs and include significant ones in the "direct_commits" section
-- For direct commits, format as: "commit_hash: description (author)" with repository context
 - When referring to issues/PRs, ALWAYS format as clickable markdown links
 
 Remember:
