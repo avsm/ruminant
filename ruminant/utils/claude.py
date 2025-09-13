@@ -76,7 +76,7 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             input=prompt_content,
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=600  # 10 minute timeout
         )
         
         # Parse streaming JSON output to extract meaningful content
@@ -145,13 +145,13 @@ def run_claude_cli(prompt_file: Path, claude_command: str, claude_args: List[str
             "prompt_file": str(prompt_file),
             "prompt_method": "stdin",
             "output_format": "stream-json",
-            "error": "Process timed out after 300 seconds"
+            "error": "Process timed out after 600 seconds"
         }
         log_file.write_text(json.dumps(session_log, indent=2))
         
         return {
             "success": False,
-            "error": "Claude CLI timed out after 5 minutes",
+            "error": "Claude CLI timed out after 10 minutes",
             "timeout": True,
             "log_file": log_file
         }
