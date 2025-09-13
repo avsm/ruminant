@@ -228,7 +228,7 @@ IMPORTANT FORMATTING REQUIREMENTS:
 - This allows readers to navigate directly to detailed group summaries
 - Use these links whenever referencing specific group activities
 - Keep the summary concise but comprehensive (aim for 500-800 words)
-- Use bullet points for clarity
+- Use bullet points for clarity on each of the items like cross repository work, key projects, priority items, notable discussions and emerging trends
 - Highlight specific people's contributions where notable
 - Include specific PR/issue numbers for major items
 

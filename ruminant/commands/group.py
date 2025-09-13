@@ -128,7 +128,7 @@ def generate_group_prompt(group: str, repositories: List[str], year: int, week: 
         "- Be as concise as possible while maintaining clarity",
         "",
         "TONE AND LANGUAGE REQUIREMENTS:",
-        "- Use factual, objective language - avoid hyperbolic terms",
+        "- Use factual, objective language - avoid hyperbolic terms and emotive words like dominate or exceptional",
         "- Prefer specific, quantifiable descriptions",
         "- Focus on concrete changes and measurable impacts",
         "",

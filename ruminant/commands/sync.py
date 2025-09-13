@@ -149,6 +149,82 @@ def save_user_data(users: set, token: Optional[str]) -> dict:
     }
 
 
+def sync_releases_only(repo: str, year: int, week: int, token: Optional[str], force: bool = False) -> dict:
+    """Sync only releases data for a specific repository and week."""
+    week_start, week_end = get_week_date_range(year, week)
+    
+    # Check if we already have cached data with releases
+    cache_file = get_cache_file_path(repo, year, week)
+    
+    if not force and cache_file.exists():
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cached_data = json.load(f)
+                if 'releases' in cached_data:
+                    releases_count = len(cached_data['releases'])
+                    repo_progress(repo, week, year, f"{releases_count} releases (cached)")
+                    return {
+                        "success": True,
+                        "repo": repo,
+                        "details": f"Cached: {releases_count} releases",
+                        "counts": {"releases": releases_count}
+                    }
+        except Exception:
+            pass  # If error reading cache, continue to fetch
+    
+    try:
+        info(f"Fetching releases for {repo} week {week} of {year}")
+        
+        # Fetch releases from GitHub API
+        releases = fetch_releases(repo, token, week_start, week_end)
+        
+        # Update or create cache file with releases data
+        cache_data = {}
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+            except Exception:
+                cache_data = {}
+        
+        # Update metadata and releases
+        cache_data['metadata'] = {
+            'repo': repo,
+            'year': year,
+            'week': week,
+            'week_start': week_start.strftime('%Y-%m-%d'),
+            'week_end': week_end.strftime('%Y-%m-%d'),
+            'cached_at': datetime.now().isoformat(),
+        }
+        cache_data['releases'] = releases
+        
+        # Ensure directory exists
+        ensure_repo_dirs(repo)
+        
+        # Save updated cache
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+        
+        repo_progress(repo, week, year, f"{len(releases)} releases")
+        success(f"Updated releases data in {cache_file}")
+        
+        return {
+            "success": True,
+            "repo": repo,
+            "details": f"Fetched: {len(releases)} releases",
+            "counts": {"releases": len(releases)}
+        }
+        
+    except Exception as e:
+        error(f"Failed to sync releases for {repo}: {e}")
+        return {
+            "success": False,
+            "repo": repo,
+            "details": str(e),
+            "counts": {"releases": 0}
+        }
+
+
 def sync_repository_data(repo: str, year: int, week: int, token: Optional[str], force: bool = False) -> dict:
     """Sync repository data for a specific week."""
     week_start, week_end = get_week_date_range(year, week)
@@ -241,6 +317,7 @@ def sync_main(
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     force: bool = typer.Option(False, "--force", help="Force refresh cache"),
     scan_only: bool = typer.Option(False, "--scan-only", help="Only scan cached data for missing users"),
+    releases_only: bool = typer.Option(False, "--releases-only", help="Only sync GitHub releases data"),
 ) -> None:
     """Fetch and cache GitHub repository data."""
     
@@ -283,6 +360,10 @@ def sync_main(
             
             return
         
+        # If releases-only mode, just sync releases data
+        if releases_only:
+            step("Syncing GitHub releases only (releases-only mode)...")
+        
         print_repo_list(repositories_to_sync)
         
         # Determine time range
@@ -310,11 +391,15 @@ def sync_main(
                 current_operation += 1
                 info(f"[{current_operation}/{total_operations}] Processing {repo} week {w_week}/{w_year}")
                 
-                result = sync_repository_data(repo, w_year, w_week, token, force)
+                # Use releases-only sync if specified
+                if releases_only:
+                    result = sync_releases_only(repo, w_year, w_week, token, force)
+                else:
+                    result = sync_repository_data(repo, w_year, w_week, token, force)
                 all_results.append(result)
                 
-                # Collect users from this repo/week
-                if result["success"] and "users" in result:
+                # Collect users from this repo/week (not applicable for releases-only)
+                if not releases_only and result["success"] and "users" in result:
                     all_users.update(result["users"])
         
         # Print summary
@@ -322,30 +407,37 @@ def sync_main(
         failed_results = [r for r in all_results if not r["success"]]
         
         if successful_results:
-            # Calculate totals
-            total_issues = sum(r["counts"]["issues"] for r in successful_results)
-            total_prs = sum(r["counts"]["prs"] for r in successful_results)
-            total_discussions = sum(r["counts"]["discussions"] for r in successful_results)
-            total_gfis = sum(r["counts"]["good_first_issues"] for r in successful_results)
-            
-            success(f"Synced {len(successful_results)}/{len(all_results)} operations")
-            info(f"Total items: {total_issues} issues, {total_prs} PRs, {total_discussions} discussions, {total_gfis} good first issues")
-            
-            # Fetch and save user data for newly found users
-            if all_users:
-                step(f"Fetching user data for {len(all_users)} unique users from current sync...")
-                user_result = save_user_data(all_users, token)
-                success(f"User data: {user_result['fetched']} fetched, {user_result['skipped']} cached, {user_result['failed']} failed")
-            
-            # Scan all cached data for any missing users
-            step("Scanning cached data for any missing users...")
-            missing_users = scan_cached_data_for_users(token)
-            if missing_users:
-                step(f"Fetching data for {len(missing_users)} missing users from cached data...")
-                missing_result = save_user_data(missing_users, token)
-                success(f"Missing user data: {missing_result['fetched']} fetched, {missing_result['skipped']} cached, {missing_result['failed']} failed")
+            if releases_only:
+                # Calculate totals for releases-only mode
+                total_releases = sum(r["counts"].get("releases", 0) for r in successful_results)
+                
+                success(f"Synced {len(successful_results)}/{len(all_results)} operations")
+                info(f"Total items: {total_releases} releases")
             else:
-                info("No missing users found in cached data")
+                # Calculate totals for normal mode
+                total_issues = sum(r["counts"]["issues"] for r in successful_results)
+                total_prs = sum(r["counts"]["prs"] for r in successful_results)
+                total_discussions = sum(r["counts"]["discussions"] for r in successful_results)
+                total_gfis = sum(r["counts"]["good_first_issues"] for r in successful_results)
+                
+                success(f"Synced {len(successful_results)}/{len(all_results)} operations")
+                info(f"Total items: {total_issues} issues, {total_prs} PRs, {total_discussions} discussions, {total_gfis} good first issues")
+                
+                # Fetch and save user data for newly found users
+                if all_users:
+                    step(f"Fetching user data for {len(all_users)} unique users from current sync...")
+                    user_result = save_user_data(all_users, token)
+                    success(f"User data: {user_result['fetched']} fetched, {user_result['skipped']} cached, {user_result['failed']} failed")
+                
+                # Scan all cached data for any missing users
+                step("Scanning cached data for any missing users...")
+                missing_users = scan_cached_data_for_users(token)
+                if missing_users:
+                    step(f"Fetching data for {len(missing_users)} missing users from cached data...")
+                    missing_result = save_user_data(missing_users, token)
+                    success(f"Missing user data: {missing_result['fetched']} fetched, {missing_result['skipped']} cached, {missing_result['failed']} failed")
+                else:
+                    info("No missing users found in cached data")
         
         if failed_results:
             warning(f"Failed operations: {len(failed_results)}")

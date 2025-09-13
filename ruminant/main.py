@@ -24,6 +24,7 @@ def sync(
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
     force: bool = typer.Option(False, "--force", help="Force refresh cache"),
     scan_only: bool = typer.Option(False, "--scan-only", help="Only scan cached data for missing users"),
+    releases_only: bool = typer.Option(False, "--releases-only", help="Only sync GitHub releases data"),
 ) -> None:
     """Fetch and cache GitHub repository data."""
     from .commands.sync import sync_main
@@ -37,7 +38,7 @@ def sync(
             config = load_config()
             weeks = config.reporting.default_weeks
     
-    sync_main(repos, weeks, year, week, force, scan_only)
+    sync_main(repos, weeks, year, week, force, scan_only, releases_only)
 
 @app.command(help="Generate summaries using Claude CLI")
 def summarize(
