@@ -48,12 +48,13 @@ def parse_group_summary_json(file_path: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def collect_all_data(data_dir: Path) -> tuple[Dict[str, List[Dict]], Dict[str, List[Dict]], Dict[str, Dict]]:
+def collect_all_data(data_dir: Path) -> tuple[Dict[str, List[Dict]], Dict[str, List[Dict]], Dict[str, Dict], Dict[str, List[Dict]]]:
     """Collect all reports, group summaries, and weekly summaries organized by week."""
     
     weeks_data = {}  # key: "year-week", value: list of individual summaries
     group_summaries = {}  # key: "year-week", value: list of group summaries
     weekly_summaries = {}  # key: "year-week", value: weekly summary dict
+    repo_data = {}  # key: "org/repo", value: list of weekly summaries for that repo
     
     # Collect individual repository summaries from data/summaries/<org>/<repo>/
     summaries_dir = data_dir / "summaries"
@@ -75,6 +76,12 @@ def collect_all_data(data_dir: Path) -> tuple[Dict[str, List[Dict]], Dict[str, L
                                 summary['repo_full'] = f"{org_dir.name}/{repo_dir.name}"
                                 
                                 weeks_data[week_key].append(summary)
+                                
+                                # Also collect by repository
+                                repo_key = f"{org_dir.name}/{repo_dir.name}"
+                                if repo_key not in repo_data:
+                                    repo_data[repo_key] = []
+                                repo_data[repo_key].append(summary)
     
     # Collect group summaries from data/groups/<group>/
     groups_dir = data_dir / "groups"
@@ -125,7 +132,7 @@ def collect_all_data(data_dir: Path) -> tuple[Dict[str, List[Dict]], Dict[str, L
                     
                     weekly_summaries[week_key] = summary
     
-    return weeks_data, group_summaries, weekly_summaries
+    return weeks_data, group_summaries, weekly_summaries, repo_data
 
 
 def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict[str, List[Dict]], weekly_summaries: Dict[str, Dict]) -> List[Dict[str, Any]]:
@@ -284,6 +291,38 @@ def generate_week_detail(week_key: str, reports: List[Dict], groups: List[Dict],
     }
 
 
+def generate_repositories_index(repo_data: Dict[str, List[Dict]]) -> Dict[str, Any]:
+    """Generate index of all repositories with their activity history."""
+    
+    repositories = {}
+    
+    for repo_key, summaries in repo_data.items():
+        org, repo_name = repo_key.split('/')
+        
+        # Sort summaries by week (newest first)
+        sorted_summaries = sorted(summaries, key=lambda x: f"{x['year']}-{x['week']:02d}", reverse=True)
+        
+        repositories[repo_key] = {
+            'org': org,
+            'repo_name': repo_name,
+            'repo_full': repo_key,
+            'total_weeks': len(summaries),
+            'latest_week': sorted_summaries[0] if sorted_summaries else None,
+            'oldest_week': sorted_summaries[-1] if sorted_summaries else None,
+            'weeks': [{
+                'year': s['year'],
+                'week': s['week'],
+                'week_key': f"{s['year']}-{s['week']:02d}",
+                'week_range': s.get('week_range'),
+                'has_activity': bool(s.get('overall_activity')),
+                'has_priority': bool(s.get('priority_items')),
+                'has_ongoing': bool(s.get('ongoing_projects'))
+            } for s in sorted_summaries]
+        }
+    
+    return repositories
+
+
 def generate_groups_index(all_groups: Dict[str, List[Dict]], config) -> Dict[str, Any]:
     """Generate index of all groups with their history, preserving config order."""
     
@@ -439,7 +478,7 @@ def website_json_main(
         output_path = Path(output_dir)
         
         step("Collecting all summary data...")
-        weeks_data, group_summaries, weekly_summaries = collect_all_data(data_dir)
+        weeks_data, group_summaries, weekly_summaries, repo_data = collect_all_data(data_dir)
         
         if not weeks_data and not group_summaries and not weekly_summaries:
             error("No summaries found. Run 'ruminant summarize', 'ruminant group', and 'ruminant summarize-week' first.")
@@ -463,6 +502,8 @@ def website_json_main(
         output_path.mkdir(exist_ok=True)
         weeks_dir = output_path / "weeks"
         weeks_dir.mkdir(exist_ok=True)
+        repos_dir = output_path / "repositories"
+        repos_dir.mkdir(exist_ok=True)
         
         # Collect and generate users data
         step("Collecting user data...")
@@ -475,6 +516,7 @@ def website_json_main(
         weeks_data = post_process_data_with_user_links(weeks_data, users_data)
         group_summaries = post_process_data_with_user_links(group_summaries, users_data)
         weekly_summaries = post_process_data_with_user_links(weekly_summaries, users_data)
+        repo_data = post_process_data_with_user_links(repo_data, users_data)
         
         # Generate and save week index
         step("Generating week index...")
@@ -485,6 +527,7 @@ def website_json_main(
             'generated_at': datetime.now().isoformat(),
             'total_weeks': len(week_index),
             'total_weekly_summaries': total_weeklies,
+            'total_repositories': len(repo_data),
             'weeks': week_index
         }
         
@@ -515,6 +558,35 @@ def website_json_main(
         with open(output_path / "groups.json", 'w', encoding='utf-8') as f:
             json.dump(groups_index, f, indent=indent, ensure_ascii=False)
         
+        # Generate repositories index
+        step("Generating repositories index...")
+        repositories_index = generate_repositories_index(repo_data)
+        
+        with open(output_path / "repositories.json", 'w', encoding='utf-8') as f:
+            json.dump(repositories_index, f, indent=indent, ensure_ascii=False)
+        
+        # Generate individual repository files
+        step("Generating individual repository files...")
+        for repo_key, summaries in repo_data.items():
+            # Create safe filename from repo key
+            safe_filename = repo_key.replace('/', '_')
+            
+            # Sort summaries by week (newest first)
+            sorted_summaries = sorted(summaries, key=lambda x: f"{x['year']}-{x['week']:02d}", reverse=True)
+            
+            repo_detail = {
+                'repo_full': repo_key,
+                'org': repo_key.split('/')[0],
+                'repo_name': repo_key.split('/')[1],
+                'total_weeks': len(summaries),
+                'summaries': sorted_summaries
+            }
+            
+            with open(repos_dir / f"{safe_filename}.json", 'w', encoding='utf-8') as f:
+                json.dump(repo_detail, f, indent=indent, ensure_ascii=False)
+        
+        info(f"Generated {len(repo_data)} repository files")
+        
         # Save users data
         step("Saving users data...")
         with open(output_path / "users.json", 'w', encoding='utf-8') as f:
@@ -528,6 +600,7 @@ def website_json_main(
             'version': '1.0',
             'total_weeks': len(week_index),
             'total_groups': len(groups_index),
+            'total_repositories': len(repo_data),
             'total_weekly_summaries': total_weeklies,
             'latest_week': week_index[0] if week_index else None,
             'oldest_week': week_index[-1] if week_index else None
@@ -537,7 +610,8 @@ def website_json_main(
             json.dump(metadata, f, indent=indent, ensure_ascii=False)
         
         success(f"JSON export completed successfully in {output_path}")
-        success(f"Generated: index.json, groups.json, users.json, metadata.json, and {len(all_weeks)} week files")
+        success(f"Generated: index.json, groups.json, repositories.json, users.json, metadata.json")
+        success(f"Also generated: {len(all_weeks)} week files and {len(repo_data)} repository files")
         info("These files can be served statically and consumed by a JavaScript frontend")
         
     except Exception as e:

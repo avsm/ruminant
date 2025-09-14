@@ -801,6 +801,17 @@
             background: var(--bg-tertiary);
         }
         
+        .user-tooltip-avatar[data-lazy="true"] {
+            background: linear-gradient(90deg, var(--bg-secondary) 0%, var(--bg-tertiary) 50%, var(--bg-secondary) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
         .user-tooltip-name {
             font-weight: 600;
             font-size: 13px;
@@ -1202,6 +1213,19 @@
             padding: 50px;
             color: var(--text-muted);
             font-size: 12px;
+        }
+        
+        .loading-indicator {
+            text-align: center;
+            padding: 1rem;
+            color: var(--text-muted);
+            font-size: 0.8em;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
         }
         
         .error {
@@ -1666,7 +1690,8 @@
     <script>
         let indexData = null;
         let groupsData = null;
-        let allWeekData = {};
+        let allWeekData = {}; // Cache for loaded week data
+        let loadingWeeks = {}; // Track which weeks are currently being loaded
         let usersData = {};
         let currentEcosystem = 'all';
         let currentWeekKey = null;
@@ -1744,7 +1769,7 @@
                     'oxcaml': 'oxcaml'
                 }[groupName] || groupName;
                 
-                return `<a href="javascript:void(0)" onclick="switchToGroup('${groupName}')" class="group-link" data-group="${groupName}" title="View detailed ${groupDisplayName} group activity">${groupDisplayName}</a>`;
+                return `<a href="javascript:void(0)" onclick="handleGroupClick('${groupName}')" class="group-link" data-group="${groupName}" title="View detailed ${groupDisplayName} group activity">${groupDisplayName}</a>`;
             });
             
             // Convert GitHub issue/PR links with special styling
@@ -1779,9 +1804,9 @@
                 // Build the enhanced tooltip HTML
                 let tooltipHtml = '<div class="user-tooltip"><div class="user-tooltip-content">';
                 
-                // Add avatar if available
+                // Add avatar placeholder - will load on hover
                 if (userData.avatar_url) {
-                    tooltipHtml += `<img src="${userData.avatar_url}" alt="${username}" class="user-tooltip-avatar">`;
+                    tooltipHtml += `<img data-src="${userData.avatar_url}" alt="${username}" class="user-tooltip-avatar" data-lazy="true">`;
                 } else {
                     tooltipHtml += `<div class="user-tooltip-avatar"></div>`;
                 }
@@ -1822,9 +1847,9 @@
                     // Build the enhanced tooltip HTML
                     let tooltipHtml = '<div class="user-tooltip"><div class="user-tooltip-content">';
                     
-                    // Add avatar if available
+                    // Add avatar placeholder - will load on hover
                     if (userData.avatar_url) {
-                        tooltipHtml += `<img src="${userData.avatar_url}" alt="${username}" class="user-tooltip-avatar">`;
+                        tooltipHtml += `<img data-src="${userData.avatar_url}" alt="${username}" class="user-tooltip-avatar" data-lazy="true">`;
                     } else {
                         tooltipHtml += `<div class="user-tooltip-avatar"></div>`;
                     }
@@ -1920,7 +1945,12 @@
             return tempDiv.innerHTML;
         }
         
-        function switchToGroup(groupName) {
+        // Wrapper function for onclick handlers that need async calls
+        function handleGroupClick(groupName) {
+            switchToGroup(groupName).catch(console.error);
+        }
+        
+        async function switchToGroup(groupName) {
             // Update active tab
             document.querySelectorAll('.group-tab').forEach(t => {
                 t.classList.remove('active');
@@ -1932,7 +1962,7 @@
                 // Switch ecosystem and refresh content
                 currentEcosystem = groupName;
                 populateTimeline();
-                displayAllWeeks();
+                await displayAllWeeks();
                 
                 // Update URL
                 updateURL();
@@ -1967,7 +1997,7 @@
             return { ecosystem, week };
         }
         
-        function restoreStateFromURL() {
+        async function restoreStateFromURL() {
             const { ecosystem, week } = parseURL();
             
             // Set the ecosystem
@@ -1998,7 +2028,7 @@
             
             // Refresh the display
             populateTimeline();
-            displayAllWeeks();
+            await displayAllWeeks();
         }
         
         // Handle browser back/forward buttons
@@ -2006,7 +2036,7 @@
             if (event.state) {
                 currentEcosystem = event.state.ecosystem || 'all';
                 currentWeekKey = event.state.week || null;
-                restoreStateFromURL();
+                restoreStateFromURL().catch(console.error);
             }
         });
         
@@ -2035,31 +2065,48 @@
                 generateDynamicGroups();
                 generateDynamicFeeds();
                 
-                await loadAllWeekData();
-                initInterface();
+                // Remove loadAllWeekData() - we'll lazy load instead
+                await initInterface();
                 updateStatus('FEED ACTIVE');
             } catch (error) {
                 showError('SYSTEM ERROR: ' + error.message);
             }
         }
         
-        async function loadAllWeekData() {
-            updateStatus('LOADING WEEK DATA...');
-            const weekPromises = indexData.weeks.map(async week => {
-                try {
-                    const response = await fetch(`weeks/${week.week_key}.json`);
-                    if (response.ok) {
-                        allWeekData[week.week_key] = await response.json();
-                    }
-                } catch (error) {
-                    console.warn(`Failed to load week ${week.week_key}:`, error);
-                }
-            });
+        async function loadWeekData(weekKey) {
+            // Return cached data if already loaded
+            if (allWeekData[weekKey]) {
+                return allWeekData[weekKey];
+            }
             
-            await Promise.all(weekPromises);
+            // Return existing promise if already loading
+            if (loadingWeeks[weekKey]) {
+                return await loadingWeeks[weekKey];
+            }
+            
+            // Start loading and cache the promise
+            loadingWeeks[weekKey] = (async () => {
+                try {
+                    const response = await fetch(`weeks/${weekKey}.json`);
+                    if (response.ok) {
+                        const weekData = await response.json();
+                        allWeekData[weekKey] = weekData;
+                        return weekData;
+                    }
+                    return null;
+                } catch (error) {
+                    console.warn(`Failed to load week ${weekKey}:`, error);
+                    return null;
+                } finally {
+                    // Clean up loading promise
+                    delete loadingWeeks[weekKey];
+                }
+            })();
+            
+            return await loadingWeeks[weekKey];
         }
         
-        function initInterface() {
+        async function initInterface() {
             // Restore state from URL first
             const { ecosystem, week } = parseURL();
             if (ecosystem) {
@@ -2083,7 +2130,7 @@
             
             document.getElementById('loading').style.display = 'none';
             
-            displayAllWeeks();
+            await displayAllWeeks();
             
             // Scroll to week if specified in URL
             if (currentWeekKey) {
@@ -2146,12 +2193,12 @@
             const prevBtn = document.createElement('button');
             prevBtn.className = 'year-nav-btn';
             prevBtn.innerHTML = '‹';
-            prevBtn.onclick = () => {
+            prevBtn.onclick = async () => {
                 const currentIndex = yearsArray.indexOf(currentYear);
                 if (currentIndex > 0) {
                     currentYear = yearsArray[currentIndex - 1];
                     populateTimeline();
-                    displayAllWeeks();
+                    await displayAllWeeks();
                 }
             };
             // Disable if at first year
@@ -2170,12 +2217,12 @@
             const nextBtn = document.createElement('button');
             nextBtn.className = 'year-nav-btn';
             nextBtn.innerHTML = '›';
-            nextBtn.onclick = () => {
+            nextBtn.onclick = async () => {
                 const currentIndex = yearsArray.indexOf(currentYear);
                 if (currentIndex < yearsArray.length - 1) {
                     currentYear = yearsArray[currentIndex + 1];
                     populateTimeline();
-                    displayAllWeeks();
+                    await displayAllWeeks();
                 }
             };
             // Disable if at last year
@@ -2313,7 +2360,7 @@
         
         function setupGroupTabs() {
             document.querySelectorAll('.group-tab').forEach(tab => {
-                tab.onclick = () => {
+                tab.onclick = async () => {
                     // Remove active class from all tabs
                     document.querySelectorAll('.group-tab').forEach(t => {
                         t.classList.remove('active');
@@ -2326,7 +2373,7 @@
                     currentEcosystem = tab.dataset.group;
                     currentWeekKey = null; // Reset week when changing groups
                     populateTimeline();
-                    displayAllWeeks();
+                    await displayAllWeeks();
                     
                     // Update repository dropdown if it's open
                     if (repoDropdownOpen) {
@@ -2555,7 +2602,7 @@
         }
         
         
-        function displayAllWeeks() {
+        async function displayAllWeeks() {
             const display = document.getElementById('main-display');
             
             let weeks;
@@ -2571,145 +2618,87 @@
                 });
             }
             
+            // First render week placeholders
             let html = '';
-            
             weeks.forEach(week => {
-                const weekData = allWeekData[week.week_key];
-                if (!weekData) return;
-                
                 const weekInfo = indexData.weeks.find(w => w.week_key === week.week_key);
-                
-                // Get repos for this week
-                let ecosystemRepos;
-                if (currentEcosystem === 'all') {
-                    // For "all" ecosystem, show all active repositories or none if we have a weekly summary
-                    if (weekData.weekly_summary) {
-                        ecosystemRepos = []; // Weekly summaries don't show individual repos
-                    } else {
-                        ecosystemRepos = weekData.repositories.filter(repo => {
-                            if (!repo || !repo.repo_full) return false;
-                            return hasRepoActivity(repo);
-                        });
+                html += renderWeekPlaceholder(week, weekInfo);
+            });
+            display.innerHTML = html;
+            
+            // Then load and render week content lazily with delays
+            // Load weeks progressively to avoid blocking the UI
+            weeks.forEach((week, index) => {
+                setTimeout(async () => {
+                    try {
+                        const weekData = await loadWeekData(week.week_key);
+                        if (weekData) {
+                            await renderWeekContent(week.week_key, weekData);
+                        }
+                    } catch (error) {
+                        console.error(`Failed to render week ${week.week_key}:`, error);
                     }
-                } else {
-                    // Filter repos to only those in current ecosystem AND have actual content
-                    ecosystemRepos = weekData.repositories.filter(repo => {
-                        if (!repo || !repo.repo_full) return false; // Skip empty or invalid entries
-                        if (!groupsData[currentEcosystem]) return false;
-                        if (!groupsData[currentEcosystem].repositories.includes(repo.repo_full)) return false;
-                        return hasRepoActivity(repo);
-                    });
-                }
-                
-                // Create comprehensive repository summary
-                let allRepos = [];
-                let reposSummary = '';
-                
-                if (currentEcosystem === 'all' && weekData.weekly_summary) {
-                    // For ecosystem view, aggregate ALL repositories from all week data
-                    const allGroupRepos = new Set();
-                    
-                    // Collect repos from all repositories in this week's data
-                    if (weekData.repositories) {
-                        weekData.repositories.forEach(repo => {
-                            if (hasRepoActivity(repo)) {
-                                allGroupRepos.add(repo.repo_full);
-                            }
-                        });
-                    }
-                    
-                    allRepos = Array.from(allGroupRepos);
-                    
-                    if (allRepos.length > 0) {
-                        reposSummary = `Ecosystem activity across ${allRepos.length} repositories`;
-                    } else {
-                        reposSummary = 'Ecosystem summary with no repository activity';
-                    }
-                } else if (ecosystemRepos.length > 0) {
-                    allRepos = ecosystemRepos.map(repo => repo.repo_full);
-                    reposSummary = `${allRepos.length} active repositories`;
-                } else {
-                    reposSummary = 'No active repositories this week';
-                }
-                
-                // Format the date range in words with year
-                const formatWeekDate = (dateStr) => {
-                    const date = new Date(dateStr);
-                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    const day = date.getDate();
-                    const suffix = day === 1 || day === 21 || day === 31 ? 'st' : 
-                                  day === 2 || day === 22 ? 'nd' : 
-                                  day === 3 || day === 23 ? 'rd' : 'th';
-                    return `${day}${suffix} ${months[date.getMonth()]} ${date.getFullYear()}`;
-                };
-                
-                const [startDate, endDate] = week.week_range.split(' to ');
+                }, index * 100); // Stagger loads by 100ms
+            });
+        }
+        
+        function renderWeekPlaceholder(week, weekInfo) {
+            // Format the date range in words with year
+            const formatWeekDate = (dateStr) => {
+                const date = new Date(dateStr);
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const day = date.getDate();
+                const suffix = day === 1 || day === 21 || day === 31 ? 'st' : 
+                              day === 2 || day === 22 ? 'nd' : 
+                              day === 3 || day === 23 ? 'rd' : 'th';
+                return `${day}${suffix} ${months[date.getMonth()]} ${date.getFullYear()}`;
+            };
+            
+            const [startDate, endDate] = (week.week_range || weekInfo?.week_range || '').split(' to ');
+            let formattedRange = '';
+            if (startDate && endDate) {
                 const startFormatted = formatWeekDate(startDate);
                 const endFormatted = formatWeekDate(endDate);
                 
                 // If same month/year, don't repeat them
                 const startParts = startFormatted.split(' ');
                 const endParts = endFormatted.split(' ');
-                const formattedRange = startParts[1] === endParts[1] && startParts[2] === endParts[2] ? 
+                formattedRange = startParts[1] === endParts[1] && startParts[2] === endParts[2] ? 
                     `${startParts[0]} - ${endParts[0]} ${endParts[1]} ${endParts[2]}` : 
                     `${startFormatted} - ${endFormatted}`;
-                
-                // Generate repository list with truncation logic
-                const maxReposBeforeTruncate = 8;
-                const shouldTruncate = allRepos.length > maxReposBeforeTruncate;
-                const truncatedId = `repos-${week.week_key}`;
-                
-                let repoListHtml = '';
-                if (allRepos.length > 0) {
-                    // Group repos by organization
-                    const reposByOrg = {};
-                    allRepos.forEach(repoFull => {
-                        const [org, name] = repoFull.split('/');
-                        if (!reposByOrg[org]) {
-                            reposByOrg[org] = [];
-                        }
-                        reposByOrg[org].push(name);
-                    });
-                    
-                    // Create grouped repo links
-                    const orgGroups = Object.entries(reposByOrg).map(([org, repos]) => {
-                        const repoLinks = repos.map(name => 
-                            `<a href="https://github.com/${org}/${name}" target="_blank" class="repo-link">${name}</a>`
-                        ).join(' | ');
-                        return `<a href="https://github.com/${org}" target="_blank" class="org-name">${org}</a> / { ${repoLinks} }`;
-                    });
-                    
-                    repoListHtml = orgGroups.join(' • ');
-                }
-                
-                html += `
-                    <div class="week-section" id="week-${week.week_key}" data-week-key="${week.week_key}">
-                        <div class="week-header-main">
-                            <div class="week-title-main">
-                                <div class="week-icon">
-                                    <svg viewBox="0 0 24 24">
-                                        <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
-                                    </svg>
-                                </div>
-                                W${week.week}.${week.year}
-                            </div>
-                            <div class="week-date-range">${formattedRange}</div>
-                        </div>
-                        
-                        
-                        <div class="week-content">
-                            ${generateWeekContent(weekData, currentEcosystem)}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            if (!html) {
-                html = '<div class="loading">NO DATA AVAILABLE FOR CURRENT ECOSYSTEM</div>';
             }
             
-            display.innerHTML = html;
+            return `
+                <div class="week-section" id="week-${week.week_key}" data-week-key="${week.week_key}">
+                    <div class="week-header-main">
+                        <div class="week-title-main">
+                            <div class="week-icon">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                                </svg>
+                            </div>
+                            W${week.week}.${week.year}
+                        </div>
+                        <div class="week-date-range">${formattedRange}</div>
+                    </div>
+                    <div class="week-content">
+                        <div class="loading-indicator">Loading week data...</div>
+                    </div>
+                </div>
+            `;
         }
+        
+        async function renderWeekContent(weekKey, weekData) {
+            const weekElement = document.getElementById(`week-${weekKey}`);
+            if (!weekElement) return;
+            
+            const contentDiv = weekElement.querySelector('.week-content');
+            if (!contentDiv) return;
+                
+            // Simply render the week content as it was originally - no extra repo summaries or lists
+            contentDiv.innerHTML = generateWeekContent(weekData, currentEcosystem);
+        }
+        
         
         function generateWeekContent(weekData, ecosystem) {
             // Handle "all" ecosystem - show weekly summary
@@ -3035,6 +3024,10 @@
             const headerGroups = document.getElementById('header-groups');
             if (!headerGroups || !groupsData) return;
             
+            // Check if groups have already been added (to prevent duplicates)
+            if (headerGroups.dataset.generated === 'true') return;
+            headerGroups.dataset.generated = 'true';
+            
             // Get existing ALL tab
             const allTab = headerGroups.querySelector('[data-group="all"]');
             
@@ -3051,11 +3044,14 @@
             // Add group tabs dynamically (excluding 'all' which is already there)
             Object.keys(groupsData).forEach(groupKey => {
                 if (groupKey !== 'all') {
+                    // Check if this group tab already exists
+                    if (headerGroups.querySelector(`[data-group="${groupKey}"]`)) return;
+                    
                     const tab = document.createElement('div');
                     tab.className = 'group-tab';
                     tab.dataset.group = groupKey;
                     tab.textContent = `[${groupKey.toUpperCase()}]`;
-                    tab.onclick = () => switchGroup(groupKey);
+                    tab.onclick = () => switchGroup(groupKey).catch(console.error);
                     headerGroups.appendChild(tab);
                     
                     // Add mobile abbreviation CSS if group name is long
@@ -3084,7 +3080,7 @@
             
             // Re-add click handler for ALL tab
             if (allTab) {
-                allTab.onclick = () => switchGroup('all');
+                allTab.onclick = () => switchGroup('all').catch(console.error);
             }
             
             // Add dynamic feed links to head
@@ -3155,7 +3151,7 @@
             return descriptions[groupKey] || `${groupKey.charAt(0).toUpperCase() + groupKey.slice(1)} repositories`;
         }
         
-        function switchGroup(groupName) {
+        async function switchGroup(groupName) {
             // Update active tab styling
             document.querySelectorAll('.group-tab').forEach(t => {
                 t.classList.remove('active');
@@ -3167,7 +3163,7 @@
             // Switch ecosystem and refresh content
             currentEcosystem = groupName;
             populateTimeline();
-            displayAllWeeks();
+            await displayAllWeeks();
             updateURL();
         }
         
@@ -3199,6 +3195,35 @@
                     }
                 });
             }
+        });
+        
+        // Lazy load user avatars on hover
+        function initLazyAvatars() {
+            document.addEventListener('mouseover', function(event) {
+                // Check if hovering over a user link
+                const userLink = event.target.closest('.user-link');
+                if (!userLink) return;
+                
+                // Find the tooltip avatar within the parent wrapper
+                const wrapper = userLink.closest('.user-link-wrapper');
+                if (!wrapper) return;
+                
+                const lazyImg = wrapper.querySelector('img[data-lazy="true"]');
+                if (!lazyImg) return;
+                
+                // Load the avatar if not already loaded
+                if (lazyImg.dataset.src && !lazyImg.src) {
+                    lazyImg.src = lazyImg.dataset.src;
+                    lazyImg.removeAttribute('data-lazy');
+                    lazyImg.removeAttribute('data-src');
+                }
+            });
+        }
+        
+        // Initialize lazy avatars and system on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            initSystem();
+            initLazyAvatars();
         });
     </script>
     
