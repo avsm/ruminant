@@ -542,6 +542,15 @@
             scroll-margin-top: 40px;
         }
         
+        .week-section.inactive-week {
+            margin-bottom: 8px;
+        }
+        
+        .week-section.inactive-week .week-header-main {
+            margin-bottom: 0;
+            padding: 4px 0 4px 20px;
+        }
+        
         .week-header-main {
             padding: 8px 0 12px 20px;
             margin-bottom: 16px;
@@ -742,6 +751,36 @@
         
         .repo-inline:hover {
             text-decoration: underline;
+        }
+        
+        .commit-range,
+        .commit-link {
+            color: var(--text-muted);
+            font-size: 10px;
+            text-decoration: none;
+            opacity: 0.7;
+            margin-left: 4px;
+            display: inline-flex;
+            align-items: center;
+            vertical-align: middle;
+            transition: all 0.2s;
+        }
+        
+        .commit-range:hover,
+        .commit-link:hover {
+            opacity: 1;
+            color: var(--text-primary);
+        }
+        
+        .diff-icon {
+            width: 12px;
+            height: 12px;
+            fill: currentColor;
+        }
+        
+        code {
+            font-family: 'JetBrains Mono', 'SF Mono', 'Roboto Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: inherit;
         }
         
         /* Special styling for internal group navigation links */
@@ -1804,12 +1843,38 @@
             }
         }
         
+        function getCommitRangeLink(repo) {
+            if (!repo.start_commit || !repo.end_commit) {
+                return '';
+            }
+            
+            // Get short hashes (first 7 characters)
+            const startHash = repo.start_commit.substring(0, 7);
+            const endHash = repo.end_commit.substring(0, 7);
+            
+            // Check if start and end are the same (single commit)
+            if (repo.start_commit === repo.end_commit) {
+                const commitUrl = `https://github.com/${repo.repo_full}/commit/${repo.start_commit}`;
+                return ` <a href="${commitUrl}" target="_blank" class="commit-link" title="View commit ${startHash}">${getDiffIcon()}</a>`;
+            } else {
+                // Multiple commits - use compare URL
+                const compareUrl = `https://github.com/${repo.repo_full}/compare/${startHash}..${endHash}`;
+                return ` <a href="${compareUrl}" target="_blank" class="commit-range" title="View commits ${startHash}..${endHash}">${getDiffIcon()}</a>`;
+            }
+        }
+        
+        function getDiffIcon() {
+            return `<svg class="diff-icon" viewBox="0 0 16 16">
+                <path d="M1.5 1.75V13.5h13V1.75H1.5zM.75 1.5c0-.966.784-1.75 1.75-1.75h11c.966 0 1.75.784 1.75 1.75v12c0 .966-.784 1.75-1.75 1.75h-11A1.75 1.75 0 0 1 .75 13.5V1.5zM8 4a.75.75 0 0 1 .75.75v6.5a.75.75 0 0 1-1.5 0V4.75A.75.75 0 0 1 8 4zm-3 1.5c.414 0 .75.336.75.75v3.5c0 .414-.336.75-.75.75s-.75-.336-.75-.75v-3.5c0-.414.336-.75.75-.75zm6 0c.414 0 .75.336.75.75v3.5c0 .414-.336.75-.75.75s-.75-.336-.75-.75v-3.5c0-.414.336-.75.75-.75z" fill="currentColor"/>
+            </svg>`;
+        }
+        
         function getSectionIcon(label) {
             const icons = {
                 'overview': '',
+                'new features': '<svg viewBox="0 0 24 24"><path d="M12 2 L15.5 8.5 L22 9 L17 14 L18.5 20.5 L12 17 L5.5 20.5 L7 14 L2 9 L8.5 8.5 Z" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="3"/></svg>',
                 'cross-repo work': '<svg viewBox="0 0 24 24"><path d="M4 6 L4 18 L10 18 M14 6 L20 6 L20 18 L14 18"/><path d="M10 12 L14 12 M11 9 L13 12 L11 15"/></svg>',
                 'key projects': '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="5"/><rect x="5" y="11" width="14" height="5"/><rect x="5" y="18" width="14" height="2"/></svg>',
-                'priorities': '<svg viewBox="0 0 24 24"><path d="M12 2 L12 22 M7 6 L12 2 L17 6"/></svg>',
                 'discussions': '<svg viewBox="0 0 24 24"><path d="M21 11 C21 7 17 4 12 4 C7 4 3 7 3 11 C3 14 5 16 8 17 L8 20 L12 17 C17 17 21 14 21 11 Z"/></svg>',
                 'emerging trends': '<svg viewBox="0 0 24 24"><path d="M4 20 L8 16 L12 18 L16 10 L20 14"/><path d="M16 10 L20 10 L20 14"/></svg>',
                 'good first issues': '<svg viewBox="0 0 24 24"><path d="M12 2 L15 9 L22 9 L17 14 L19 21 L12 17 L5 21 L7 14 L2 9 L9 9 Z"/></svg>',
@@ -1822,6 +1887,9 @@
 
         function renderMarkdown(text) {
             if (!text) return '';
+            
+            // Handle inline code blocks with backticks
+            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
             
             // Substitute __RUMINANT:groupname__ tokens with clickable links
             text = text.replace(/__RUMINANT:([^_]+)__/g, function(match, groupName) {
@@ -1939,9 +2007,63 @@
                     
                     tooltipHtml += '</div></div>';
                     
-                    return `<span class="user-link-wrapper" style="position: relative; display: inline-block;"><a href="${url}" target="_blank" class="user-link">${linkText}</a>${tooltipHtml}</span>`;
+                    // If linkText is just @username and we have full name data, use the full name
+                    let displayText = linkText;
+                    if (linkText === `@${username}` && userData.name) {
+                        displayText = userData.name;
+                    }
+                    
+                    return `<span class="user-link-wrapper" style="position: relative; display: inline-block;"><a href="${url}" target="_blank" class="user-link">${displayText}</a>${tooltipHtml}</span>`;
                 }
                 return `<a href="${url}" target="_blank">${linkText}</a>`;
+            });
+            
+            // Resolve unresolved GitHub user links (already in HTML format)
+            // Handle cases like <a href="https://github.com/username">@username</a>
+            text = text.replace(/<a href="https:\/\/github\.com\/([^"]+)"[^>]*>@([^<]+)<\/a>/g, function(match, urlUsername, linkUsername) {
+                // Use the username from URL as it's more reliable
+                const username = urlUsername;
+                const userData = usersData[username] || {};
+                
+                // If we have full name data, use it instead of @username
+                let displayText = `@${linkUsername}`;
+                if (userData.name) {
+                    displayText = userData.name;
+                }
+                
+                // Build the enhanced tooltip HTML
+                let tooltipHtml = '<div class="user-tooltip"><div class="user-tooltip-content">';
+                
+                // Add avatar placeholder - will load on hover
+                if (userData.avatar_url) {
+                    tooltipHtml += `<img data-src="${userData.avatar_url}" alt="${username}" class="user-tooltip-avatar" data-lazy="true">`;
+                } else {
+                    tooltipHtml += `<div class="user-tooltip-avatar"></div>`;
+                }
+                
+                // Name and username
+                if (userData.name) {
+                    tooltipHtml += `<div class="user-tooltip-name">${userData.name}</div>`;
+                    tooltipHtml += `<div class="user-tooltip-username">@${username}</div>`;
+                } else {
+                    tooltipHtml += `<div class="user-tooltip-name">@${username}</div>`;
+                }
+                
+                // Additional details
+                let details = [];
+                if (userData.company) {
+                    details.push(userData.company);
+                }
+                if (userData.location) {
+                    details.push(userData.location);
+                }
+                if (details.length > 0) {
+                    tooltipHtml += `<div class="user-tooltip-details">${details.join(' • ')}</div>`;
+                }
+                
+                tooltipHtml += '</div></div>';
+                
+                return `<span class="user-link-wrapper" style="position: relative; display: inline-block;"><a href="https://github.com/${username}" target="_blank" class="user-link">${displayText}</a>${tooltipHtml}</span>`;
             });
             
             text = text.replace(/\*\*([^*]+)\*\*/g, '<span class="achievement">$1</span>');
@@ -2730,6 +2852,9 @@
             
             // Render each week's summary using the same structure as weekly view
             sortedSummaries.forEach(summary => {
+                // Create weekKey for this week
+                const weekKey = `${summary.year}-${String(summary.week).padStart(2, '0')}`;
+                
                 // Format the date range
                 const formatWeekDate = (dateStr) => {
                     if (!dateStr) return '';
@@ -2759,25 +2884,40 @@
                 
                 // Check if there's any content for this week
                 const hasContent = summary.overall_activity || summary.ongoing_projects || 
-                                 summary.priority_items || summary.notable_discussions || 
+                                 summary.new_features || summary.notable_discussions || 
                                  summary.contributors || summary.good_first_issues;
                 
-                html += `
-                    <div class="week-section">
-                        <div class="week-header-main">
-                            <div class="week-title-main${!hasContent ? ' inactive-week' : ''}">
-                                <div class="week-icon">
-                                    ${!hasContent ? `
+                if (!hasContent) {
+                    // Compact inactive week - no week-content div at all
+                    html += `
+                        <div class="week-section inactive-week" id="week-${weekKey}" data-week-key="${weekKey}">
+                            <div class="week-header-main">
+                                <div class="week-title-main inactive-week">
+                                    <div class="week-icon">
                                         <svg viewBox="0 0 24 24" style="opacity: 1;">
                                             <!-- Circle with X - clear inactive indicator -->
                                             <circle cx="12" cy="12" r="10" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
                                             <path d="M8 8l8 8M16 8l-8 8" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
                                         </svg>
-                                    ` : `
-                                        <svg viewBox="0 0 24 24">
-                                            <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
-                                        </svg>
-                                    `}
+                                    </div>
+                                    W${summary.week}.${summary.year}
+                                </div>
+                                <div class="week-date-range">${formattedRange}</div>
+                            </div>
+                        </div>
+                    `;
+                    return; // Skip to next week
+                }
+                
+                // Active week with content
+                html += `
+                    <div class="week-section" id="week-${weekKey}" data-week-key="${weekKey}">
+                        <div class="week-header-main">
+                            <div class="week-title-main">
+                                <div class="week-icon">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                                    </svg>
                                 </div>
                                 W${summary.week}.${summary.year}
                             </div>
@@ -2786,67 +2926,62 @@
                         <div class="week-content">
                 `;
                 
-                if (!hasContent) {
-                    // Just close the week with no content - the sleep icon in header indicates no activity
-                    html += `</div></div>`;
-                } else {
-                    // Build left column content
-                    let leftColumn = '<div class="content-block">';
-                    let rightColumn = '<div class="content-block">';
-                    
-                    // Add overall activity to left column (skip brief summary for repo view)
+                // Build left column content
+                let leftColumn = '<div class="content-block">';
+                let rightColumn = '<div class="content-block">';
+                
+                // Add overall activity to left column (skip brief summary for repo view)
                     if (summary.overall_activity) {
                         leftColumn += `
                             <div class="content-label">${getSectionIcon('activity')}activity</div>
                             <div class="content-text">${renderMarkdown(summary.overall_activity)}</div>
                         `;
-                    }
-                    
-                    // Add ongoing projects to left column
+                }
+                
+                // Add ongoing projects to left column
                     if (summary.ongoing_projects) {
                         leftColumn += `
                             <div class="content-label">${getSectionIcon('ongoing')}ongoing projects</div>
                             <div class="content-text">${renderMarkdown(summary.ongoing_projects)}</div>
                         `;
-                    }
-                    
-                    // Add priority items to right column
-                    if (summary.priority_items) {
-                        rightColumn += `
-                            <div class="content-label priority-label">${getSectionIcon('priority')}priority items</div>
-                            <div class="priority-text">${renderMarkdown(summary.priority_items)}</div>
+                }
+                
+                // Add new features to left column (after activity)
+                    if (summary.new_features) {
+                        leftColumn += `
+                            <div class="content-label">${getSectionIcon('new features')}new features</div>
+                            <div class="content-text">${renderMarkdown(summary.new_features)}</div>
                         `;
-                    }
-                    
-                    // Add discussions to right column
+                }
+                
+                // Add discussions to right column
                     if (summary.notable_discussions) {
                         rightColumn += `
                             <div class="content-label">${getSectionIcon('discussions')}discussions</div>
                             <div class="content-text">${renderMarkdown(summary.notable_discussions)}</div>
                         `;
-                    }
-                    
-                    // Add contributors to right column
+                }
+                
+                // Add contributors to right column
                     if (summary.contributors) {
                         rightColumn += `
                             <div class="content-label">${getSectionIcon('contributors')}contributors</div>
                             <div class="content-text">${renderMarkdown(summary.contributors)}</div>
                         `;
-                    }
-                    
-                    // Add issues if available
+                }
+                
+                // Add issues if available
                     if (summary.good_first_issues) {
                         rightColumn += `
                             <div class="content-label">${getSectionIcon('issues')}good first issues</div>
                             <div class="content-text">${renderMarkdown(summary.good_first_issues)}</div>
                         `;
-                    }
-                    
-                    leftColumn += '</div>';
-                    rightColumn += '</div>';
-                    
-                    html += leftColumn + rightColumn;
                 }
+                
+                leftColumn += '</div>';
+                rightColumn += '</div>';
+                
+                html += leftColumn + rightColumn;
                 html += `
                         </div>
                     </div>
@@ -2863,13 +2998,22 @@
             // Setup scroll handler after content is rendered
             setTimeout(() => {
                 console.log('Setting up repo scroll handler (delayed)');
+                
+                // Verify week sections exist with data attributes
+                const weekSections = document.querySelectorAll('.week-section[data-week-key]');
+                console.log('Found week sections with data-week-key:', weekSections.length);
+                weekSections.forEach((section, i) => {
+                    console.log(`  Week ${i}: ${section.dataset.weekKey}`);
+                });
+                
                 setupRepoScrollHandler();
                 
-                // Test scroll detection immediately
-                setTimeout(() => {
-                    console.log('Testing scroll detection...');
-                    updateRepoTimelineHighlight();
-                }, 500);
+                // Trigger initial detection
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent && mainContent._repoScrollHandler) {
+                    console.log('Triggering initial scroll detection');
+                    mainContent._repoScrollHandler();
+                }
                 
                 // Scroll to week if specified in URL
                 if (currentWeekKey) {
@@ -2896,12 +3040,8 @@
             // Remove repository view indicator
             updateRepositoryViewIndicator(null);
             
-            // Restore normal scroll handler
-            const mainContent = document.querySelector('.main-content');
-            if (mainContent) {
-                mainContent.removeEventListener('scroll', updateRepoTimelineHighlight);
-                mainContent.addEventListener('scroll', updateTimelineHighlight);
-            }
+            // Clean up repo scroll handler
+            cleanupRepoScrollHandler();
             
             // Return to the timeline view
             await displayAllWeeks();
@@ -2919,7 +3059,7 @@
             const contentFields = [
                 'overall_activity', 'brief_summary',
                 'ongoing_projects', 'ongoing_summary',
-                'priority_items', 'priority_summary',
+                'new_features', 'new_features_summary',
                 'notable_discussions', 'discussions_summary',
                 'emerging_trends', 'trends_summary',
                 'good_first_issues', 'issues_summary',
@@ -3075,8 +3215,36 @@
                 });
             }
             
-            // Repository activity summaries (FIRST)
             const singleRepo = filteredRepos.length === 1;
+            
+            // New Features (FIRST - right after overview)
+            const newFeaturesRepos = filteredRepos.filter(repo => repo.new_features || repo.new_features_summary);
+            
+            if (newFeaturesRepos.length > 0) {
+                leftColumn += `<div class="content-block">`;
+                leftColumn += `<div class="content-label">${getSectionIcon('new features')}new features</div>`;
+                
+                if (singleRepo && newFeaturesRepos[0].new_features_summary) {
+                    leftColumn += `<div class="section-summary">${newFeaturesRepos[0].new_features_summary}</div>`;
+                }
+                
+                newFeaturesRepos.forEach(repo => {
+                    if (!singleRepo && repo.new_features_summary) {
+                        const [org, name] = repo.repo_full.split('/');
+                        const commitLink = getCommitRangeLink(repo);
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.new_features_summary)}`;
+                        leftColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                    }
+                    
+                    if (repo.new_features) {
+                        leftColumn += `<div class="content-text">${renderMarkdown(repo.new_features)}</div>`;
+                    }
+                });
+                
+                leftColumn += `</div>`;
+            }
+            
+            // Repository activity summaries (SECOND - after new features)
             const activityRepos = filteredRepos.filter(repo => repo.brief_summary || repo.overall_activity);
             
             if (activityRepos.length > 0) {
@@ -3091,8 +3259,9 @@
                 activityRepos.forEach(repo => {
                     if (!singleRepo && repo.brief_summary) {
                         const [org, name] = repo.repo_full.split('/');
-                        // Integrate repo name into the summary text
-                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.brief_summary)}`;
+                        // Integrate repo name into the summary text with commit range
+                        const commitLink = getCommitRangeLink(repo);
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.brief_summary)}`;
                         leftColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
                     }
                     
@@ -3104,7 +3273,7 @@
                 leftColumn += `</div>`;
             }
             
-            // Ongoing projects (SECOND)
+            // Ongoing projects (THIRD - after activity)
             const ongoingRepos = filteredRepos.filter(repo => repo.ongoing_projects || repo.ongoing_summary);
             
             if (ongoingRepos.length > 0) {
@@ -3118,7 +3287,8 @@
                 ongoingRepos.forEach(repo => {
                     if (!singleRepo && repo.ongoing_summary) {
                         const [org, name] = repo.repo_full.split('/');
-                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.ongoing_summary)}`;
+                        const commitLink = getCommitRangeLink(repo);
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.ongoing_summary)}`;
                         leftColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
                     }
                     
@@ -3130,33 +3300,7 @@
                 leftColumn += `</div>`;
             }
             
-            // Right column - Priorities, Contributors, Discussions
-            
-            // Repository priority items (THIRD)
-            const priorityRepos = filteredRepos.filter(repo => repo.priority_items || repo.priority_summary);
-            
-            if (priorityRepos.length > 0) {
-                rightColumn += `<div class="content-block">`;
-                rightColumn += `<div class="content-label">${getSectionIcon('priorities')}priorities</div>`;
-                
-                if (singleRepo && priorityRepos[0].priority_summary) {
-                    rightColumn += `<div class="section-summary">${priorityRepos[0].priority_summary}</div>`;
-                }
-                
-                priorityRepos.forEach(repo => {
-                    if (!singleRepo && repo.priority_summary) {
-                        const [org, name] = repo.repo_full.split('/');
-                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.priority_summary)}`;
-                        rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
-                    }
-                    
-                    if (repo.priority_items) {
-                        rightColumn += `<div class="priority-text">${renderMarkdown(repo.priority_items)}</div>`;
-                    }
-                });
-                
-                rightColumn += `</div>`;
-            }
+            // Right column - Contributors, Discussions
             
             // Contributors (FOURTH)
             const contributorRepos = filteredRepos.filter(repo => repo.contributors || repo.contributors_summary);
@@ -3172,7 +3316,8 @@
                 contributorRepos.forEach(repo => {
                     if (!singleRepo && repo.contributors_summary) {
                         const [org, name] = repo.repo_full.split('/');
-                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.contributors_summary)}`;
+                        const commitLink = getCommitRangeLink(repo);
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.contributors_summary)}`;
                         rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
                     }
                     
@@ -3198,7 +3343,8 @@
                 discussionRepos.forEach(repo => {
                     if (!singleRepo && repo.discussions_summary) {
                         const [org, name] = repo.repo_full.split('/');
-                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.discussions_summary)}`;
+                        const commitLink = getCommitRangeLink(repo);
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.discussions_summary)}`;
                         rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
                     }
                     
@@ -3224,7 +3370,8 @@
                 issueRepos.forEach(repo => {
                     if (!singleRepo && repo.issues_summary) {
                         const [org, name] = repo.repo_full.split('/');
-                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>: ${renderMarkdown(repo.issues_summary)}`;
+                        const commitLink = getCommitRangeLink(repo);
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.issues_summary)}`;
                         rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
                     }
                     
@@ -3282,11 +3429,19 @@
             let leftColumn = '';
             let rightColumn = '';
             
-            // Left column - Overview and Cross-Repository Work
+            // Left column - Overview, New Features, Cross-Repository Work, Key Projects
             if (weeklySummary.group_overview) {
                 leftColumn += `<div class="content-block">`;
                 leftColumn += `<div class="content-label">${getSectionIcon('overview')}overview</div>`;
                 leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.group_overview)}</div>`;
+                leftColumn += `</div>`;
+            }
+            
+            // New Features - prominently placed after overview
+            if (weeklySummary.new_features) {
+                leftColumn += `<div class="content-block">`;
+                leftColumn += `<div class="content-label">${getSectionIcon('new features')}new features</div>`;
+                leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.new_features)}</div>`;
                 leftColumn += `</div>`;
             }
             
@@ -3304,13 +3459,7 @@
                 leftColumn += `</div>`;
             }
             
-            // Right column - Priorities, Discussions, Trends
-            if (weeklySummary.priority_items) {
-                rightColumn += `<div class="content-block">`;
-                rightColumn += `<div class="content-label">${getSectionIcon('priorities')}priorities</div>`;
-                rightColumn += `<div class="priority-text">${renderMarkdown(weeklySummary.priority_items)}</div>`;
-                rightColumn += `</div>`;
-            }
+            // Right column - Discussions, Trends
             
             if (weeklySummary.notable_discussions) {
                 rightColumn += `<div class="content-block">`;
@@ -3420,92 +3569,91 @@
             console.log('Timeline populated with HTML length:', html.length);
         }
         
-        // Setup scroll handler for repository view
+        // Setup scroll handler for repository view (same approach as main timeline)
         function setupRepoScrollHandler() {
             const mainContent = document.querySelector('.main-content');
+            console.log('Setting up repo scroll handler, mainContent found:', !!mainContent);
+            
             if (!mainContent) {
-                console.log('Main content not found for repo scroll handler');
+                console.error('Main content not found for repo scroll handler');
                 return;
             }
             
-            // Remove existing scroll listeners to avoid duplicates
+            // Remove any existing scroll listeners
             mainContent.removeEventListener('scroll', updateTimelineHighlight);
-            mainContent.removeEventListener('scroll', updateRepoTimelineHighlight);
             
-            // Add new scroll listener for repo view
-            mainContent.addEventListener('scroll', updateRepoTimelineHighlight);
-            console.log('Repo scroll handler setup complete');
+            // Add repo-specific scroll listener
+            const repoScrollHandler = () => {
+                console.log('Repo scroll handler called, currentRepoView:', currentRepoView);
+                if (!currentRepoView) {
+                    console.log('Not in repo view, skipping');
+                    return;
+                }
+                
+                const weekSections = document.querySelectorAll('.week-section[data-week-key]');
+                console.log('Week sections found in scroll handler:', weekSections.length);
+                
+                let visibleWeekKey = null;
+                const mainRect = mainContent.getBoundingClientRect();
+                console.log('Main content rect:', mainRect);
+                
+                weekSections.forEach((section, index) => {
+                    const rect = section.getBoundingClientRect();
+                    const weekKey = section.dataset.weekKey;
+                    const isVisible = rect.top <= mainRect.top + 100 && rect.bottom > mainRect.top + 100;
+                    
+                    if (index < 3) { // Log first few for debugging
+                        console.log(`Week ${weekKey}: top=${rect.top}, bottom=${rect.bottom}, mainTop=${mainRect.top}, visible=${isVisible}`);
+                    }
+                    
+                    // Same logic as main timeline
+                    if (isVisible) {
+                        visibleWeekKey = weekKey;
+                        console.log('Found visible week:', visibleWeekKey);
+                    }
+                });
+                
+                // Update if changed
+                if (visibleWeekKey && currentWeekKey !== visibleWeekKey) {
+                    console.log('Repo view - updating week from', currentWeekKey, 'to:', visibleWeekKey);
+                    currentWeekKey = visibleWeekKey;
+                    updateURL(true); // Use replaceState for scroll updates
+                    
+                    // Update timeline highlighting
+                    document.querySelectorAll('.timeline-week').forEach(week => {
+                        week.classList.remove('active');
+                    });
+                    
+                    const activeWeek = document.querySelector(`.timeline-week[data-week-key="${visibleWeekKey}"]`);
+                    if (activeWeek) {
+                        activeWeek.classList.add('active');
+                        console.log('Timeline week highlighted:', visibleWeekKey);
+                    } else {
+                        console.log('Could not find timeline week for:', visibleWeekKey);
+                    }
+                }
+            };
+            
+            mainContent.addEventListener('scroll', repoScrollHandler);
+            console.log('Repo scroll handler attached');
+            
+            // Store reference for cleanup
+            mainContent._repoScrollHandler = repoScrollHandler;
         }
         
-        // Update timeline highlight for repository view
-        function updateRepoTimelineHighlight() {
-            console.log('updateRepoTimelineHighlight called, currentRepoView:', currentRepoView);
-            if (!currentRepoView) {
-                console.log('Not in repo view, skipping timeline highlight');
-                return; // Only run when in repo view
-            }
-            
+        // Clean up repo scroll handler when exiting repo view
+        function cleanupRepoScrollHandler() {
             const mainContent = document.querySelector('.main-content');
-            const weekSections = document.querySelectorAll('.week-section');
-            
-            console.log('Found main content:', !!mainContent, 'Week sections:', weekSections.length);
-            
-            if (!mainContent || weekSections.length === 0) {
-                console.log('Main content or week sections not found for timeline highlight');
-                return;
-            }
-            
-            let visibleWeekKey = null;
-            const scrollTop = mainContent.scrollTop;
-            const viewportHeight = mainContent.clientHeight;
-            
-            console.log('Scroll position:', scrollTop, 'Viewport height:', viewportHeight);
-            
-            // Find the week section that's most visible in the viewport
-            weekSections.forEach((section, index) => {
-                const rect = section.getBoundingClientRect();
-                const mainRect = mainContent.getBoundingClientRect();
-                const weekKey = section.dataset.weekKey;
+            if (mainContent && mainContent._repoScrollHandler) {
+                mainContent.removeEventListener('scroll', mainContent._repoScrollHandler);
+                delete mainContent._repoScrollHandler;
+                console.log('Repo scroll handler cleaned up');
                 
-                console.log(`Week ${index} (${weekKey}):`, {
-                    top: rect.top,
-                    bottom: rect.bottom,
-                    mainTop: mainRect.top,
-                    inViewport: rect.top <= mainRect.top + 200 && rect.bottom >= mainRect.top + 100
+                // Restore main timeline scroll handler
+                mainContent.addEventListener('scroll', () => {
+                    updateTimelineHighlight();
                 });
-                
-                // Check if section is in viewport (with some offset)
-                if (rect.top <= mainRect.top + 200 && rect.bottom >= mainRect.top + 100) {
-                    visibleWeekKey = weekKey;
-                    console.log('Visible week found:', visibleWeekKey);
-                }
-            });
-            
-            if (visibleWeekKey && currentWeekKey !== visibleWeekKey) {
-                console.log('Updating current week from', currentWeekKey, 'to:', visibleWeekKey);
-                currentWeekKey = visibleWeekKey;
-                updateURL(true); // Use replaceState for scroll updates
-                
-                // Update timeline highlighting
-                const timelineWeeks = document.querySelectorAll('.timeline-week');
-                console.log('Found timeline weeks:', timelineWeeks.length);
-                
-                timelineWeeks.forEach(week => {
-                    week.classList.remove('active');
-                });
-                
-                const activeWeek = document.querySelector(`.timeline-week[data-week-key="${visibleWeekKey}"]`);
-                if (activeWeek) {
-                    activeWeek.classList.add('active');
-                    console.log('Timeline week highlighted:', visibleWeekKey);
-                } else {
-                    console.log('Timeline week element not found for:', visibleWeekKey);
-                    console.log('Available timeline weeks:', Array.from(timelineWeeks).map(w => w.dataset.weekKey));
-                }
-            } else if (visibleWeekKey) {
-                console.log('Week already current:', visibleWeekKey);
-            } else {
-                console.log('No visible week found');
+                console.log('Main timeline scroll handler restored');
             }
         }
         
