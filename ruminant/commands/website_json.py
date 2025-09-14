@@ -207,9 +207,11 @@ def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict
 def calculate_activity_level(reports: List[Dict], groups: List[Dict], weekly_summary: Optional[Dict] = None) -> int:
     """Calculate activity level for a week."""
     level = 0
-    
+
     # Count individual summary content
     for report in reports:
+        if report.get('new_features'):
+            level += 4  # High value for new features
         if report.get('overall_activity'):
             level += 2
         if report.get('ongoing_projects'):
@@ -285,8 +287,10 @@ def generate_week_detail(week_key: str, reports: List[Dict], groups: List[Dict],
             'total_repos': len(reports),
             'total_groups': len(groups),
             'has_weekly_summary': weekly_summary is not None,
+            'has_new_features': any(r.get('new_features') for r in reports),
             'has_priority_items': any(r.get('priority_items') for r in reports) or any(g.get('priority_items') for g in groups) or (weekly_summary and weekly_summary.get('priority_items')),
-            'has_emerging_trends': any(r.get('emerging_trends') for r in reports) or any(g.get('emerging_trends') for g in groups) or (weekly_summary and weekly_summary.get('emerging_trends'))
+            'has_emerging_trends': any(r.get('emerging_trends') for r in reports) or any(g.get('emerging_trends') for g in groups) or (weekly_summary and weekly_summary.get('emerging_trends')),
+            'repos_with_commits': sum(1 for r in reports if r.get('start_commit') and r.get('end_commit'))
         }
     }
 
@@ -314,9 +318,12 @@ def generate_repositories_index(repo_data: Dict[str, List[Dict]]) -> Dict[str, A
                 'week': s['week'],
                 'week_key': f"{s['year']}-{s['week']:02d}",
                 'week_range': s.get('week_range'),
+                'has_new_features': bool(s.get('new_features')),
                 'has_activity': bool(s.get('overall_activity')),
                 'has_priority': bool(s.get('priority_items')),
-                'has_ongoing': bool(s.get('ongoing_projects'))
+                'has_ongoing': bool(s.get('ongoing_projects')),
+                'start_commit': s.get('start_commit'),
+                'end_commit': s.get('end_commit')
             } for s in sorted_summaries]
         }
     

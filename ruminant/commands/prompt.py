@@ -124,19 +124,18 @@ def generate_prompt(repo: str, year: int, week: int, config) -> dict:
         # Calculate weekly statistics for context
         week_stats = calculate_weekly_stats(original_data, week_start, week_end)
         
-        # Check if git repository is available (unless skipped)
+        # Check if git repository is available (always check now)
         owner, name = parse_repo(repo)
         git_repo_path = Path("data/git") / owner / name
         git_mirror_path = git_repo_path / ".git"
         git_available = None
-        
-        # Only check for git repo if not configured to skip
-        if not config.should_skip_git_analysis(repo):
-            # Check for mirror clone first (preferred for analysis)
-            if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
-                git_available = (git_mirror_path, "mirror")
-            elif git_repo_path.exists() and (git_repo_path / ".git").exists():
-                git_available = (git_repo_path, "regular")
+
+        # Always check for git repo (removed skip logic)
+        # Check for mirror clone first (preferred for analysis)
+        if git_mirror_path.exists() and not (git_mirror_path / ".git").exists():
+            git_available = (git_mirror_path, "mirror")
+        elif git_repo_path.exists() and (git_repo_path / ".git").exists():
+            git_available = (git_repo_path, "regular")
         
         # Get file paths
         ensure_repo_dirs(repo)
@@ -158,22 +157,67 @@ def generate_prompt(repo: str, year: int, week: int, config) -> dict:
             git_path, git_type = git_available
             git_section = f"""
 GIT REPOSITORY AVAILABLE:
-A git {'mirror' if git_type == 'mirror' else 'regular'} clone is available at: {git_path}
+A {'bare mirrored' if git_type == 'mirror' else 'regular'} git repository is available at: {git_path}
+NOTE: This is a bare mirrored checkout - it contains only git metadata, not working files.
 
-You should analyze commits that may not be covered by PRs:
-1. Run git log to find ALL commits during the week:
+NEW FEATURES ANALYSIS:
+You MUST analyze the git repository to identify new user-facing features introduced this week.
+
+1. First, identify the default branch (usually 'main' or 'master' or 'trunk/):
    ```bash
-   {'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} log --oneline --all --since="{week_start.strftime('%Y-%m-%d')}" --until="{week_end.strftime('%Y-%m-%d')}" --format="%h %s (%an)"
+   # Check for main or master branches:
+   {'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} show-ref | grep -E "/(main|master|trunk)$" | head -1
    ```
 
-2. Identify commits not associated with PRs, especially:
-   - Direct commits to main/master branches
-   - Maintenance commits (version bumps, changelog updates)
-   - Documentation updates
-   - Emergency fixes or hotfixes
-   - Automated bot commits
+2. Get commits for the week and find boundary commits:
+   ```bash
+   # Get all commits in the week range on the main branch
+   {'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} log main --since="{week_start.strftime('%Y-%m-%d')}" --until="{week_end.strftime('%Y-%m-%d')} 23:59:59" --format="%H %ai %s"
 
-3. Include significant direct commits in your summary, noting they were made without PRs.
+   # Get the first commit of the week (oldest) - CAPTURE THIS AS start_commit
+   FIRST=`{'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} rev-list --since="{week_start.strftime('%Y-%m-%d')}" --until="{week_end.strftime('%Y-%m-%d')} 23:59:59" HEAD | tail -1`
+
+   # Get the last commit of the week (newest) - CAPTURE THIS AS end_commit
+   LAST=`{'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} rev-list --since="{week_start.strftime('%Y-%m-%d')}" --until="{week_end.strftime('%Y-%m-%d')} 23:59:59" HEAD | head -1`
+
+   # IMPORTANT: Save $FIRST and $LAST as start_commit and end_commit in your JSON output
+   ```
+
+3. Generate a comprehensive diff for the week:
+   ```bash
+   # Use the commit hashes to generate diff (more reliable than date references)
+   # Note: Use $FIRST^ to include changes from the first commit itself
+   {'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} diff --stat $FIRST^..$LAST
+
+   # For detailed file changes
+   {'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} diff $FIRST^..$LAST -- '*.md' '**/docs/*' CHANGES* README* changelog* CHANGELOG*
+   ```
+
+4. Analyze API and code changes:
+   ```bash
+   # Look for API changes in interface files (language-specific)
+   {'git --git-dir=' + str(git_path) if git_type == 'mirror' else 'cd ' + str(git_path) + ' && git'} diff $FIRST^..$LAST -- *.mli *.ml'
+   ```
+
+5. For each significant change identified:
+   - Determine if it's user-facing (affects APIs, CLIs, documentation, examples)
+   - Cross-reference with the PR/issue data to find the associated PR number
+   - If no PR is found, use the commit hash for direct linking
+   - Pay special attention to:
+     * New command-line flags or options
+     * New API functions or modules
+     * Breaking changes mentioned in documentation
+     * New examples or tutorials added
+     * Configuration changes
+     * Performance improvements mentioned in commit messages
+
+TROUBLESHOOTING GIT ANALYSIS:
+- For bare repos, use --git-dir=path/.git instead of cd path
+- The working directory may be the repo itself - check with pwd first
+- Use HEAD instead of main/master/trunk if branch detection fails
+- Include 23:59:59 in --until dates to capture full day
+
+CRITICAL: Do NOT analyze commits from other branches, forks, or unrelated repositories. Only look at the main/master branch of this specific repository.
 """
         
         # Build the detailed prompt
@@ -217,14 +261,19 @@ IMPORTANT: These statistics are provided for your understanding of the week's sc
 
 The report should include the following sections:
 
-1. A concise summary of the overall activity and key themes (MUST use bullet points)
-2. The most important ongoing projects or initiatives based on the data (MUST use bullet points)
-3. Prioritized issues and PRs that need immediate attention (MUST use bullet points)
+1. NEW FEATURES - User-facing changes introduced this week (MUST use bullet points, analyze git diff, prioritize code features over documentation)
+2. A concise summary of the overall activity and key themes (MUST use bullet points)
+3. The most important ongoing projects or initiatives based on the data (MUST use bullet points)
 4. Notable discussions that should be highlighted (MUST use bullet points)
 5. Identify any emerging trends or patterns in development (MUST use bullet points)
 6. Good first issues for new contributors (MUST use bullet points)
+7. Contributors - Factual description of who did what (code, reviews, comments, discussions) without competition or rankings
 
 CRITICAL REQUIREMENTS:
+- NEW FEATURES section is now FIRST and REQUIRED when git repository is available
+- NEW FEATURES must be derived from git diff analysis, focusing on user-facing changes
+- Each new feature MUST link to its PR (if found) or commit hash (format: [commit_hash](https://github.com/{repo}/commit/hash))
+- Focus particularly on documentation changes, API additions, CLI changes, and example code
 - ALL sections MUST use bullet point format (starting with "-" or "*") for consistency and readability
 - SKIP any section entirely if there is no meaningful content for it
 - DO NOT include aggregate statistics (number of PRs merged, issues opened, etc.) - the UI provides these separately
@@ -311,14 +360,19 @@ REMEMBER TO:
 
 ACTION REQUIRED:
 1. Read the GitHub activity data from the JSON file: {cache_file}
-2. Generate a JSON report with the following structure:
+2. If a git repository is available, analyze the git diff for the week to identify new features
+3. Generate a JSON report with the following structure:
 
 {{
   "week": {week},
   "year": {year},
   "repo": "{repo}",
   "week_range": "{week_range_str}",
+  "start_commit": "The SHA of the first commit in this week's range (from git analysis) - set to null if no git repo available",
+  "end_commit": "The SHA of the last commit in this week's range (from git analysis) - set to null if no git repo available",
   "brief_summary": "A single sentence (max 150 chars) summarizing the most important activity this week - set to null if NO activity",
+  "new_features_summary": "One sentence (max 150 chars) listing key new user-facing features - set to null if no new features",
+  "new_features": "Markdown content listing new user-facing features from git diff analysis - MUST link to PR or commit - set to null if none",
   "overall_activity": "Markdown content for overall activity summary - set to null if no activity exists",
   "ongoing_summary": "One sentence (max 150 chars) summarizing ongoing projects - set to null if no ongoing projects exist",
   "ongoing_projects": "Markdown content for key ongoing projects - set to null if no ongoing projects exist",
@@ -330,8 +384,8 @@ ACTION REQUIRED:
   "emerging_trends": "Markdown content for emerging trends - set to null if no clear trends exist",
   "issues_summary": "One sentence (max 150 chars) about good first issues - set to null if none available",
   "good_first_issues": "Markdown content for good first issues - set to null if no good first issues exist",
-  "contributors_summary": "One sentence (max 150 chars) highlighting key contributors - set to null if no contributors",
-  "contributors": "Markdown content for contributors - set to null if no contributors this week"
+  "contributors_summary": "One sentence (max 150 chars) factually describing contributor activity - set to null if no contributors",
+  "contributors": "Markdown content detailing who contributed what (code, reviews, comments, discussions) - NO competition/rankings - set to null if no contributors this week"
 }}
 
 IMPORTANT JSON FORMATTING RULES:
@@ -346,24 +400,75 @@ IMPORTANT JSON FORMATTING RULES:
   - Bullet points for organization
   - Clickable links for all PR/issue references (e.g., [#1234](https://github.com/{repo}/issues/1234))
   - Properly formatted user mentions with links (e.g., [Full Name](https://github.com/username) or [@username](https://github.com/username))
-- Ensure proper JSON escaping for special characters in the markdown content
-- The JSON must be valid and properly formatted
 
-3. Write the complete JSON report to: {summary_file}
-4. Return a confirmation message that the file was written successfully
+CRITICAL JSON ESCAPING REQUIREMENTS:
+- ALL text content MUST be properly escaped for valid JSON
+- Backslashes MUST be escaped as \\\\ (double backslash)
+- Backticks in text like "eliminating unnecessary \\`caml_modify\\`s" MUST be properly escaped
+- Double quotes within strings MUST be escaped as \\"
+- Newlines should be represented as \\n
+- Tab characters should be represented as \\t
+- Do NOT use raw backticks or unescaped special characters in the JSON string values
+- Example: "eliminating unnecessary \\`caml_modify\\`s" NOT "eliminating unnecessary `caml_modify`s"
+- The JSON MUST be valid and parseable by standard JSON parsers like jq
 
-Remember: 
+NO SIZE LIMIT FOR SUMMARIES:
+- There is NO character or size limit for the summary content
+- Include as many bullet points as necessary to capture ALL significant activity for the week
+- Do not truncate or abbreviate the summary to save space
+- Every meaningful PR, issue, discussion, and contribution should be included
+- The goal is comprehensive coverage of the week's activity, not brevity
+
+4. Write the complete JSON report to: {summary_file}
+5. Return a confirmation message that the file was written successfully
+
+NEW FEATURES SECTION GUIDELINES:
+- MUST analyze git diff to find user-facing changes
+- PRIORITIZE features in this order:
+  1. New code features, APIs, and functionality
+  2. Bug fixes that affect user experience
+  3. Performance improvements
+  4. Documentation updates and manual improvements (list these AFTER code features)
+- Each feature bullet point should follow this format:
+  * Brief description of the feature [#PR](link) or [commit](link)
+  * Focus on: new CLI commands/flags, new APIs, bug fixes, performance improvements
+  * Example: "- New `--parallel` flag for build command improves compilation speed [#1234](https://github.com/{repo}/issues/1234)"
+  * Example: "- Fixed memory leak in request handler affecting long-running processes [8a1b2c3](https://github.com/{repo}/commit/8a1b2c3)"
+  * Documentation example (comes AFTER code features): "- Updated installation guide with troubleshooting section [9b2c3d4](https://github.com/{repo}/commit/9b2c3d4)"
+- If analyzing from git diff without a PR, use commit hash for linking
+- Group similar features together (all code features first, then documentation)
+
+CONTRIBUTORS SECTION GUIDELINES:
+- Be FACTUAL and COMPREHENSIVE - describe what each person actually did
+- NEVER make it a competition or ranking (avoid "top contributor", "most active", counting PRs)
+- Include ALL forms of contribution:
+  * Code contributions (PRs merged, commits)
+  * Code reviews and review comments
+  * Issue creation and triage
+  * Discussion participation
+  * Documentation improvements
+  * Testing and bug reports
+- Format example:
+  * "- [Jane Doe](https://github.com/janedoe) implemented the new authentication system ([#123](link)), reviewed database optimizations ([#124](link)), and participated in API design discussions ([#125](link))"
+  * "- [@johndoe](https://github.com/johndoe) fixed critical bugs in the parser ([#126](link), [#127](link)) and provided extensive review feedback on the LLVM backend changes"
+- Group by person, not by contribution type
+- Focus on the substance of contributions, not metrics
+
+Remember:
 - ALL sections MUST use bullet point format - this is mandatory for consistency
 - Set BOTH summary AND content fields to null for sections with no activity
 - ABSOLUTELY NEVER write phrases like "No activity recorded" - use null instead
 - If the entire repository had zero activity, set ALL fields to null (every single field)
 - Each section is independent - if ongoing_projects has no content, set both ongoing_summary AND ongoing_projects to null
 - Summary fields should be concise sentences (max 150 chars) that capture the essence of that section
+- Content fields have NO size limit - include ALL relevant activity with as many bullet points as needed
 - EVERY bullet point in the markdown content must include clickable PR/issue links for reader follow-up
 - Check data/users/[username].json files to get full names for user mentions
 - Format all GitHub references as proper markdown links
 - Use GitHub MCP server tools if you need additional information about specific PRs/issues
 - The output file MUST be written with the complete JSON summary
+- CRITICAL: Properly escape ALL special characters for valid JSON (backticks, quotes, backslashes, etc.)
+- Example of proper escaping: "eliminating unnecessary \\`caml_modify\\`s" NOT "eliminating unnecessary `caml_modify`s"
 
 IMPORTANT: You must use the Read tool to load and analyze the data from {cache_file}
 
@@ -372,9 +477,9 @@ FINAL VERIFICATION STEP - ABSOLUTELY CRITICAL:
 Before writing your final JSON output to the file, you MUST perform this comprehensive link verification:
 
 1. **SCAN EVERY SECTION** of your generated content systematically:
+   - new_features (PRIORITY - must link to PRs or commits)
    - overall_activity
    - ongoing_projects
-   - priority_items
    - notable_discussions
    - emerging_trends
    - good_first_issues
@@ -396,7 +501,6 @@ Before writing your final JSON output to the file, you MUST perform this compreh
 
 4. **DOUBLE-CHECK THESE AREAS** (often missed):
    - Contributors mentioned in passing (not just main authors)
-   - Issue numbers in priority_items section
    - Repository references in cross-repository mentions
    - PR numbers mentioned in emerging_trends
    - All usernames in notable_discussions
@@ -546,20 +650,23 @@ Generate a JSON report with the following structure:
   "week_range": "{week_range_str}",
   "repositories_included": {json.dumps(available_repos)},
   "short_summary": "A 1-2 sentence SPECIFIC summary mentioning actual features/fixes/changes suitable for calendar previews (max 200 chars)",
+  "new_features_summary": "One sentence (max 150 chars) listing key new user-facing features across all repos - set to null if no new features",
+  "new_features": "Markdown content listing new user-facing features from all repos - prioritize code features over docs - MUST link to PR or commit - set to null if none",
   "overall_activity": "Comprehensive markdown summary of activity across all repos (MUST use bullet points with specific PR/issue references)",
   "key_achievements": "Major accomplishments and milestones across repos (MUST use bullet points with specific PR/issue references)",
   "ongoing_initiatives": "Cross-repository projects and coordinated efforts (MUST use bullet points with specific PR/issue references)",
-  "priority_items": "Critical issues and PRs needing attention across repos (MUST use bullet points with specific PR/issue references)",
   "notable_discussions": "Important discussions that affect multiple repos or the ecosystem (MUST use bullet points with discussion/issue references)",
   "emerging_patterns": "Trends and patterns observed across repositories (MUST use bullet points with example PR/issue references)",
   "ecosystem_health": "Overall assessment of the ecosystem's development health (MUST use bullet points with supporting PR/issue references)",
-  "contributors_spotlight": "Notable contributors and their cross-repository contributions"
+  "contributors_spotlight": "Factual description of contributors and their activities across repositories (code, reviews, discussions) - NO competition/rankings"
 }}
 
 FORMATTING REQUIREMENTS:
 - short_summary: MUST be specific (e.g., "DWARF debugging in oxcaml, dune pkg parallelism fixes, LLVM backend progress" NOT "Active development across ecosystem")
 - short_summary: Avoid hyperbolic terms like "major", "significant", "massive", "critical", "groundbreaking" - use specific feature/fix names
 - short_summary: Keep under 200 characters, no markdown, suitable for calendar previews
+- Content fields have NO size limit - include ALL relevant activity with as many bullet points as needed
+- Do not truncate or abbreviate - comprehensive coverage is the goal
 
 TONE AND LANGUAGE REQUIREMENTS:
 - Use factual, objective language throughout all sections
@@ -575,7 +682,29 @@ TONE AND LANGUAGE REQUIREMENTS:
 - Include multiple PR/issue references per bullet point when describing related work
 - User mentions should be formatted as [Full Name](https://github.com/username) when name is available in data/users/
 - If a section has no meaningful content, set its value to null
-- Ensure proper JSON escaping for special characters
+
+CRITICAL JSON ESCAPING REQUIREMENTS:
+- ALL text content MUST be properly escaped for valid JSON
+- Backslashes MUST be escaped as \\\\ (double backslash)
+- Backticks in text like "eliminating unnecessary \\`caml_modify\\`s" MUST be properly escaped
+- Double quotes within strings MUST be escaped as \\"
+- Newlines should be represented as \\n
+- Tab characters should be represented as \\t
+- Do NOT use raw backticks or unescaped special characters in the JSON string values
+- Example: "eliminating unnecessary \\`caml_modify\\`s" NOT "eliminating unnecessary `caml_modify`s"
+- The JSON MUST be valid and parseable by standard JSON parsers like jq
+
+NEW FEATURES SECTION GUIDELINES:
+- Extract new_features from each repository's summary
+- PRIORITIZE features in this order:
+  1. New code features, APIs, and functionality
+  2. Bug fixes that affect user experience
+  3. Performance improvements
+  4. Documentation updates and manual improvements (list these AFTER code features)
+- Format as: "- [Repository] Feature description [#PR](link) or [commit](link)"
+- Example: "- [@ocaml/dune](https://github.com/ocaml/dune) Added `--parallel` flag for build command [#1234](https://github.com/ocaml/dune/issues/1234)"
+- Group similar features together (all code features first, then documentation)
+- Include repository name prefix for clarity
 
 SYNTHESIS GUIDELINES:
 - Look for common themes across repositories (e.g., "security improvements in [@ocaml/dune](https://github.com/ocaml/dune) and [@ocaml/opam](https://github.com/ocaml/opam)")
