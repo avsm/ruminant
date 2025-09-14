@@ -101,6 +101,45 @@
             margin-left: 5px;
         }
         
+        .repo-view-indicator {
+            display: flex;
+            align-items: center;
+            margin-left: 10px;
+            padding: 3px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            font-size: 11px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .repo-view-indicator:hover {
+            background: var(--bg-secondary);
+            border-color: var(--text-muted);
+        }
+        
+        .repo-icon {
+            width: 12px;
+            height: 12px;
+            margin-right: 6px;
+            fill: var(--text-muted);
+        }
+        
+        .repo-close {
+            margin-left: 6px;
+            width: 10px;
+            height: 10px;
+            fill: var(--text-muted);
+            opacity: 0.7;
+        }
+        
+        .repo-view-indicator:hover .repo-icon,
+        .repo-view-indicator:hover .repo-close {
+            fill: var(--text-primary);
+        }
+        
         .group-tab {
             color: var(--text-muted);
             font-family: inherit;
@@ -535,6 +574,11 @@
             gap: 8px;
         }
         
+        .week-title-main.inactive-week {
+            opacity: 0.4;
+            color: var(--text-muted);
+        }
+        
         .week-icon {
             width: 16px;
             height: 16px;
@@ -810,6 +854,24 @@
         @keyframes shimmer {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
+        }
+        
+        /* Back button for repo view */
+        .back-button {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            margin-bottom: 15px;
+            transition: all 0.2s;
+        }
+        
+        .back-button:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--text-primary);
         }
         
         .user-tooltip-name {
@@ -1634,6 +1696,7 @@
                 <div class="group-tab active" data-group="all">[ALL]</div>
                 <!-- Groups will be dynamically added here -->
             </div>
+            <div id="repo-view-indicator" class="repo-view-indicator" style="display: none;"></div>
             <div class="repo-dropdown-container">
                 <div class="repo-dropdown-toggle" onclick="toggleRepoDropdown()">
                     <span>REPOS</span>
@@ -1972,20 +2035,36 @@
         // URL management functions
         function updateURL(replaceOnly = false) {
             const params = new URLSearchParams();
-            if (currentEcosystem && currentEcosystem !== 'all') {
-                params.set('group', currentEcosystem);
-            }
-            if (currentWeekKey) {
-                params.set('week', currentWeekKey);
+            
+            // Handle repository view
+            if (currentRepoView) {
+                params.set('repo', currentRepoView);
+                if (currentWeekKey) {
+                    params.set('week', currentWeekKey);
+                }
+            } else {
+                // Handle regular timeline view
+                if (currentEcosystem && currentEcosystem !== 'all') {
+                    params.set('group', currentEcosystem);
+                }
+                if (currentWeekKey) {
+                    params.set('week', currentWeekKey);
+                }
             }
             
             const newURL = params.toString() ? `?${params.toString()}` : window.location.pathname;
             
             // Use replaceState for scroll updates to avoid flooding history
             if (replaceOnly) {
-                window.history.replaceState({ ecosystem: currentEcosystem, week: currentWeekKey }, '', newURL);
+                const state = currentRepoView ? 
+                    { repo: currentRepoView, week: currentWeekKey } : 
+                    { ecosystem: currentEcosystem, week: currentWeekKey };
+                window.history.replaceState(state, '', newURL);
             } else {
-                window.history.pushState({ ecosystem: currentEcosystem, week: currentWeekKey }, '', newURL);
+                const state = currentRepoView ? 
+                    { repo: currentRepoView, week: currentWeekKey } : 
+                    { ecosystem: currentEcosystem, week: currentWeekKey };
+                window.history.pushState(state, '', newURL);
             }
         }
         
@@ -2131,6 +2210,9 @@
             document.getElementById('loading').style.display = 'none';
             
             await displayAllWeeks();
+            
+            // Handle URL parameters (including repo parameter)
+            handleUrlParameters();
             
             // Scroll to week if specified in URL
             if (currentWeekKey) {
@@ -2361,6 +2443,12 @@
         function setupGroupTabs() {
             document.querySelectorAll('.group-tab').forEach(tab => {
                 tab.onclick = async () => {
+                    // Exit repository view if currently viewing one
+                    if (currentRepoView) {
+                        await exitRepoView();
+                        return; // exitRepoView will handle the group switching
+                    }
+                    
                     // Remove active class from all tabs
                     document.querySelectorAll('.group-tab').forEach(t => {
                         t.classList.remove('active');
@@ -2395,10 +2483,14 @@
         
         function scrollToWeek(weekKey) {
             const weekElement = document.getElementById(`week-${weekKey}`);
+            console.log('scrollToWeek called with:', weekKey, 'Element found:', !!weekElement);
             if (weekElement) {
                 weekElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 currentWeekKey = weekKey;
                 updateURL();
+                console.log('Scrolled to week:', weekKey);
+            } else {
+                console.error('Week element not found for ID:', `week-${weekKey}`);
             }
         }
         
@@ -2517,6 +2609,10 @@
             }
         }
         
+        // Cache for loaded repository data
+        let repoDataCache = {};
+        let currentRepoView = null;
+        
         function populateRepoDropdown() {
             const content = document.getElementById('repo-dropdown-content');
             const allRepos = new Set();
@@ -2548,20 +2644,267 @@
                 reposByOrg[org].push(name);
             });
             
-            // Generate HTML
+            // Generate HTML with clickable items that show repo summaries
             let html = '';
             Object.entries(reposByOrg).sort().forEach(([org, repos]) => {
                 html += `
                     <div class="repo-org-group">
                         <div class="repo-org-name">${org}</div>
                         ${repos.sort().map(name => 
-                            `<a href="https://github.com/${org}/${name}" target="_blank" class="repo-item">${name}</a>`
+                            `<a href="javascript:void(0)" onclick="showRepoSummary('${org}/${name}')" class="repo-item">${name}</a>`
                         ).join('')}
                     </div>
                 `;
             });
             
             content.innerHTML = html || '<div style="padding: 8px; color: var(--text-muted);">No repositories found</div>';
+        }
+        
+        async function showRepoSummary(repoFullName) {
+            // Close the dropdown
+            closeRepoDropdown();
+            
+            // Update URL
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('repo', repoFullName);
+            window.history.pushState({ repo: repoFullName }, '', newUrl);
+            
+            // Show loading state
+            const display = document.getElementById('main-display');
+            const originalContent = display.innerHTML;
+            currentRepoView = repoFullName;
+            
+            // Update header to show repository view indicator
+            updateRepositoryViewIndicator(repoFullName);
+            
+            display.innerHTML = `
+                <div class="repo-summary-view">
+                    <div class="loading-indicator">Loading repository data...</div>
+                </div>
+            `;
+            
+            try {
+                // Load repository data (check cache first)
+                let repoData;
+                if (repoDataCache[repoFullName]) {
+                    repoData = repoDataCache[repoFullName];
+                } else {
+                    const safeFilename = repoFullName.replace('/', '_');
+                    const response = await fetch(`repositories/${safeFilename}.json`);
+                    if (response.ok) {
+                        repoData = await response.json();
+                        repoDataCache[repoFullName] = repoData;
+                    } else {
+                        throw new Error('Repository data not found');
+                    }
+                }
+                
+                // Render repository summary
+                renderRepoSummary(repoData);
+                
+            } catch (error) {
+                console.error('Failed to load repository data:', error);
+                display.innerHTML = `
+                    <div class="repo-summary-view">
+                        <div class="error">Failed to load repository data</div>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderRepoSummary(repoData) {
+            const display = document.getElementById('main-display');
+            
+            // Sort summaries by week (newest first) 
+            const sortedSummaries = repoData.summaries.sort((a, b) => {
+                const keyA = `${a.year}-${String(a.week).padStart(2, '0')}`;
+                const keyB = `${b.year}-${String(b.week).padStart(2, '0')}`;
+                return keyB.localeCompare(keyA);
+            });
+            
+            // Start without header - repository info is now in the top bar indicator
+            let html = '';
+            
+            // Use same structure as main timeline
+            html += '<div class="weeks-grid">';
+            
+            // Render each week's summary using the same structure as weekly view
+            sortedSummaries.forEach(summary => {
+                // Format the date range
+                const formatWeekDate = (dateStr) => {
+                    if (!dateStr) return '';
+                    const date = new Date(dateStr);
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const day = date.getDate();
+                    const suffix = day === 1 || day === 21 || day === 31 ? 'st' : 
+                                  day === 2 || day === 22 ? 'nd' : 
+                                  day === 3 || day === 23 ? 'rd' : 'th';
+                    return `${day}${suffix} ${months[date.getMonth()]} ${date.getFullYear()}`;
+                };
+                
+                let formattedRange = '';
+                if (summary.week_range) {
+                    const [startDate, endDate] = summary.week_range.split(' to ');
+                    if (startDate && endDate) {
+                        const startFormatted = formatWeekDate(startDate);
+                        const endFormatted = formatWeekDate(endDate);
+                        
+                        const startParts = startFormatted.split(' ');
+                        const endParts = endFormatted.split(' ');
+                        formattedRange = startParts[1] === endParts[1] && startParts[2] === endParts[2] ? 
+                            `${startParts[0]} - ${endParts[0]} ${endParts[1]} ${endParts[2]}` : 
+                            `${startFormatted} - ${endFormatted}`;
+                    }
+                }
+                
+                // Check if there's any content for this week
+                const hasContent = summary.overall_activity || summary.ongoing_projects || 
+                                 summary.priority_items || summary.notable_discussions || 
+                                 summary.contributors || summary.good_first_issues;
+                
+                html += `
+                    <div class="week-section">
+                        <div class="week-header-main">
+                            <div class="week-title-main${!hasContent ? ' inactive-week' : ''}">
+                                <div class="week-icon">
+                                    ${!hasContent ? `
+                                        <svg viewBox="0 0 24 24" style="opacity: 1;">
+                                            <!-- Circle with X - clear inactive indicator -->
+                                            <circle cx="12" cy="12" r="10" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
+                                            <path d="M8 8l8 8M16 8l-8 8" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
+                                        </svg>
+                                    ` : `
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                                        </svg>
+                                    `}
+                                </div>
+                                W${summary.week}.${summary.year}
+                            </div>
+                            <div class="week-date-range">${formattedRange}</div>
+                        </div>
+                        <div class="week-content">
+                `;
+                
+                if (!hasContent) {
+                    // Just close the week with no content - the sleep icon in header indicates no activity
+                    html += `</div></div>`;
+                } else {
+                    // Build left column content
+                    let leftColumn = '<div class="content-block">';
+                    let rightColumn = '<div class="content-block">';
+                    
+                    // Add overall activity to left column (skip brief summary for repo view)
+                    if (summary.overall_activity) {
+                        leftColumn += `
+                            <div class="content-label">${getSectionIcon('activity')}activity</div>
+                            <div class="content-text">${renderMarkdown(summary.overall_activity)}</div>
+                        `;
+                    }
+                    
+                    // Add ongoing projects to left column
+                    if (summary.ongoing_projects) {
+                        leftColumn += `
+                            <div class="content-label">${getSectionIcon('ongoing')}ongoing projects</div>
+                            <div class="content-text">${renderMarkdown(summary.ongoing_projects)}</div>
+                        `;
+                    }
+                    
+                    // Add priority items to right column
+                    if (summary.priority_items) {
+                        rightColumn += `
+                            <div class="content-label priority-label">${getSectionIcon('priority')}priority items</div>
+                            <div class="priority-text">${renderMarkdown(summary.priority_items)}</div>
+                        `;
+                    }
+                    
+                    // Add discussions to right column
+                    if (summary.notable_discussions) {
+                        rightColumn += `
+                            <div class="content-label">${getSectionIcon('discussions')}discussions</div>
+                            <div class="content-text">${renderMarkdown(summary.notable_discussions)}</div>
+                        `;
+                    }
+                    
+                    // Add contributors to right column
+                    if (summary.contributors) {
+                        rightColumn += `
+                            <div class="content-label">${getSectionIcon('contributors')}contributors</div>
+                            <div class="content-text">${renderMarkdown(summary.contributors)}</div>
+                        `;
+                    }
+                    
+                    // Add issues if available
+                    if (summary.good_first_issues) {
+                        rightColumn += `
+                            <div class="content-label">${getSectionIcon('issues')}good first issues</div>
+                            <div class="content-text">${renderMarkdown(summary.good_first_issues)}</div>
+                        `;
+                    }
+                    
+                    leftColumn += '</div>';
+                    rightColumn += '</div>';
+                    
+                    html += leftColumn + rightColumn;
+                }
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>'; // Close weeks-grid
+            display.innerHTML = html;
+            
+            // Setup timeline for repo view
+            console.log('Setting up repo timeline and scroll handler');
+            populateRepoTimeline(repoData);
+            
+            // Setup scroll handler after content is rendered
+            setTimeout(() => {
+                console.log('Setting up repo scroll handler (delayed)');
+                setupRepoScrollHandler();
+                
+                // Test scroll detection immediately
+                setTimeout(() => {
+                    console.log('Testing scroll detection...');
+                    updateRepoTimelineHighlight();
+                }, 500);
+                
+                // Scroll to week if specified in URL
+                if (currentWeekKey) {
+                    console.log('Scrolling to week:', currentWeekKey);
+                    const weekElement = document.getElementById(`week-${currentWeekKey}`);
+                    if (weekElement) {
+                        weekElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } else {
+                        console.log('Week element not found:', `week-${currentWeekKey}`);
+                    }
+                }
+            }, 100);
+        }
+        
+        async function exitRepoView() {
+            currentRepoView = null;
+            
+            // Clear URL parameter
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.delete('repo');
+            newUrl.searchParams.delete('week'); // Also clear week when exiting repo view
+            window.history.pushState({}, '', newUrl);
+            
+            // Remove repository view indicator
+            updateRepositoryViewIndicator(null);
+            
+            // Restore normal scroll handler
+            const mainContent = document.querySelector('.main-content');
+            if (mainContent) {
+                mainContent.removeEventListener('scroll', updateRepoTimelineHighlight);
+                mainContent.addEventListener('scroll', updateTimelineHighlight);
+            }
+            
+            // Return to the timeline view
+            await displayAllWeeks();
         }
         
         // Close dropdown when clicking outside (desktop only)
@@ -3019,6 +3362,183 @@
             updateStatus('ERROR STATE');
         }
         
+        // Update repository view indicator
+        function updateRepositoryViewIndicator(repoFullName) {
+            const indicator = document.getElementById('repo-view-indicator');
+            if (!indicator) return;
+            
+            if (repoFullName) {
+                indicator.style.display = 'flex';
+                indicator.innerHTML = `
+                    <svg class="repo-icon" viewBox="0 0 16 16">
+                        <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 0 1 1-1h8zM5 12.25v3.25a.25.25 0 0 0 .4.2l1.45-1.087a.25.25 0 0 1 .3 0L8.6 15.7a.25.25 0 0 0 .4-.2v-3.25a.25.25 0 0 0-.25-.25h-3.5a.25.25 0 0 0-.25.25z"/>
+                    </svg>
+                    <span>${repoFullName}</span>
+                    <svg class="repo-close" viewBox="0 0 16 16">
+                        <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06z"/>
+                    </svg>
+                `;
+                indicator.onclick = () => exitRepoView().catch(console.error);
+            } else {
+                indicator.style.display = 'none';
+                indicator.innerHTML = '';
+                indicator.onclick = null;
+            }
+        }
+        
+        // Populate timeline for repository view
+        function populateRepoTimeline(repoData) {
+            const timeline = document.querySelector('.timeline');
+            console.log('Timeline element found:', !!timeline);
+            if (!timeline) {
+                console.error('Timeline element not found!');
+                return;
+            }
+            
+            let html = '';
+            
+            // Sort summaries by week (newest first) to match display order
+            const sortedSummaries = repoData.summaries.sort((a, b) => {
+                const keyA = `${a.year}-${String(a.week).padStart(2, '0')}`;
+                const keyB = `${b.year}-${String(b.week).padStart(2, '0')}`;
+                return keyB.localeCompare(keyA);
+            });
+            
+            console.log('Populating timeline with', sortedSummaries.length, 'weeks');
+            
+            sortedSummaries.forEach(summary => {
+                const weekKey = `${summary.year}-${String(summary.week).padStart(2, '0')}`;
+                html += `
+                    <div class="timeline-week" data-week-key="${weekKey}" onclick="scrollToWeek('${weekKey}')">
+                        <div class="timeline-week-num">W${summary.week}</div>
+                        <div class="timeline-week-year">${summary.year}</div>
+                    </div>
+                `;
+            });
+            
+            timeline.innerHTML = html;
+            console.log('Timeline populated with HTML length:', html.length);
+        }
+        
+        // Setup scroll handler for repository view
+        function setupRepoScrollHandler() {
+            const mainContent = document.querySelector('.main-content');
+            if (!mainContent) {
+                console.log('Main content not found for repo scroll handler');
+                return;
+            }
+            
+            // Remove existing scroll listeners to avoid duplicates
+            mainContent.removeEventListener('scroll', updateTimelineHighlight);
+            mainContent.removeEventListener('scroll', updateRepoTimelineHighlight);
+            
+            // Add new scroll listener for repo view
+            mainContent.addEventListener('scroll', updateRepoTimelineHighlight);
+            console.log('Repo scroll handler setup complete');
+        }
+        
+        // Update timeline highlight for repository view
+        function updateRepoTimelineHighlight() {
+            console.log('updateRepoTimelineHighlight called, currentRepoView:', currentRepoView);
+            if (!currentRepoView) {
+                console.log('Not in repo view, skipping timeline highlight');
+                return; // Only run when in repo view
+            }
+            
+            const mainContent = document.querySelector('.main-content');
+            const weekSections = document.querySelectorAll('.week-section');
+            
+            console.log('Found main content:', !!mainContent, 'Week sections:', weekSections.length);
+            
+            if (!mainContent || weekSections.length === 0) {
+                console.log('Main content or week sections not found for timeline highlight');
+                return;
+            }
+            
+            let visibleWeekKey = null;
+            const scrollTop = mainContent.scrollTop;
+            const viewportHeight = mainContent.clientHeight;
+            
+            console.log('Scroll position:', scrollTop, 'Viewport height:', viewportHeight);
+            
+            // Find the week section that's most visible in the viewport
+            weekSections.forEach((section, index) => {
+                const rect = section.getBoundingClientRect();
+                const mainRect = mainContent.getBoundingClientRect();
+                const weekKey = section.dataset.weekKey;
+                
+                console.log(`Week ${index} (${weekKey}):`, {
+                    top: rect.top,
+                    bottom: rect.bottom,
+                    mainTop: mainRect.top,
+                    inViewport: rect.top <= mainRect.top + 200 && rect.bottom >= mainRect.top + 100
+                });
+                
+                // Check if section is in viewport (with some offset)
+                if (rect.top <= mainRect.top + 200 && rect.bottom >= mainRect.top + 100) {
+                    visibleWeekKey = weekKey;
+                    console.log('Visible week found:', visibleWeekKey);
+                }
+            });
+            
+            if (visibleWeekKey && currentWeekKey !== visibleWeekKey) {
+                console.log('Updating current week from', currentWeekKey, 'to:', visibleWeekKey);
+                currentWeekKey = visibleWeekKey;
+                updateURL(true); // Use replaceState for scroll updates
+                
+                // Update timeline highlighting
+                const timelineWeeks = document.querySelectorAll('.timeline-week');
+                console.log('Found timeline weeks:', timelineWeeks.length);
+                
+                timelineWeeks.forEach(week => {
+                    week.classList.remove('active');
+                });
+                
+                const activeWeek = document.querySelector(`.timeline-week[data-week-key="${visibleWeekKey}"]`);
+                if (activeWeek) {
+                    activeWeek.classList.add('active');
+                    console.log('Timeline week highlighted:', visibleWeekKey);
+                } else {
+                    console.log('Timeline week element not found for:', visibleWeekKey);
+                    console.log('Available timeline weeks:', Array.from(timelineWeeks).map(w => w.dataset.weekKey));
+                }
+            } else if (visibleWeekKey) {
+                console.log('Week already current:', visibleWeekKey);
+            } else {
+                console.log('No visible week found');
+            }
+        }
+        
+        // Handle browser back/forward navigation
+        window.addEventListener('popstate', function(event) {
+            if (event.state && event.state.repo) {
+                showRepoSummary(event.state.repo).catch(console.error);
+            } else {
+                if (currentRepoView) {
+                    exitRepoView().catch(console.error);
+                }
+            }
+        });
+        
+        // Check URL parameters on page load
+        function handleUrlParameters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const repoParam = urlParams.get('repo');
+            const weekParam = urlParams.get('week');
+            
+            // Set current week if provided
+            if (weekParam) {
+                currentWeekKey = weekParam;
+            }
+            
+            if (repoParam) {
+                // Wait for data to load, then show repository
+                setTimeout(() => {
+                    showRepoSummary(repoParam).catch(console.error);
+                }, 500); // Give more time for initialization
+            }
+        }
+        
         // Feeds modal functions
         function generateDynamicGroups() {
             const headerGroups = document.getElementById('header-groups');
@@ -3051,7 +3571,13 @@
                     tab.className = 'group-tab';
                     tab.dataset.group = groupKey;
                     tab.textContent = `[${groupKey.toUpperCase()}]`;
-                    tab.onclick = () => switchGroup(groupKey).catch(console.error);
+                    tab.onclick = () => {
+                        if (currentRepoView) {
+                            exitRepoView().then(() => switchGroup(groupKey)).catch(console.error);
+                        } else {
+                            switchGroup(groupKey).catch(console.error);
+                        }
+                    };
                     headerGroups.appendChild(tab);
                     
                     // Add mobile abbreviation CSS if group name is long
