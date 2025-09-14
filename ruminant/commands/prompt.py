@@ -402,14 +402,8 @@ IMPORTANT JSON FORMATTING RULES:
   - Properly formatted user mentions with links (e.g., [Full Name](https://github.com/username) or [@username](https://github.com/username))
 
 CRITICAL JSON ESCAPING REQUIREMENTS:
-- ALL text content MUST be properly escaped for valid JSON
-- Backslashes MUST be escaped as \\\\ (double backslash)
-- Backticks in text like "eliminating unnecessary \\`caml_modify\\`s" MUST be properly escaped
-- Double quotes within strings MUST be escaped as \\"
-- Newlines should be represented as \\n
-- Tab characters should be represented as \\t
-- Do NOT use raw backticks or unescaped special characters in the JSON string values
-- Example: "eliminating unnecessary \\`caml_modify\\`s" NOT "eliminating unnecessary `caml_modify`s"
+- ALL Markdown text content MUST be properly escaped for valid JSON
+- Do not escape backticks for pre or code content, e.g. "\\`-gdwarf-pedantic\\`" should just be "`-gdwarf-pedantic`"
 - The JSON MUST be valid and parseable by standard JSON parsers like jq
 
 NO SIZE LIMIT FOR SUMMARIES:
@@ -467,8 +461,6 @@ Remember:
 - Format all GitHub references as proper markdown links
 - Use GitHub MCP server tools if you need additional information about specific PRs/issues
 - The output file MUST be written with the complete JSON summary
-- CRITICAL: Properly escape ALL special characters for valid JSON (backticks, quotes, backslashes, etc.)
-- Example of proper escaping: "eliminating unnecessary \\`caml_modify\\`s" NOT "eliminating unnecessary `caml_modify`s"
 
 IMPORTANT: You must use the Read tool to load and analyze the data from {cache_file}
 
@@ -684,14 +676,8 @@ TONE AND LANGUAGE REQUIREMENTS:
 - If a section has no meaningful content, set its value to null
 
 CRITICAL JSON ESCAPING REQUIREMENTS:
-- ALL text content MUST be properly escaped for valid JSON
-- Backslashes MUST be escaped as \\\\ (double backslash)
-- Backticks in text like "eliminating unnecessary \\`caml_modify\\`s" MUST be properly escaped
-- Double quotes within strings MUST be escaped as \\"
-- Newlines should be represented as \\n
-- Tab characters should be represented as \\t
-- Do NOT use raw backticks or unescaped special characters in the JSON string values
-- Example: "eliminating unnecessary \\`caml_modify\\`s" NOT "eliminating unnecessary `caml_modify`s"
+- ALL Markdown text content MUST be properly escaped for valid JSON
+- Do not escape backticks for pre or code content, e.g. "\\`-gdwarf-pedantic\\`" should just be "`-gdwarf-pedantic`"
 - The JSON MUST be valid and parseable by standard JSON parsers like jq
 
 NEW FEATURES SECTION GUIDELINES:
@@ -720,8 +706,7 @@ Remember:
 - Good short_summary: "DWARF debug shapes, dune pkg Docker support, JSIR multi-file compilation, ARM64 assembler fix"
 - Bad short_summary: "Active development with improvements across the OCaml ecosystem"
 - All sections except short_summary MUST use bullet points
-- ALL issue/PR references must be formatted as clickable markdown links
-- Check data/users/ for user information to properly format contributor mentions
+- ALL issue/PR references must be formatted as clickable markdown links - Check data/users/ for user information to properly format contributor mentions
 - Write the complete JSON summary to: {summary_file}
 
 ACTION REQUIRED:
