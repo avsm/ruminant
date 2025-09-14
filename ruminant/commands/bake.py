@@ -50,7 +50,7 @@ def run_repo_summaries_parallel(
     
     # Determine number of parallel workers
     if parallel_workers is None:
-        parallel_workers = config.reporting.parallel_claude_instances
+        parallel_workers = config.claude.parallel_workers
     
     results = {
         "success": [],
@@ -173,15 +173,14 @@ def run_group_summaries_parallel(
             group_repos[group_name] = group_config.repositories
     
     # Run tasks in parallel
-    with ThreadPoolExecutor(max_workers=config.reporting.parallel_claude_instances) as executor:
+    with ThreadPoolExecutor(max_workers=config.claude.parallel_workers) as executor:
         futures = {}
         for group, year, week in tasks:
             repos = group_repos.get(group, [])
             future = executor.submit(
                 generate_group_summary,
-                group, repos, year, week,
-                claude_args.split() if claude_args else None,
-                dry_run=False
+                group, year, week, config,
+                claude_args.split() if claude_args else None
             )
             futures[future] = (group, year, week)
         
@@ -343,15 +342,15 @@ def bake_main(
         else:
             stage_results["repos"] = run_repo_summaries_parallel(
                 all_repos, weeks_list, config, force, claude_args,
-                config.reporting.parallel_claude_instances
+                config.claude.parallel_workers
             )
             
             # Show summary
+            total_repos = len(stage_results["repos"]["success"]) + len(stage_results["repos"]["failed"]) + len(stage_results["repos"]["skipped"])
             operation_summary(
                 f"Repository summaries completed in {stage_results['repos']['total_time']:.1f}s",
-                stage_results["repos"]["success"],
-                stage_results["repos"]["failed"],
-                stage_results["repos"]["skipped"]
+                total_repos,
+                len(stage_results["repos"]["success"])
             )
     
     # Stage 2: Group Summaries (Parallel)
@@ -370,11 +369,11 @@ def bake_main(
             )
             
             # Show summary
+            total_groups = len(stage_results["groups"]["success"]) + len(stage_results["groups"]["failed"]) + len(stage_results["groups"]["skipped"])
             operation_summary(
                 f"Group summaries completed in {stage_results['groups']['total_time']:.1f}s",
-                stage_results["groups"]["success"],
-                stage_results["groups"]["failed"],
-                stage_results["groups"]["skipped"]
+                total_groups,
+                len(stage_results["groups"]["success"])
             )
     
     # Stage 3: Weekly Summaries (Sequential for context)
@@ -393,11 +392,11 @@ def bake_main(
             )
             
             # Show summary
+            total_weekly = len(stage_results["weekly"]["success"]) + len(stage_results["weekly"]["failed"]) + len(stage_results["weekly"]["skipped"])
             operation_summary(
                 f"Weekly summaries completed in {stage_results['weekly']['total_time']:.1f}s",
-                stage_results["weekly"]["success"],
-                stage_results["weekly"]["failed"],
-                stage_results["weekly"]["skipped"]
+                total_weekly,
+                len(stage_results["weekly"]["success"])
             )
     
     # Final summary
