@@ -67,14 +67,54 @@
             z-index: 1000;
         }
         
-        /* Desktop: hide row wrappers */
-        .header-row-1,
-        .header-row-2 {
-            display: contents;
+        /* Desktop: single row layout */
+        .header-row-1 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
         }
         
         /* Hide mobile-only elements on desktop */
         .repo-dropdown-header {
+            display: none;
+        }
+        
+        /* Header left section - contains title, separator, and groups */
+        .header-left {
+            display: flex;
+            align-items: center;
+            flex: 1;
+        }
+        
+        /* Header right section - contains all controls */
+        .header-right {
+            display: flex;
+            align-items: center;
+        }
+        
+        /* All controls together */
+        .header-all-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        /* Legacy selectors for compatibility */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+        
+        .header-mobile-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        /* Hide original status bar on desktop */
+        .status-bar {
             display: none;
         }
         
@@ -194,10 +234,131 @@
         }
         
         
+        /* Header Controls Container */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            margin-left: auto;
+            gap: 0;
+        }
+        
+        /* Filter Dropdown */
+        .filter-dropdown-container {
+            position: relative;
+            margin-right: 10px;
+        }
+        
+        .filter-dropdown-toggle {
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            padding: 6px 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        
+        .filter-dropdown-toggle:hover {
+            color: var(--text-primary);
+        }
+        
+        .filter-dropdown-toggle.active .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+        
+        .filter-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 250px;
+            max-width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 2000;
+            display: none;
+        }
+        
+        .filter-dropdown.show {
+            display: block;
+        }
+        
+        .filter-dropdown-content {
+            padding: 8px;
+        }
+        
+        .filter-dropdown-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+        
+        .filter-dropdown-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .filter-dropdown-close {
+            font-size: 16px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0 2px;
+            line-height: 1;
+        }
+        
+        .filter-dropdown-close:hover {
+            color: var(--text-primary);
+        }
+        
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            font-size: 11px;
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: 3px;
+            transition: background-color 0.15s;
+        }
+        
+        .filter-item:hover {
+            background-color: var(--bg-tertiary);
+        }
+        
+        .filter-checkbox {
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 2px;
+            background: var(--bg-primary);
+            transition: all 0.15s ease;
+        }
+        
+        .filter-checkbox.checked {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+        
+        .filter-label {
+            flex: 1;
+            text-transform: capitalize;
+        }
+
         /* Repository Dropdown */
         .repo-dropdown-container {
             position: relative;
-            margin-left: auto;
             margin-right: 10px;
         }
         
@@ -1508,10 +1669,51 @@
             }
         }
         
+        /* Hide mid-size row by default */
+        .header-row-mid {
+            display: none;
+        }
+
+        /* Mid-size screens - 2-row layout */
+        @media screen and (max-width: 1024px) and (min-width: 769px) {
+            /* Increase header height for 2 rows */
+            .header {
+                height: 60px;
+            }
+            
+            /* First row: title on left, ALL controls on right */
+            .header-left .header-separator,
+            .header-left .header-groups,
+            .header-left .repo-view-indicator {
+                display: none;
+            }
+            
+            /* Show second row with only groups */
+            .header-row-mid {
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                height: 30px;
+                padding: 0 15px;
+                background: var(--bg-secondary);
+                border-bottom: 1px solid var(--border-color);
+            }
+            
+            .header-left-mid {
+                display: flex;
+                align-items: center;
+                flex: 1;
+            }
+        }
+        
         /* Mobile breakpoint */
         @media screen and (max-width: 768px) {
             body {
                 overflow: auto;
+            }
+            
+            .header-separator {
+                display: none;
             }
             
             .container {
@@ -1528,20 +1730,50 @@
                 align-items: stretch;
             }
             
-            /* First row: title and mode toggle */
+            /* Mobile: stacked layout */
             .header-row-1 {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+                padding: 8px;
+            }
+            
+            /* Top row: title and RSS/theme */
+            .header-left {
+                display: flex;
+                align-items: center;
+                order: 1;
+                margin-bottom: 4px;
+            }
+            
+            /* Bottom row: groups and filter/repos */
+            .header-right {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin-bottom: 8px;
-            }
-            
-            /* Second row: groups and repo button */
-            .header-row-2 {
-                display: flex;
-                align-items: center;
+                order: 2;
+                flex-wrap: wrap;
                 gap: 8px;
             }
+            
+            .header-mobile-controls {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                order: 2;
+            }
+            
+            .header-controls {
+                order: 1;
+            }
+            
+            /* Hide mid-size row on mobile */
+            .header-row-mid {
+                display: none;
+            }
+            
+            /* Mobile: show all groups elements but in different position */
             
             .header-title {
                 font-size: 14px;
@@ -1572,6 +1804,76 @@
             
             /* Dynamic abbreviations for longer group names on mobile */
             /* These can be added dynamically via JavaScript if needed */
+            
+            .header-controls {
+                gap: 5px;
+            }
+            
+            .filter-dropdown-container {
+                flex-shrink: 0;
+            }
+            
+            .filter-dropdown-toggle {
+                font-size: 11px;
+                padding: 6px 10px;
+                background: var(--bg-tertiary);
+                border-radius: 3px;
+            }
+            
+            /* Mobile modal for filter dropdown */
+            .filter-dropdown {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: var(--bg-primary);
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
+                max-width: none;
+                max-height: none;
+                overflow-y: auto;
+                z-index: 9999;
+                display: none;
+                flex-direction: column;
+            }
+            
+            .filter-dropdown.show {
+                display: flex;
+            }
+            
+            .filter-dropdown-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 15px;
+                border-bottom: 1px solid var(--border-color);
+                background: var(--bg-secondary);
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+            
+            .filter-dropdown-title {
+                font-size: 16px;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
+            
+            .filter-dropdown-close {
+                font-size: 24px;
+                color: var(--text-muted);
+                cursor: pointer;
+                padding: 0 5px;
+                line-height: 1;
+            }
+            
+            .filter-dropdown-content {
+                flex: 1;
+                overflow-y: auto;
+                padding: 15px;
+            }
             
             .repo-dropdown-container {
                 flex-shrink: 0;
@@ -1702,8 +2004,12 @@
                 font-size: 12px;
             }
             
-            /* Hide status bar on mobile */
+            /* Show status bar on mobile (override desktop hiding) but hide the controls since they're now in header */
             .status-bar {
+                display: flex;
+            }
+            
+            .status-right {
                 display: none;
             }
         }
@@ -1727,29 +2033,69 @@
 <body>
     <div class="header">
         <div class="header-row-1">
-            <div class="header-title">OCAML.SYS</div>
-        </div>
-        <div class="header-row-2">
-            <div class="header-separator">::</div>
-            <div class="header-groups" id="header-groups">
-                <div class="group-tab active" data-group="all">[ALL]</div>
-                <!-- Groups will be dynamically added here -->
+            <div class="header-left">
+                <div class="header-title">OCAML.SYS</div>
+                <div class="header-separator">::</div>
+                <div class="header-groups" id="header-groups">
+                    <div class="group-tab active" data-group="all">[ALL]</div>
+                    <!-- Groups will be dynamically added here -->
+                </div>
+                <div id="repo-view-indicator" class="repo-view-indicator" style="display: none;"></div>
             </div>
-            <div id="repo-view-indicator" class="repo-view-indicator" style="display: none;"></div>
-            <div class="repo-dropdown-container">
-                <div class="repo-dropdown-toggle" onclick="toggleRepoDropdown()">
-                    <span>REPOS</span>
-                    <span class="dropdown-arrow">▼</span>
-                </div>
-                <div class="repo-dropdown" id="repo-dropdown">
-                    <div class="repo-dropdown-header">
-                        <div class="repo-dropdown-title">Select Repository</div>
-                        <div class="repo-dropdown-close" onclick="closeRepoDropdown()">×</div>
+            <div class="header-right">
+                <div class="header-all-controls">
+                    <div class="filter-dropdown-container">
+                        <div class="filter-dropdown-toggle" onclick="toggleFilterDropdown()">
+                            <span>FILTER</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </div>
+                        <div class="filter-dropdown" id="filter-dropdown">
+                            <div class="filter-dropdown-header">
+                                <div class="filter-dropdown-title">Show/Hide Sections</div>
+                                <div class="filter-dropdown-close" onclick="closeFilterDropdown()">×</div>
+                            </div>
+                            <div class="filter-dropdown-content" id="filter-dropdown-content">
+                                <!-- Filter checkboxes will be populated by JavaScript -->
+                            </div>
+                        </div>
                     </div>
-                    <div class="repo-dropdown-content" id="repo-dropdown-content">
-                        <!-- Repository list will be populated by JavaScript -->
+                    <div class="repo-dropdown-container">
+                        <div class="repo-dropdown-toggle" onclick="toggleRepoDropdown()">
+                            <span>REPOS</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </div>
+                        <div class="repo-dropdown" id="repo-dropdown">
+                            <div class="repo-dropdown-header">
+                                <div class="repo-dropdown-title">Select Repository</div>
+                                <div class="repo-dropdown-close" onclick="closeRepoDropdown()">×</div>
+                            </div>
+                            <div class="repo-dropdown-content" id="repo-dropdown-content">
+                                <!-- Repository list will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="status-action feed-action" onclick="showFeeds()" title="RSS/Atom Feeds">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 11a9 9 0 0 1 9 9"/>
+                            <path d="M4 4a16 16 0 0 1 16 16"/>
+                            <circle cx="5" cy="19" r="1"/>
+                        </svg>
+                    </div>
+                    <div class="status-action mode-action" onclick="toggleTheme()" title="Toggle Theme">
+                        <span id="mode-icon-top">◐</span>
                     </div>
                 </div>
+            </div>
+        </div>
+        
+        <!-- Mid-size screen second row - groups only -->
+        <div class="header-row-mid">
+            <div class="header-left-mid">
+                <div class="header-separator">::</div>
+                <div class="header-groups" id="header-groups-mid">
+                    <!-- Groups will be copied here by JavaScript for mid-size screens -->
+                </div>
+                <div id="repo-view-indicator-mid" class="repo-view-indicator" style="display: none;"></div>
             </div>
         </div>
     </div>
@@ -1810,14 +2156,17 @@
         function setTheme(theme) {
             const root = document.documentElement;
             const iconBottom = document.getElementById('mode-icon-bottom');
+            const iconTop = document.getElementById('mode-icon-top');
             
             if (theme === 'light') {
                 root.classList.add('light-mode');
-                iconBottom.textContent = '☀';
+                if (iconBottom) iconBottom.textContent = '☀';
+                if (iconTop) iconTop.textContent = '☀';
                 localStorage.setItem('theme', 'light');
             } else {
                 root.classList.remove('light-mode');
-                iconBottom.textContent = '☾';
+                if (iconBottom) iconBottom.textContent = '☾';
+                if (iconTop) iconTop.textContent = '☾';
                 localStorage.setItem('theme', 'dark');
             }
         }
@@ -2174,6 +2523,12 @@
                 }
             }
             
+            // Preserve filter state
+            const hiddenFilters = Object.keys(sectionFilters).filter(key => !sectionFilters[key]);
+            if (hiddenFilters.length > 0) {
+                params.set('hide', hiddenFilters.join(','));
+            }
+            
             const newURL = params.toString() ? `?${params.toString()}` : window.location.pathname;
             
             // Use replaceState for scroll updates to avoid flooding history
@@ -2324,6 +2679,9 @@
             if (week) {
                 currentWeekKey = week;
             }
+            
+            // Load filter state from URL
+            loadFiltersFromURL();
             
             populateTimeline();
             setupGroupTabs();
@@ -2731,6 +3089,178 @@
             }
         }
         
+        // Filter dropdown functionality
+        let filterDropdownOpen = false;
+        let sectionFilters = {
+            'overview': true,
+            'new features': true,
+            'activity': true,
+            'ongoing': true,
+            'contributors': true,
+            'discussions': true,
+            'good first issues': true,
+            'cross-repo work': true,
+            'key projects': true,
+            'emerging trends': true
+        };
+        
+        function toggleFilterDropdown() {
+            const dropdown = document.getElementById('filter-dropdown');
+            const toggle = document.querySelector('.filter-dropdown-toggle');
+            
+            if (filterDropdownOpen) {
+                dropdown.classList.remove('show');
+                toggle.classList.remove('active');
+                filterDropdownOpen = false;
+                // Re-enable body scroll on mobile
+                if (window.innerWidth <= 768) {
+                    document.body.style.overflow = '';
+                }
+            } else {
+                populateFilterDropdown();
+                dropdown.classList.add('show');
+                toggle.classList.add('active');
+                filterDropdownOpen = true;
+                // Disable body scroll on mobile when modal is open
+                if (window.innerWidth <= 768) {
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+        }
+        
+        function closeFilterDropdown() {
+            const dropdown = document.getElementById('filter-dropdown');
+            const toggle = document.querySelector('.filter-dropdown-toggle');
+            dropdown.classList.remove('show');
+            toggle.classList.remove('active');
+            filterDropdownOpen = false;
+            // Re-enable body scroll on mobile
+            if (window.innerWidth <= 768) {
+                document.body.style.overflow = '';
+            }
+        }
+        
+        function populateFilterDropdown() {
+            const content = document.getElementById('filter-dropdown-content');
+            
+            const filterKeys = Object.keys(sectionFilters);
+            let html = '';
+            
+            filterKeys.forEach(filterKey => {
+                const isChecked = sectionFilters[filterKey];
+                html += `
+                    <div class="filter-item" onclick="event.stopPropagation(); toggleSectionFilter('${filterKey}')">
+                        <div class="filter-checkbox ${isChecked ? 'checked' : ''}"></div>
+                        <div class="filter-label">${filterKey}</div>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html;
+        }
+        
+        function toggleSectionFilter(filterKey) {
+            sectionFilters[filterKey] = !sectionFilters[filterKey];
+            populateFilterDropdown(); // Refresh the dropdown UI
+            applyFilters(); // Apply the filters to the page
+            updateFilterURL(); // Update URL with current filter state
+        }
+        
+        function updateFilterURL() {
+            const url = new URL(window.location);
+            
+            // Get list of hidden filters (ones set to false)
+            const hiddenFilters = Object.keys(sectionFilters).filter(key => !sectionFilters[key]);
+            
+            if (hiddenFilters.length > 0) {
+                // Store as comma-separated list of hidden sections
+                url.searchParams.set('hide', hiddenFilters.join(','));
+            } else {
+                // Remove parameter if all sections are visible
+                url.searchParams.delete('hide');
+            }
+            
+            // Update URL without triggering navigation
+            window.history.replaceState(null, '', url);
+        }
+        
+        function loadFiltersFromURL() {
+            const url = new URL(window.location);
+            const hideParam = url.searchParams.get('hide');
+            
+            if (hideParam) {
+                // Parse comma-separated list of hidden sections
+                const hiddenSections = hideParam.split(',').map(s => s.trim());
+                
+                // Reset all filters to true first
+                Object.keys(sectionFilters).forEach(key => {
+                    sectionFilters[key] = true;
+                });
+                
+                // Set specified sections to false (hidden)
+                hiddenSections.forEach(section => {
+                    if (sectionFilters.hasOwnProperty(section)) {
+                        sectionFilters[section] = false;
+                    }
+                });
+            }
+            // If no hide parameter, all sections remain visible (default state)
+        }
+        
+        function applyFilters() {
+            // Apply filters to all content blocks
+            document.querySelectorAll('.content-block').forEach(block => {
+                const labels = block.querySelectorAll('.content-label');
+                labels.forEach(label => {
+                    // Get the actual text content, excluding any SVG icons
+                    const labelText = label.textContent.toLowerCase().trim();
+                    
+                    // Find matching filter
+                    let shouldHide = false;
+                    for (const [filterKey, isVisible] of Object.entries(sectionFilters)) {
+                        const filterKeyLower = filterKey.toLowerCase();
+                        
+                        // Check for exact match or common variations
+                        if (filterKeyLower === labelText || 
+                            (filterKey === 'ongoing' && (labelText === 'ongoing projects' || labelText === 'ongoing')) ||
+                            (filterKey === 'good first issues' && (labelText.includes('issues') || labelText.includes('entry points'))) ||
+                            (filterKey === 'new features' && labelText === 'new features') ||
+                            (filterKey === 'cross-repo work' && labelText === 'cross-repo work') ||
+                            (filterKey === 'key projects' && labelText === 'key projects') ||
+                            (filterKey === 'emerging trends' && labelText === 'emerging trends') ||
+                            (filterKey === 'activity' && (labelText === 'activity' || labelText === 'group activity')) ||
+                            (filterKey === 'contributors' && labelText === 'contributors') ||
+                            (filterKey === 'discussions' && labelText === 'discussions') ||
+                            (filterKey === 'overview' && labelText === 'overview')) {
+                            shouldHide = !isVisible;
+                            break;
+                        }
+                    }
+                    
+                    // Hide/show the label and all its associated content
+                    if (shouldHide) {
+                        label.style.display = 'none';
+                        
+                        // Hide all following content elements until we hit another label
+                        let nextElement = label.nextElementSibling;
+                        while (nextElement && !nextElement.classList.contains('content-label')) {
+                            nextElement.style.display = 'none';
+                            nextElement = nextElement.nextElementSibling;
+                        }
+                    } else {
+                        label.style.display = '';
+                        
+                        // Show all following content elements until we hit another label
+                        let nextElement = label.nextElementSibling;
+                        while (nextElement && !nextElement.classList.contains('content-label')) {
+                            nextElement.style.display = '';
+                            nextElement = nextElement.nextElementSibling;
+                        }
+                    }
+                });
+            });
+        }
+        
         // Cache for loaded repository data
         let repoDataCache = {};
         let currentRepoView = null;
@@ -2786,9 +3316,16 @@
             // Close the dropdown
             closeRepoDropdown();
             
-            // Update URL
+            // Update URL while preserving filter state
             const newUrl = new URL(window.location);
             newUrl.searchParams.set('repo', repoFullName);
+            // Preserve filter state
+            const hiddenFilters = Object.keys(sectionFilters).filter(key => !sectionFilters[key]);
+            if (hiddenFilters.length > 0) {
+                newUrl.searchParams.set('hide', hiddenFilters.join(','));
+            } else {
+                newUrl.searchParams.delete('hide');
+            }
             window.history.pushState({ repo: repoFullName }, '', newUrl);
             
             // Show loading state
@@ -2926,60 +3463,186 @@
                         <div class="week-content">
                 `;
                 
-                // Build left column content
-                let leftColumn = '<div class="content-block">';
-                let rightColumn = '<div class="content-block">';
+                // Collect all content sections for dynamic balancing
+                const contentSections = [];
                 
-                // Add overall activity to left column (skip brief summary for repo view)
-                    if (summary.overall_activity) {
-                        leftColumn += `
-                            <div class="content-label">${getSectionIcon('activity')}activity</div>
-                            <div class="content-text">${renderMarkdown(summary.overall_activity)}</div>
-                        `;
-                }
-                
-                // Add ongoing projects to left column
-                    if (summary.ongoing_projects) {
-                        leftColumn += `
-                            <div class="content-label">${getSectionIcon('ongoing')}ongoing projects</div>
-                            <div class="content-text">${renderMarkdown(summary.ongoing_projects)}</div>
-                        `;
-                }
-                
-                // Add new features to left column (after activity)
+                // New Features section (highest priority for left column)
+                if (summary.new_features || summary.new_features_summary) {
+                    let sectionContent = `<div class="content-block">
+                        <div class="content-label">${getSectionIcon('new features')}new features</div>`;
+                    
+                    let totalText = '';
+                    if (summary.new_features_summary) {
+                        sectionContent += `<div class="section-summary">${summary.new_features_summary}</div>`;
+                        totalText += summary.new_features_summary;
+                    }
                     if (summary.new_features) {
-                        leftColumn += `
-                            <div class="content-label">${getSectionIcon('new features')}new features</div>
-                            <div class="content-text">${renderMarkdown(summary.new_features)}</div>
-                        `;
+                        sectionContent += `<div class="content-text">${renderMarkdown(summary.new_features)}</div>`;
+                        totalText += summary.new_features;
+                    }
+                    
+                    sectionContent += `</div>`;
+                    contentSections.push({
+                        content: sectionContent,
+                        estimatedHeight: estimateContentHeight(totalText),
+                        priority: 2
+                    });
                 }
                 
-                // Add discussions to right column
-                    if (summary.notable_discussions) {
-                        rightColumn += `
-                            <div class="content-label">${getSectionIcon('discussions')}discussions</div>
-                            <div class="content-text">${renderMarkdown(summary.notable_discussions)}</div>
-                        `;
+                // Overall activity section
+                if (summary.overall_activity || summary.brief_summary) {
+                    let sectionContent = `<div class="content-block">
+                        <div class="content-label">${getSectionIcon('activity')}activity</div>`;
+                    
+                    let totalText = '';
+                    if (summary.brief_summary) {
+                        sectionContent += `<div class="section-summary">${summary.brief_summary}</div>`;
+                        totalText += summary.brief_summary;
+                    }
+                    if (summary.overall_activity) {
+                        sectionContent += `<div class="content-text">${renderMarkdown(summary.overall_activity)}</div>`;
+                        totalText += summary.overall_activity;
+                    }
+                    
+                    sectionContent += `</div>`;
+                    contentSections.push({
+                        content: sectionContent,
+                        estimatedHeight: estimateContentHeight(totalText),
+                        priority: 1
+                    });
                 }
                 
-                // Add contributors to right column
+                // Ongoing projects section
+                if (summary.ongoing_projects || summary.ongoing_summary) {
+                    let sectionContent = `<div class="content-block">
+                        <div class="content-label">${getSectionIcon('ongoing')}ongoing projects</div>`;
+                    
+                    let totalText = '';
+                    if (summary.ongoing_summary) {
+                        sectionContent += `<div class="section-summary">${summary.ongoing_summary}</div>`;
+                        totalText += summary.ongoing_summary;
+                    }
+                    if (summary.ongoing_projects) {
+                        sectionContent += `<div class="content-text">${renderMarkdown(summary.ongoing_projects)}</div>`;
+                        totalText += summary.ongoing_projects;
+                    }
+                    
+                    sectionContent += `</div>`;
+                    contentSections.push({
+                        content: sectionContent,
+                        estimatedHeight: estimateContentHeight(totalText),
+                        priority: 1
+                    });
+                }
+                
+                // Contributors section
+                if (summary.contributors || summary.contributors_summary) {
+                    let sectionContent = `<div class="content-block">
+                        <div class="content-label">${getSectionIcon('contributors')}contributors</div>`;
+                    
+                    let totalText = '';
+                    if (summary.contributors_summary) {
+                        sectionContent += `<div class="section-summary">${summary.contributors_summary}</div>`;
+                        totalText += summary.contributors_summary;
+                    }
                     if (summary.contributors) {
-                        rightColumn += `
-                            <div class="content-label">${getSectionIcon('contributors')}contributors</div>
-                            <div class="content-text">${renderMarkdown(summary.contributors)}</div>
-                        `;
+                        sectionContent += `<div class="contributor-text">${renderMarkdown(summary.contributors)}</div>`;
+                        totalText += summary.contributors;
+                    }
+                    
+                    sectionContent += `</div>`;
+                    contentSections.push({
+                        content: sectionContent,
+                        estimatedHeight: estimateContentHeight(totalText),
+                        priority: 0
+                    });
                 }
                 
-                // Add issues if available
+                // Discussions section
+                if (summary.notable_discussions || summary.discussions_summary) {
+                    let sectionContent = `<div class="content-block">
+                        <div class="content-label">${getSectionIcon('discussions')}discussions</div>`;
+                    
+                    let totalText = '';
+                    if (summary.discussions_summary) {
+                        sectionContent += `<div class="section-summary">${summary.discussions_summary}</div>`;
+                        totalText += summary.discussions_summary;
+                    }
+                    if (summary.notable_discussions) {
+                        sectionContent += `<div class="content-text">${renderMarkdown(summary.notable_discussions)}</div>`;
+                        totalText += summary.notable_discussions;
+                    }
+                    
+                    sectionContent += `</div>`;
+                    contentSections.push({
+                        content: sectionContent,
+                        estimatedHeight: estimateContentHeight(totalText),
+                        priority: 0
+                    });
+                }
+                
+                // Good first issues section
+                if (summary.good_first_issues || summary.issues_summary) {
+                    let sectionContent = `<div class="content-block">
+                        <div class="content-label">${getSectionIcon('good first issues')}good first issues</div>`;
+                    
+                    let totalText = '';
+                    if (summary.issues_summary) {
+                        sectionContent += `<div class="section-summary">${summary.issues_summary}</div>`;
+                        totalText += summary.issues_summary;
+                    }
                     if (summary.good_first_issues) {
-                        rightColumn += `
-                            <div class="content-label">${getSectionIcon('issues')}good first issues</div>
-                            <div class="content-text">${renderMarkdown(summary.good_first_issues)}</div>
-                        `;
+                        sectionContent += `<div class="content-text">${renderMarkdown(summary.good_first_issues)}</div>`;
+                        totalText += summary.good_first_issues;
+                    }
+                    
+                    sectionContent += `</div>`;
+                    contentSections.push({
+                        content: sectionContent,
+                        estimatedHeight: estimateContentHeight(totalText),
+                        priority: 0
+                    });
                 }
                 
-                leftColumn += '</div>';
-                rightColumn += '</div>';
+                // Emerging trends section
+                if (summary.emerging_trends || summary.trends_summary) {
+                    let sectionContent = `<div class="content-block">
+                        <div class="content-label">${getSectionIcon('emerging trends')}emerging trends</div>`;
+                    
+                    let totalText = '';
+                    if (summary.trends_summary) {
+                        sectionContent += `<div class="section-summary">${summary.trends_summary}</div>`;
+                        totalText += summary.trends_summary;
+                    }
+                    if (summary.emerging_trends) {
+                        sectionContent += `<div class="content-text">${renderMarkdown(summary.emerging_trends)}</div>`;
+                        totalText += summary.emerging_trends;
+                    }
+                    
+                    sectionContent += `</div>`;
+                    contentSections.push({
+                        content: sectionContent,
+                        estimatedHeight: estimateContentHeight(totalText),
+                        priority: 0
+                    });
+                }
+                
+                // Dynamic column balancing
+                const balancedColumns = balanceColumns(contentSections);
+                let leftColumn = balancedColumns.left;
+                let rightColumn = balancedColumns.right;
+                
+                // Ensure columns have wrapper divs if they have content
+                if (leftColumn && !leftColumn.includes('class="content-block"')) {
+                    leftColumn = `<div class="content-block">${leftColumn}</div>`;
+                }
+                if (rightColumn && !rightColumn.includes('class="content-block"')) {
+                    rightColumn = `<div class="content-block">${rightColumn}</div>`;
+                }
+                
+                // Handle empty columns
+                if (!leftColumn) leftColumn = '<div class="content-block"></div>';
+                if (!rightColumn) rightColumn = '<div class="content-block"></div>';
                 
                 html += leftColumn + rightColumn;
                 html += `
@@ -3025,16 +3688,26 @@
                         console.log('Week element not found:', `week-${currentWeekKey}`);
                     }
                 }
+                
+                // Apply filters after all content is rendered
+                applyFilters();
             }, 100);
         }
         
         async function exitRepoView() {
             currentRepoView = null;
             
-            // Clear URL parameter
+            // Clear URL parameter while preserving filters
             const newUrl = new URL(window.location);
             newUrl.searchParams.delete('repo');
             newUrl.searchParams.delete('week'); // Also clear week when exiting repo view
+            // Preserve filter state
+            const hiddenFilters = Object.keys(sectionFilters).filter(key => !sectionFilters[key]);
+            if (hiddenFilters.length > 0) {
+                newUrl.searchParams.set('hide', hiddenFilters.join(','));
+            } else {
+                newUrl.searchParams.delete('hide');
+            }
             window.history.pushState({}, '', newUrl);
             
             // Remove repository view indicator
@@ -3047,10 +3720,16 @@
             await displayAllWeeks();
         }
         
-        // Close dropdown when clicking outside (desktop only)
+        // Close dropdowns when clicking outside (desktop only)
         document.addEventListener('click', function(event) {
             if (repoDropdownOpen && window.innerWidth > 768 && !event.target.closest('.repo-dropdown-container')) {
                 toggleRepoDropdown();
+            }
+            if (filterDropdownOpen && window.innerWidth > 768) {
+                // Only close if clicking outside both the toggle button and the dropdown itself
+                if (!event.target.closest('.filter-dropdown-container') && !event.target.closest('.filter-dropdown')) {
+                    toggleFilterDropdown();
+                }
             }
         });
         
@@ -3180,8 +3859,77 @@
                 
             // Simply render the week content as it was originally - no extra repo summaries or lists
             contentDiv.innerHTML = generateWeekContent(weekData, currentEcosystem);
+            
+            // Apply filters after rendering content
+            setTimeout(() => applyFilters(), 50);
         }
         
+        
+        // Helper function to estimate content height based on text length
+        function estimateContentHeight(text) {
+            if (!text) return 0;
+            
+            // Basic estimation: characters per line ~80, lines ~25px each
+            // Add extra height for labels, summaries, and spacing
+            const baseHeight = 60; // Label + padding
+            const textLines = Math.ceil(text.length / 80);
+            const textHeight = textLines * 25;
+            
+            return baseHeight + textHeight;
+        }
+        
+        // Dynamic column balancing algorithm
+        function balanceColumns(contentSections) {
+            if (contentSections.length === 0) {
+                return { left: '', right: '' };
+            }
+            
+            // Sort sections by priority (higher priority = prefer left column)
+            // Then by size (larger sections first for better packing)
+            const sortedSections = [...contentSections].sort((a, b) => {
+                if (a.priority !== b.priority) {
+                    return b.priority - a.priority; // Higher priority first
+                }
+                return b.estimatedHeight - a.estimatedHeight; // Larger sections first
+            });
+            
+            let leftColumn = '';
+            let rightColumn = '';
+            let leftHeight = 0;
+            let rightHeight = 0;
+            
+            // Greedy assignment algorithm
+            sortedSections.forEach(section => {
+                // Decide which column to place this section in
+                // Prefer left column if priority > 1 (overview, new features, activity, ongoing)
+                // Otherwise choose the shorter column for better balance
+                if (section.priority > 1) {
+                    // High priority sections prefer left column
+                    leftColumn += section.content;
+                    leftHeight += section.estimatedHeight;
+                } else if (section.priority === 1) {
+                    // Medium priority sections prefer left but can go right if needed
+                    if (leftHeight <= rightHeight) {
+                        leftColumn += section.content;
+                        leftHeight += section.estimatedHeight;
+                    } else {
+                        rightColumn += section.content;
+                        rightHeight += section.estimatedHeight;
+                    }
+                } else {
+                    // Low priority sections (contributors, discussions, issues) go to shorter column
+                    if (leftHeight <= rightHeight) {
+                        leftColumn += section.content;
+                        leftHeight += section.estimatedHeight;
+                    } else {
+                        rightColumn += section.content;
+                        rightHeight += section.estimatedHeight;
+                    }
+                }
+            });
+            
+            return { left: leftColumn, right: rightColumn };
+        }
         
         function generateWeekContent(weekData, ecosystem) {
             // Handle "all" ecosystem - show weekly summary
@@ -3198,190 +3946,235 @@
                 return hasRepoActivity(repo);
             });
             
-            let leftColumn = '';
-            let rightColumn = '';
+            // Collect all content sections for dynamic balancing
+            const contentSections = [];
+            const singleRepo = filteredRepos.length === 1;
             
-            // Left column - Activity, Ongoing
-            
-            // Show group overview only for multi-repo ecosystems
+            // Overview section (for multi-repo ecosystems)
             if (filteredRepos.length > 1) {
                 filteredGroups.forEach(group => {
                     if (group.group_overview) {
-                        leftColumn += `<div class="content-block">`;
-                        leftColumn += `<div class="content-label">${getSectionIcon('overview')}overview</div>`;
-                        leftColumn += `<div class="content-text">${renderMarkdown(group.group_overview)}</div>`;
-                        leftColumn += `</div>`;
+                        const content = `<div class="content-block">
+                            <div class="content-label">${getSectionIcon('overview')}overview</div>
+                            <div class="content-text">${renderMarkdown(group.group_overview)}</div>
+                        </div>`;
+                        contentSections.push({
+                            content: content,
+                            estimatedHeight: estimateContentHeight(group.group_overview),
+                            priority: 1 // Higher priority means prefer left column
+                        });
                     }
                 });
             }
             
-            const singleRepo = filteredRepos.length === 1;
-            
-            // New Features (FIRST - right after overview)
+            // New Features section
             const newFeaturesRepos = filteredRepos.filter(repo => repo.new_features || repo.new_features_summary);
-            
             if (newFeaturesRepos.length > 0) {
-                leftColumn += `<div class="content-block">`;
-                leftColumn += `<div class="content-label">${getSectionIcon('new features')}new features</div>`;
+                let sectionContent = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('new features')}new features</div>`;
                 
                 if (singleRepo && newFeaturesRepos[0].new_features_summary) {
-                    leftColumn += `<div class="section-summary">${newFeaturesRepos[0].new_features_summary}</div>`;
+                    sectionContent += `<div class="section-summary">${newFeaturesRepos[0].new_features_summary}</div>`;
                 }
                 
+                let totalText = '';
                 newFeaturesRepos.forEach(repo => {
                     if (!singleRepo && repo.new_features_summary) {
                         const [org, name] = repo.repo_full.split('/');
                         const commitLink = getCommitRangeLink(repo);
                         const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.new_features_summary)}`;
-                        leftColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        sectionContent += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        totalText += repo.new_features_summary || '';
                     }
                     
                     if (repo.new_features) {
-                        leftColumn += `<div class="content-text">${renderMarkdown(repo.new_features)}</div>`;
+                        sectionContent += `<div class="content-text">${renderMarkdown(repo.new_features)}</div>`;
+                        totalText += repo.new_features || '';
                     }
                 });
                 
-                leftColumn += `</div>`;
+                sectionContent += `</div>`;
+                contentSections.push({
+                    content: sectionContent,
+                    estimatedHeight: estimateContentHeight(totalText),
+                    priority: 2
+                });
             }
             
-            // Repository activity summaries (SECOND - after new features)
+            // Activity section
             const activityRepos = filteredRepos.filter(repo => repo.brief_summary || repo.overall_activity);
-            
             if (activityRepos.length > 0) {
-                leftColumn += `<div class="content-block">`;
-                leftColumn += `<div class="content-label">${getSectionIcon('activity')}activity</div>`;
+                let sectionContent = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('activity')}activity</div>`;
                 
-                // Use brief_summary as section summary for single repo
                 if (singleRepo && activityRepos[0].brief_summary) {
-                    leftColumn += `<div class="section-summary">${activityRepos[0].brief_summary}</div>`;
+                    sectionContent += `<div class="section-summary">${activityRepos[0].brief_summary}</div>`;
                 }
                 
+                let totalText = '';
                 activityRepos.forEach(repo => {
                     if (!singleRepo && repo.brief_summary) {
                         const [org, name] = repo.repo_full.split('/');
-                        // Integrate repo name into the summary text with commit range
                         const commitLink = getCommitRangeLink(repo);
                         const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.brief_summary)}`;
-                        leftColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        sectionContent += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        totalText += repo.brief_summary || '';
                     }
                     
                     if (repo.overall_activity) {
-                        leftColumn += `<div class="content-text">${renderMarkdown(repo.overall_activity)}</div>`;
+                        sectionContent += `<div class="content-text">${renderMarkdown(repo.overall_activity)}</div>`;
+                        totalText += repo.overall_activity || '';
                     }
                 });
                 
-                leftColumn += `</div>`;
+                sectionContent += `</div>`;
+                contentSections.push({
+                    content: sectionContent,
+                    estimatedHeight: estimateContentHeight(totalText),
+                    priority: 1
+                });
             }
             
-            // Ongoing projects (THIRD - after activity)
+            // Ongoing projects section
             const ongoingRepos = filteredRepos.filter(repo => repo.ongoing_projects || repo.ongoing_summary);
-            
             if (ongoingRepos.length > 0) {
-                leftColumn += `<div class="content-block">`;
-                leftColumn += `<div class="content-label">${getSectionIcon('ongoing')}ongoing</div>`;
+                let sectionContent = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('ongoing')}ongoing</div>`;
                 
                 if (singleRepo && ongoingRepos[0].ongoing_summary) {
-                    leftColumn += `<div class="section-summary">${ongoingRepos[0].ongoing_summary}</div>`;
+                    sectionContent += `<div class="section-summary">${ongoingRepos[0].ongoing_summary}</div>`;
                 }
                 
+                let totalText = '';
                 ongoingRepos.forEach(repo => {
                     if (!singleRepo && repo.ongoing_summary) {
                         const [org, name] = repo.repo_full.split('/');
                         const commitLink = getCommitRangeLink(repo);
                         const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.ongoing_summary)}`;
-                        leftColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        sectionContent += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        totalText += repo.ongoing_summary || '';
                     }
                     
                     if (repo.ongoing_projects) {
-                        leftColumn += `<div class="content-text">${renderMarkdown(repo.ongoing_projects)}</div>`;
+                        sectionContent += `<div class="content-text">${renderMarkdown(repo.ongoing_projects)}</div>`;
+                        totalText += repo.ongoing_projects || '';
                     }
                 });
                 
-                leftColumn += `</div>`;
+                sectionContent += `</div>`;
+                contentSections.push({
+                    content: sectionContent,
+                    estimatedHeight: estimateContentHeight(totalText),
+                    priority: 1
+                });
             }
             
-            // Right column - Contributors, Discussions
-            
-            // Contributors (FOURTH)
+            // Contributors section
             const contributorRepos = filteredRepos.filter(repo => repo.contributors || repo.contributors_summary);
-            
             if (contributorRepos.length > 0) {
-                rightColumn += `<div class="content-block">`;
-                rightColumn += `<div class="content-label">${getSectionIcon('contributors')}contributors</div>`;
+                let sectionContent = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('contributors')}contributors</div>`;
                 
                 if (singleRepo && contributorRepos[0].contributors_summary) {
-                    rightColumn += `<div class="section-summary">${contributorRepos[0].contributors_summary}</div>`;
+                    sectionContent += `<div class="section-summary">${contributorRepos[0].contributors_summary}</div>`;
                 }
                 
+                let totalText = '';
                 contributorRepos.forEach(repo => {
                     if (!singleRepo && repo.contributors_summary) {
                         const [org, name] = repo.repo_full.split('/');
                         const commitLink = getCommitRangeLink(repo);
                         const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.contributors_summary)}`;
-                        rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        sectionContent += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        totalText += repo.contributors_summary || '';
                     }
                     
                     if (repo.contributors) {
-                        rightColumn += `<div class="contributor-text">${renderMarkdown(repo.contributors)}</div>`;
+                        sectionContent += `<div class="contributor-text">${renderMarkdown(repo.contributors)}</div>`;
+                        totalText += repo.contributors || '';
                     }
                 });
                 
-                rightColumn += `</div>`;
+                sectionContent += `</div>`;
+                contentSections.push({
+                    content: sectionContent,
+                    estimatedHeight: estimateContentHeight(totalText),
+                    priority: 0
+                });
             }
             
-            // Notable discussions
+            // Discussions section
             const discussionRepos = filteredRepos.filter(repo => repo.notable_discussions || repo.discussions_summary);
-            
             if (discussionRepos.length > 0) {
-                rightColumn += `<div class="content-block">`;
-                rightColumn += `<div class="content-label">${getSectionIcon('discussions')}discussions</div>`;
+                let sectionContent = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('discussions')}discussions</div>`;
                 
                 if (singleRepo && discussionRepos[0].discussions_summary) {
-                    rightColumn += `<div class="section-summary">${discussionRepos[0].discussions_summary}</div>`;
+                    sectionContent += `<div class="section-summary">${discussionRepos[0].discussions_summary}</div>`;
                 }
                 
+                let totalText = '';
                 discussionRepos.forEach(repo => {
                     if (!singleRepo && repo.discussions_summary) {
                         const [org, name] = repo.repo_full.split('/');
                         const commitLink = getCommitRangeLink(repo);
                         const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.discussions_summary)}`;
-                        rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        sectionContent += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        totalText += repo.discussions_summary || '';
                     }
                     
                     if (repo.notable_discussions) {
-                        rightColumn += `<div class="content-text">${renderMarkdown(repo.notable_discussions)}</div>`;
+                        sectionContent += `<div class="content-text">${renderMarkdown(repo.notable_discussions)}</div>`;
+                        totalText += repo.notable_discussions || '';
                     }
                 });
                 
-                rightColumn += `</div>`;
+                sectionContent += `</div>`;
+                contentSections.push({
+                    content: sectionContent,
+                    estimatedHeight: estimateContentHeight(totalText),
+                    priority: 0
+                });
             }
             
-            // Good first issues
+            // Good first issues section
             const issueRepos = filteredRepos.filter(repo => repo.good_first_issues || repo.issues_summary);
-            
             if (issueRepos.length > 0) {
-                rightColumn += `<div class="content-block">`;
-                rightColumn += `<div class="content-label">entry points</div>`;
+                let sectionContent = `<div class="content-block">
+                    <div class="content-label">entry points</div>`;
                 
                 if (singleRepo && issueRepos[0].issues_summary) {
-                    rightColumn += `<div class="section-summary">${issueRepos[0].issues_summary}</div>`;
+                    sectionContent += `<div class="section-summary">${issueRepos[0].issues_summary}</div>`;
                 }
                 
+                let totalText = '';
                 issueRepos.forEach(repo => {
                     if (!singleRepo && repo.issues_summary) {
                         const [org, name] = repo.repo_full.split('/');
                         const commitLink = getCommitRangeLink(repo);
                         const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.issues_summary)}`;
-                        rightColumn += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        sectionContent += `<div class="section-summary">${summaryWithRepo}</div>`;
+                        totalText += repo.issues_summary || '';
                     }
                     
                     if (repo.good_first_issues) {
-                        rightColumn += `<div class="content-text">${renderMarkdown(repo.good_first_issues)}</div>`;
+                        sectionContent += `<div class="content-text">${renderMarkdown(repo.good_first_issues)}</div>`;
+                        totalText += repo.good_first_issues || '';
                     }
                 });
                 
-                rightColumn += `</div>`;
+                sectionContent += `</div>`;
+                contentSections.push({
+                    content: sectionContent,
+                    estimatedHeight: estimateContentHeight(totalText),
+                    priority: 0
+                });
             }
+            
+            // Dynamic column balancing
+            const balancedColumns = balanceColumns(contentSections);
+            let leftColumn = balancedColumns.left;
+            let rightColumn = balancedColumns.right;
             
             // If no content at all, return empty or minimal display
             if (!leftColumn && !rightColumn) {
@@ -3426,54 +4219,91 @@
                 `;
             }
             
-            let leftColumn = '';
-            let rightColumn = '';
+            // Collect all content sections for dynamic balancing
+            const contentSections = [];
             
-            // Left column - Overview, New Features, Cross-Repository Work, Key Projects
+            // Overview section
             if (weeklySummary.group_overview) {
-                leftColumn += `<div class="content-block">`;
-                leftColumn += `<div class="content-label">${getSectionIcon('overview')}overview</div>`;
-                leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.group_overview)}</div>`;
-                leftColumn += `</div>`;
+                const content = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('overview')}overview</div>
+                    <div class="content-text">${renderMarkdown(weeklySummary.group_overview)}</div>
+                </div>`;
+                contentSections.push({
+                    content: content,
+                    estimatedHeight: estimateContentHeight(weeklySummary.group_overview),
+                    priority: 1
+                });
             }
             
-            // New Features - prominently placed after overview
+            // New Features section - prominently placed after overview
             if (weeklySummary.new_features) {
-                leftColumn += `<div class="content-block">`;
-                leftColumn += `<div class="content-label">${getSectionIcon('new features')}new features</div>`;
-                leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.new_features)}</div>`;
-                leftColumn += `</div>`;
+                const content = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('new features')}new features</div>
+                    <div class="content-text">${renderMarkdown(weeklySummary.new_features)}</div>
+                </div>`;
+                contentSections.push({
+                    content: content,
+                    estimatedHeight: estimateContentHeight(weeklySummary.new_features),
+                    priority: 2
+                });
             }
             
+            // Cross-repository work section
             if (weeklySummary.cross_repository_work) {
-                leftColumn += `<div class="content-block">`;
-                leftColumn += `<div class="content-label">${getSectionIcon('cross-repo work')}cross-repo work</div>`;
-                leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.cross_repository_work)}</div>`;
-                leftColumn += `</div>`;
+                const content = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('cross-repo work')}cross-repo work</div>
+                    <div class="content-text">${renderMarkdown(weeklySummary.cross_repository_work)}</div>
+                </div>`;
+                contentSections.push({
+                    content: content,
+                    estimatedHeight: estimateContentHeight(weeklySummary.cross_repository_work),
+                    priority: 1
+                });
             }
             
+            // Key projects section
             if (weeklySummary.key_projects) {
-                leftColumn += `<div class="content-block">`;
-                leftColumn += `<div class="content-label">${getSectionIcon('key projects')}key projects</div>`;
-                leftColumn += `<div class="content-text">${renderMarkdown(weeklySummary.key_projects)}</div>`;
-                leftColumn += `</div>`;
+                const content = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('key projects')}key projects</div>
+                    <div class="content-text">${renderMarkdown(weeklySummary.key_projects)}</div>
+                </div>`;
+                contentSections.push({
+                    content: content,
+                    estimatedHeight: estimateContentHeight(weeklySummary.key_projects),
+                    priority: 1
+                });
             }
             
-            // Right column - Discussions, Trends
-            
+            // Discussions section
             if (weeklySummary.notable_discussions) {
-                rightColumn += `<div class="content-block">`;
-                rightColumn += `<div class="content-label">${getSectionIcon('discussions')}discussions</div>`;
-                rightColumn += `<div class="content-text">${renderMarkdown(weeklySummary.notable_discussions)}</div>`;
-                rightColumn += `</div>`;
+                const content = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('discussions')}discussions</div>
+                    <div class="content-text">${renderMarkdown(weeklySummary.notable_discussions)}</div>
+                </div>`;
+                contentSections.push({
+                    content: content,
+                    estimatedHeight: estimateContentHeight(weeklySummary.notable_discussions),
+                    priority: 0
+                });
             }
             
+            // Emerging trends section
             if (weeklySummary.emerging_trends) {
-                rightColumn += `<div class="content-block">`;
-                rightColumn += `<div class="content-label">${getSectionIcon('emerging trends')}emerging trends</div>`;
-                rightColumn += `<div class="content-text">${renderMarkdown(weeklySummary.emerging_trends)}</div>`;
-                rightColumn += `</div>`;
+                const content = `<div class="content-block">
+                    <div class="content-label">${getSectionIcon('emerging trends')}emerging trends</div>
+                    <div class="content-text">${renderMarkdown(weeklySummary.emerging_trends)}</div>
+                </div>`;
+                contentSections.push({
+                    content: content,
+                    estimatedHeight: estimateContentHeight(weeklySummary.emerging_trends),
+                    priority: 0
+                });
             }
+            
+            // Dynamic column balancing
+            const balancedColumns = balanceColumns(contentSections);
+            const leftColumn = balancedColumns.left;
+            const rightColumn = balancedColumns.right;
             
             // If no content at all, return empty
             if (!leftColumn && !rightColumn) {
@@ -3755,6 +4585,23 @@
             // Re-add click handler for ALL tab
             if (allTab) {
                 allTab.onclick = () => switchGroup('all').catch(console.error);
+            }
+            
+            // Copy groups to mid-size container
+            const headerGroupsMid = document.getElementById('header-groups-mid');
+            if (headerGroupsMid) {
+                headerGroupsMid.innerHTML = headerGroups.innerHTML;
+                // Re-add click handlers to mid-size group tabs
+                headerGroupsMid.querySelectorAll('.group-tab').forEach(tab => {
+                    const groupKey = tab.dataset.group;
+                    tab.onclick = () => {
+                        if (currentRepoView) {
+                            exitRepoView().then(() => switchGroup(groupKey)).catch(console.error);
+                        } else {
+                            switchGroup(groupKey).catch(console.error);
+                        }
+                    };
+                });
             }
             
             // Add dynamic feed links to head
