@@ -53,92 +53,166 @@
             width: 100vw;
         }
         
-        /* Top header */
+        /* ===== NEW RESPONSIVE HEADER DESIGN ===== */
+        
+        /* Main header container */
         .header {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            height: 40px;
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
             z-index: 1000;
+            padding: 0;
         }
         
-        /* Desktop: single row layout */
-        .header-row-1 {
+        /* Header inner wrapper for proper layout */
+        .header-inner {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
             width: 100%;
         }
         
-        /* Hide mobile-only elements on desktop */
-        .repo-dropdown-header {
+        /* Primary header row */
+        .header-primary {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            padding: 0 15px;
+            gap: 15px;
+        }
+        
+        /* Secondary header row (for tablet) */
+        .header-secondary {
+            display: none;
+            align-items: center;
+            height: 30px;
+            padding: 0 15px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        /* Mobile menu toggle */
+        .mobile-menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 5px;
+            transition: color 0.2s;
+        }
+        
+        .mobile-menu-toggle:hover {
+            color: var(--text-primary);
+        }
+        
+        /* Mobile slide-out menu */
+        .mobile-menu {
+            position: fixed;
+            top: 0;
+            right: -280px;
+            width: 280px;
+            height: 100vh;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border-color);
+            z-index: 10001;
+            transition: right 0.3s ease;
+            overflow-y: auto;
             display: none;
         }
         
-        /* Header left section - contains title, separator, and groups */
-        .header-left {
-            display: flex;
-            align-items: center;
-            flex: 1;
+        .mobile-menu.active {
+            right: 0;
         }
         
-        /* Header right section - contains all controls */
-        .header-right {
+        .mobile-menu-header {
             display: flex;
+            justify-content: space-between;
             align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
         }
         
-        /* All controls together */
-        .header-all-controls {
+        .mobile-menu-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+        
+        .mobile-menu-content {
+            padding: 15px;
+        }
+        
+        .mobile-menu-section {
+            margin-bottom: 20px;
+        }
+        
+        .mobile-menu-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+        
+        /* Mobile overlay */
+        .mobile-menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+        }
+        
+        .mobile-menu-overlay.active {
+            display: block;
+        }
+        
+        /* Legacy status bar - hide on all sizes */
+        .status-bar {
+            display: none;
+        }
+        
+        /* Header elements */
+        .header-brand {
             display: flex;
             align-items: center;
             gap: 10px;
-        }
-        
-        /* Legacy selectors for compatibility */
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 0;
-        }
-        
-        .header-mobile-controls {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        /* Hide original status bar on desktop */
-        .status-bar {
-            display: none;
         }
         
         .header-title {
             color: var(--text-primary);
             font-size: 13px;
             font-weight: bold;
-            margin-left: 15px;
             text-transform: uppercase;
             letter-spacing: 2px;
-        }
-        
-        .header-separator {
-            color: var(--text-muted);
-            font-size: 13px;
-            margin: 0 10px;
-            opacity: 0.3;
+            white-space: nowrap;
         }
         
         .header-groups {
             display: flex;
             align-items: center;
             gap: 0;
-            margin-left: 5px;
+            flex: 1;
+        }
+        
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+        
+        .header-icons {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .repo-view-indicator {
@@ -571,7 +645,7 @@
             opacity: 0;
             transition: opacity 0.2s;
             margin-bottom: 4px;
-            z-index: 1000;
+            z-index: 10000;
         }
         
         .week-tick:hover .week-tick-tooltip {
@@ -1016,7 +1090,7 @@
             border-radius: 6px;
             padding: 10px;
             margin-bottom: 8px;
-            z-index: 1000;
+            z-index: 10000;
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.2s ease;
@@ -1548,6 +1622,7 @@
         
         .mode-action {
             font-size: 16px;
+            padding-right: 8px;
         }
         
         /* Feeds Modal */
@@ -1669,51 +1744,32 @@
             }
         }
         
-        /* Hide mid-size row by default */
-        .header-row-mid {
-            display: none;
-        }
-
-        /* Mid-size screens - 2-row layout */
+        /* ===== RESPONSIVE BREAKPOINTS ===== */
+        
+        /* Tablet (768px - 1024px): Two-row layout */
         @media screen and (max-width: 1024px) and (min-width: 769px) {
-            /* Increase header height for 2 rows */
-            .header {
-                height: 60px;
+            .header-secondary {
+                display: flex;
             }
             
-            /* First row: title on left, ALL controls on right */
-            .header-left .header-separator,
-            .header-left .header-groups,
-            .header-left .repo-view-indicator {
+            .header-primary .header-groups {
                 display: none;
             }
             
-            /* Show second row with only groups */
-            .header-row-mid {
-                display: flex;
-                align-items: center;
-                justify-content: flex-start;
-                height: 30px;
-                padding: 0 15px;
-                background: var(--bg-secondary);
-                border-bottom: 1px solid var(--border-color);
+            .sidebar {
+                width: 140px;
             }
             
-            .header-left-mid {
-                display: flex;
-                align-items: center;
-                flex: 1;
+            .week-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
             }
         }
         
-        /* Mobile breakpoint */
+        /* Mobile (<768px): Hamburger menu */
         @media screen and (max-width: 768px) {
             body {
                 overflow: auto;
-            }
-            
-            .header-separator {
-                display: none;
             }
             
             .container {
@@ -1721,103 +1777,53 @@
                 height: auto;
             }
             
-            /* Make header mobile-friendly with two rows */
             .header {
                 position: sticky;
-                height: auto;
-                padding: 8px 5px;
-                flex-direction: column;
-                align-items: stretch;
             }
             
-            /* Mobile: stacked layout */
-            .header-row-1 {
-                display: flex;
-                flex-direction: column;
-                align-items: stretch;
-                gap: 8px;
-                padding: 8px;
+            /* Show mobile menu elements */
+            .mobile-menu-toggle {
+                display: block;
             }
             
-            /* Top row: title and RSS/theme */
-            .header-left {
-                display: flex;
-                align-items: center;
-                order: 1;
-                margin-bottom: 4px;
+            .mobile-menu {
+                display: block;
             }
             
-            /* Bottom row: groups and filter/repos */
-            .header-right {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                order: 2;
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-            
-            .header-mobile-controls {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                order: 2;
-            }
-            
-            .header-controls {
-                order: 1;
-            }
-            
-            /* Hide mid-size row on mobile */
-            .header-row-mid {
+            /* Hide desktop elements */
+            .header-groups,
+            .header-controls,
+            .header-icons {
                 display: none;
             }
             
-            /* Mobile: show all groups elements but in different position */
-            
-            .header-title {
-                font-size: 14px;
-                margin-left: 10px;
-                flex-shrink: 0;
-            }
-            
-            .header-separator {
-                margin: 0 4px;
-                font-size: 11px;
-            }
-            
-            .header-groups {
-                display: flex;
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                flex: 1;
-                gap: 2px;
-                -webkit-overflow-scrolling: touch;
-            }
-            
-            .group-tab {
-                flex-shrink: 0;
-                font-size: 10px;
-                padding: 4px 6px;
-                white-space: nowrap;
-            }
-            
-            /* Dynamic abbreviations for longer group names on mobile */
-            /* These can be added dynamically via JavaScript if needed */
-            
-            .header-controls {
-                gap: 5px;
-            }
-            
-            .filter-dropdown-container {
-                flex-shrink: 0;
-            }
-            
-            .filter-dropdown-toggle {
-                font-size: 11px;
-                padding: 6px 10px;
+            /* Mobile-specific group tab styling */
+            .mobile-menu .group-tab {
+                display: block;
+                width: 100%;
+                padding: 10px;
+                margin-bottom: 5px;
+                text-align: left;
                 background: var(--bg-tertiary);
-                border-radius: 3px;
+                border-radius: 4px;
+            }
+            
+            .mobile-menu .group-tab.active {
+                background: var(--eco-active-bg);
+            }
+            
+            /* Mobile filter and repo buttons */
+            .mobile-filter-btn,
+            .mobile-repo-btn {
+                width: 100%;
+                padding: 10px;
+                background: var(--bg-tertiary);
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                color: var(--text-primary);
+                cursor: pointer;
+                margin-bottom: 10px;
+                text-align: left;
             }
             
             /* Mobile modal for filter dropdown */
@@ -2031,19 +2037,24 @@
     </style>
 </head>
 <body>
+    <!-- Redesigned Responsive Header -->
     <div class="header">
-        <div class="header-row-1">
-            <div class="header-left">
-                <div class="header-title">OCAML.SYS</div>
-                <div class="header-separator">::</div>
+        <div class="header-inner">
+            <!-- Primary header row (always visible) -->
+            <div class="header-primary">
+                <div class="header-brand">
+                    <div class="header-title">OCAML.SYS</div>
+                    <div id="repo-view-indicator" class="repo-view-indicator" style="display: none;"></div>
+                </div>
+                
+                <!-- Desktop/Tablet: Group tabs -->
                 <div class="header-groups" id="header-groups">
                     <div class="group-tab active" data-group="all">[ALL]</div>
                     <!-- Groups will be dynamically added here -->
                 </div>
-                <div id="repo-view-indicator" class="repo-view-indicator" style="display: none;"></div>
-            </div>
-            <div class="header-right">
-                <div class="header-all-controls">
+                
+                <!-- Desktop/Tablet: Controls -->
+                <div class="header-controls">
                     <div class="filter-dropdown-container">
                         <div class="filter-dropdown-toggle" onclick="toggleFilterDropdown()">
                             <span>FILTER</span>
@@ -2059,6 +2070,7 @@
                             </div>
                         </div>
                     </div>
+                    
                     <div class="repo-dropdown-container">
                         <div class="repo-dropdown-toggle" onclick="toggleRepoDropdown()">
                             <span>REPOS</span>
@@ -2074,6 +2086,10 @@
                             </div>
                         </div>
                     </div>
+                </div>
+                
+                <!-- Icons (RSS & Theme) -->
+                <div class="header-icons">
                     <div class="status-action feed-action" onclick="showFeeds()" title="RSS/Atom Feeds">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M4 11a9 9 0 0 1 9 9"/>
@@ -2085,17 +2101,64 @@
                         <span id="mode-icon-top">◐</span>
                     </div>
                 </div>
+                
+                <!-- Mobile: Menu toggle -->
+                <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <line x1="3" y1="12" x2="21" y2="12"/>
+                        <line x1="3" y1="18" x2="21" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Secondary header row (tablet only) -->
+            <div class="header-secondary" id="header-secondary">
+                <div class="header-groups" id="header-groups-secondary">
+                    <!-- Groups will be cloned here for tablet view -->
+                </div>
             </div>
         </div>
-        
-        <!-- Mid-size screen second row - groups only -->
-        <div class="header-row-mid">
-            <div class="header-left-mid">
-                <div class="header-separator">::</div>
-                <div class="header-groups" id="header-groups-mid">
-                    <!-- Groups will be copied here by JavaScript for mid-size screens -->
+    </div>
+    
+    <!-- Mobile slide-out menu -->
+    <div class="mobile-menu-overlay" onclick="closeMobileMenu()"></div>
+    <div class="mobile-menu">
+        <div class="mobile-menu-header">
+            <div class="header-title">MENU</div>
+            <button class="mobile-menu-close" onclick="closeMobileMenu()">×</button>
+        </div>
+        <div class="mobile-menu-content">
+            <div class="mobile-menu-section">
+                <div class="mobile-menu-label">Groups</div>
+                <div id="mobile-groups">
+                    <!-- Groups will be cloned here -->
                 </div>
-                <div id="repo-view-indicator-mid" class="repo-view-indicator" style="display: none;"></div>
+            </div>
+            <div class="mobile-menu-section">
+                <button class="mobile-filter-btn" onclick="toggleFilterDropdown(); closeMobileMenu();">
+                    FILTER SECTIONS
+                </button>
+                <button class="mobile-repo-btn" onclick="toggleRepoDropdown(); closeMobileMenu();">
+                    SELECT REPOSITORY
+                </button>
+            </div>
+            <div class="mobile-menu-section">
+                <div class="mobile-menu-label">Options</div>
+                <div style="display: flex; gap: 15px; padding: 10px 0;">
+                    <div class="status-action feed-action" onclick="showFeeds()" title="RSS/Atom Feeds">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 11a9 9 0 0 1 9 9"/>
+                            <path d="M4 4a16 16 0 0 1 16 16"/>
+                            <circle cx="5" cy="19" r="1"/>
+                        </svg>
+                        <span style="margin-left: 8px;">RSS Feeds</span>
+                    </div>
+                    <div class="status-action mode-action" onclick="toggleTheme()" title="Toggle Theme">
+                        <span id="mode-icon-mobile">◐</span>
+                        <span style="margin-left: 8px;">Theme</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -2176,6 +2239,23 @@
             setTheme(isLight ? 'dark' : 'light');
         }
         
+        // Mobile menu functions
+        function toggleMobileMenu() {
+            const menu = document.querySelector('.mobile-menu');
+            const overlay = document.querySelector('.mobile-menu-overlay');
+            menu.classList.toggle('active');
+            overlay.classList.toggle('active');
+            document.body.style.overflow = menu.classList.contains('active') ? 'hidden' : '';
+        }
+        
+        function closeMobileMenu() {
+            const menu = document.querySelector('.mobile-menu');
+            const overlay = document.querySelector('.mobile-menu-overlay');
+            menu.classList.remove('active');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
         // Initialize theme on page load
         function initTheme() {
             const savedTheme = localStorage.getItem('theme');
@@ -2220,7 +2300,6 @@
         
         function getSectionIcon(label) {
             const icons = {
-                'overview': '',
                 'new features': '<svg viewBox="0 0 24 24"><path d="M12 2 L15.5 8.5 L22 9 L17 14 L18.5 20.5 L12 17 L5.5 20.5 L7 14 L2 9 L8.5 8.5 Z" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="3"/></svg>',
                 'cross-repo work': '<svg viewBox="0 0 24 24"><path d="M4 6 L4 18 L10 18 M14 6 L20 6 L20 18 L14 18"/><path d="M10 12 L14 12 M11 9 L13 12 L11 15"/></svg>',
                 'key projects': '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="5"/><rect x="5" y="11" width="14" height="5"/><rect x="5" y="18" width="14" height="2"/></svg>',
@@ -2484,23 +2563,9 @@
             switchToGroup(groupName).catch(console.error);
         }
         
+        // Alias for backward compatibility
         async function switchToGroup(groupName) {
-            // Update active tab
-            document.querySelectorAll('.group-tab').forEach(t => {
-                t.classList.remove('active');
-            });
-            const activeTab = document.querySelector(`.group-tab[data-group="${groupName}"]`);
-            if (activeTab) {
-                activeTab.classList.add('active');
-                
-                // Switch ecosystem and refresh content
-                currentEcosystem = groupName;
-                populateTimeline();
-                await displayAllWeeks();
-                
-                // Update URL
-                updateURL();
-            }
+            return switchGroup(groupName);
         }
         
         // URL management functions
@@ -3092,7 +3157,6 @@
         // Filter dropdown functionality
         let filterDropdownOpen = false;
         let sectionFilters = {
-            'overview': true,
             'new features': true,
             'activity': true,
             'ongoing': true,
@@ -3231,7 +3295,7 @@
                             (filterKey === 'activity' && (labelText === 'activity' || labelText === 'group activity')) ||
                             (filterKey === 'contributors' && labelText === 'contributors') ||
                             (filterKey === 'discussions' && labelText === 'discussions') ||
-                            (filterKey === 'overview' && labelText === 'overview')) {
+                            false) {
                             shouldHide = !isVisible;
                             break;
                         }
@@ -3269,17 +3333,14 @@
             const content = document.getElementById('repo-dropdown-content');
             const allRepos = new Set();
             
-            // Collect all repositories from current ecosystem
+            // Collect all repositories from all ecosystems
             if (allWeekData) {
                 Object.values(allWeekData).forEach(weekData => {
                     if (weekData.repositories) {
                         weekData.repositories.forEach(repo => {
                             if (hasRepoActivity(repo)) {
-                                if (currentEcosystem === 'all' || 
-                                    (groupsData[currentEcosystem] && 
-                                     groupsData[currentEcosystem].repositories.includes(repo.repo_full))) {
-                                    allRepos.add(repo.repo_full);
-                                }
+                                // Show all repositories, regardless of current ecosystem
+                                allRepos.add(repo.repo_full);
                             }
                         });
                     }
@@ -3420,7 +3481,7 @@
                 }
                 
                 // Check if there's any content for this week
-                const hasContent = summary.overall_activity || summary.ongoing_projects || 
+                const hasContent = summary.activity || summary.ongoing_projects || 
                                  summary.new_features || summary.notable_discussions || 
                                  summary.contributors || summary.good_first_issues;
                 
@@ -3490,18 +3551,18 @@
                 }
                 
                 // Overall activity section
-                if (summary.overall_activity || summary.brief_summary) {
+                if (summary.activity || summary.activity_summary) {
                     let sectionContent = `<div class="content-block">
                         <div class="content-label">${getSectionIcon('activity')}activity</div>`;
                     
                     let totalText = '';
-                    if (summary.brief_summary) {
-                        sectionContent += `<div class="section-summary">${summary.brief_summary}</div>`;
-                        totalText += summary.brief_summary;
+                    if (summary.activity_summary) {
+                        sectionContent += `<div class="section-summary">${summary.activity_summary}</div>`;
+                        totalText += summary.activity_summary;
                     }
-                    if (summary.overall_activity) {
-                        sectionContent += `<div class="content-text">${renderMarkdown(summary.overall_activity)}</div>`;
-                        totalText += summary.overall_activity;
+                    if (summary.activity) {
+                        sectionContent += `<div class="content-text">${renderMarkdown(summary.activity)}</div>`;
+                        totalText += summary.activity;
                     }
                     
                     sectionContent += `</div>`;
@@ -3736,7 +3797,7 @@
         function hasRepoActivity(repo) {
             // Check if repo has any meaningful content
             const contentFields = [
-                'overall_activity', 'brief_summary',
+                'activity', 'activity_summary',
                 'ongoing_projects', 'ongoing_summary',
                 'new_features', 'new_features_summary',
                 'notable_discussions', 'discussions_summary',
@@ -3950,23 +4011,6 @@
             const contentSections = [];
             const singleRepo = filteredRepos.length === 1;
             
-            // Overview section (for multi-repo ecosystems)
-            if (filteredRepos.length > 1) {
-                filteredGroups.forEach(group => {
-                    if (group.group_overview) {
-                        const content = `<div class="content-block">
-                            <div class="content-label">${getSectionIcon('overview')}overview</div>
-                            <div class="content-text">${renderMarkdown(group.group_overview)}</div>
-                        </div>`;
-                        contentSections.push({
-                            content: content,
-                            estimatedHeight: estimateContentHeight(group.group_overview),
-                            priority: 1 // Higher priority means prefer left column
-                        });
-                    }
-                });
-            }
-            
             // New Features section
             const newFeaturesRepos = filteredRepos.filter(repo => repo.new_features || repo.new_features_summary);
             if (newFeaturesRepos.length > 0) {
@@ -4002,28 +4046,28 @@
             }
             
             // Activity section
-            const activityRepos = filteredRepos.filter(repo => repo.brief_summary || repo.overall_activity);
+            const activityRepos = filteredRepos.filter(repo => repo.activity_summary || repo.activity);
             if (activityRepos.length > 0) {
                 let sectionContent = `<div class="content-block">
                     <div class="content-label">${getSectionIcon('activity')}activity</div>`;
                 
-                if (singleRepo && activityRepos[0].brief_summary) {
-                    sectionContent += `<div class="section-summary">${activityRepos[0].brief_summary}</div>`;
+                if (singleRepo && activityRepos[0].activity_summary) {
+                    sectionContent += `<div class="section-summary">${activityRepos[0].activity_summary}</div>`;
                 }
                 
                 let totalText = '';
                 activityRepos.forEach(repo => {
-                    if (!singleRepo && repo.brief_summary) {
+                    if (!singleRepo && repo.activity_summary) {
                         const [org, name] = repo.repo_full.split('/');
                         const commitLink = getCommitRangeLink(repo);
-                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.brief_summary)}`;
+                        const summaryWithRepo = `In <a href="https://github.com/${repo.repo_full}" target="_blank" class="repo-inline">${org}/${name}</a>${commitLink}: ${renderMarkdown(repo.activity_summary)}`;
                         sectionContent += `<div class="section-summary">${summaryWithRepo}</div>`;
-                        totalText += repo.brief_summary || '';
+                        totalText += repo.activity_summary || '';
                     }
                     
-                    if (repo.overall_activity) {
-                        sectionContent += `<div class="content-text">${renderMarkdown(repo.overall_activity)}</div>`;
-                        totalText += repo.overall_activity || '';
+                    if (repo.activity) {
+                        sectionContent += `<div class="content-text">${renderMarkdown(repo.activity)}</div>`;
+                        totalText += repo.activity || '';
                     }
                 });
                 
@@ -4205,8 +4249,8 @@
                     leftColumn += `<div class="content-label">${getSectionIcon('activity')}group activity</div>;`
                     
                     allGroups.forEach(group => {
-                        if (group.brief_summary) {
-                            leftColumn += `<div class="section-summary"><strong>${group.group}:</strong> ${renderMarkdown(group.brief_summary)}</div>`;
+                        if (group.activity_summary) {
+                            leftColumn += `<div class="section-summary"><strong>${group.group}:</strong> ${renderMarkdown(group.activity_summary)}</div>`;
                         }
                     });
                     
@@ -4221,19 +4265,6 @@
             
             // Collect all content sections for dynamic balancing
             const contentSections = [];
-            
-            // Overview section
-            if (weeklySummary.group_overview) {
-                const content = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('overview')}overview</div>
-                    <div class="content-text">${renderMarkdown(weeklySummary.group_overview)}</div>
-                </div>`;
-                contentSections.push({
-                    content: content,
-                    estimatedHeight: estimateContentHeight(weeklySummary.group_overview),
-                    priority: 1
-                });
-            }
             
             // New Features section - prominently placed after overview
             if (weeklySummary.new_features) {
@@ -4577,6 +4608,43 @@
                 }
             });
             
+            // Clone groups to tablet secondary header
+            const secondaryGroups = document.getElementById('header-groups-secondary');
+            if (secondaryGroups) {
+                secondaryGroups.innerHTML = '';
+                headerGroups.querySelectorAll('.group-tab').forEach(tab => {
+                    const clonedTab = tab.cloneNode(true);
+                    const groupKey = clonedTab.dataset.group;
+                    clonedTab.onclick = () => {
+                        if (currentRepoView) {
+                            exitRepoView().then(() => switchGroup(groupKey)).catch(console.error);
+                        } else {
+                            switchGroup(groupKey).catch(console.error);
+                        }
+                    };
+                    secondaryGroups.appendChild(clonedTab);
+                });
+            }
+            
+            // Clone groups to mobile menu
+            const mobileGroups = document.getElementById('mobile-groups');
+            if (mobileGroups) {
+                mobileGroups.innerHTML = '';
+                headerGroups.querySelectorAll('.group-tab').forEach(tab => {
+                    const mobileTab = tab.cloneNode(true);
+                    const groupKey = mobileTab.dataset.group;
+                    mobileTab.onclick = () => {
+                        closeMobileMenu();
+                        if (currentRepoView) {
+                            exitRepoView().then(() => switchGroup(groupKey)).catch(console.error);
+                        } else {
+                            switchGroup(groupKey).catch(console.error);
+                        }
+                    };
+                    mobileGroups.appendChild(mobileTab);
+                });
+            }
+            
             if (mobileCSS) {
                 style.textContent = mobileCSS;
                 document.head.appendChild(style);
@@ -4673,13 +4741,21 @@
         }
         
         async function switchGroup(groupName) {
-            // Update active tab styling
+            // Update active tab styling across all instances (primary, secondary, mobile)
             document.querySelectorAll('.group-tab').forEach(t => {
                 t.classList.remove('active');
                 if (t.dataset.group === groupName) {
                     t.classList.add('active');
                 }
             });
+            
+            // Update title in header
+            const headerTitle = document.querySelector('.header-title');
+            if (headerTitle && groupName !== 'all') {
+                headerTitle.textContent = groupName.toUpperCase();
+            } else if (headerTitle) {
+                headerTitle.textContent = 'OCAML.SYS';
+            }
             
             // Switch ecosystem and refresh content
             currentEcosystem = groupName;
