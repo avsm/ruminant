@@ -126,7 +126,7 @@ This summary should provide a high-level overview of ALL activity across the ent
     for group_name in current_week_data.get('group_summaries', {}).keys():
         summary_file = f"data/groups/{group_name}/week-{week}-{year}.json"
         prompt += f"- **{group_name.upper()}**: `{summary_file}`\n"
-        prompt += f"  Keys: `brief_summary`, `group_overview`, `key_projects`, `priority_items`, `notable_discussions`, `emerging_trends`\n\n"
+        prompt += f"  Keys: `brief_summary`, `new_features_summary`, `new_features`, `group_overview`, `activity_summary`, `activity`, `notable_discussions`, `emerging_trends`\n\n"
     
     # Add context from previous weeks (display in chronological order, oldest first)
     if previous_weeks_data:
@@ -203,10 +203,12 @@ Generate a JSON file with the following structure (matching the group summary fo
   "year": """ + str(year) + """,
   "week_range": \"""" + f"{week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')}" + """\",
   "brief_summary": "A single sentence (max 150 chars) summarizing the most important activity this week",
+  "new_features_summary": "One sentence (max 150 chars) listing key new user-facing features across all groups - set to null if no new features",
+  "new_features": "Markdown content listing new user-facing features from all groups - prioritize code features over docs - MUST link to PR or commit - set to null if none",
   "group_overview": "Markdown text providing a high-level overview of all group activities with bullet points highlighting major themes and developments across core, tools, ecosystem, and oxcaml groups",
+  "activity_summary": "One sentence (max 150 chars) summarizing activity beyond new features across all groups - set to null if no activity exists",
+  "activity": "Markdown text combining completed work and ongoing initiatives across all groups, minimizing repetition with new features section - set to null if no activity exists",
   "cross_repository_work": "Markdown text describing coordination and shared work across multiple repositories, highlighting cross-cutting themes and collaboration patterns",
-  "key_projects": "Markdown text listing the most significant individual projects and initiatives with specific contributors, PR/issue numbers, and progress details",
-  "priority_items": "Markdown text highlighting critical issues, urgent fixes, and high-priority items that require immediate attention or resolution",
   "notable_discussions": "Markdown text describing important technical discussions, design debates, or community conversations that shaped the week's direction",
   "emerging_trends": "Markdown text identifying patterns, themes, and trends that are emerging across the ecosystem, including technology adoption, architectural shifts, or community focus areas"
 }
@@ -228,7 +230,8 @@ IMPORTANT FORMATTING REQUIREMENTS:
 - This allows readers to navigate directly to detailed group summaries and see group context first
 - Use these group links at the beginning of every bullet point when referencing group-specific activities
 - Keep the summary concise but comprehensive (aim for 500-800 words)
-- Use bullet points for clarity on each of the items like cross repository work, key projects, priority items, notable discussions and emerging trends
+- There is NO word limit for the summaries - we want to capture as much activity as we can succinctly
+- Use bullet points for clarity on each of the items like new features, cross repository work, key projects, notable discussions and emerging trends
 - Highlight specific people's contributions where notable
 - Include specific PR/issue numbers for major items
 
@@ -243,9 +246,9 @@ BULLET POINT FORMATTING STYLE:
 
 GROUP-INTERNAL HREF USAGE:
 - Use __RUMINANT:groupname__ links not just at the beginning of overview bullets, but throughout all sections
+- For new_features: Include __RUMINANT:groupname__ for the group that released each feature
 - For cross_repository_work: Include __RUMINANT:groupname__ for each group involved in the coordination
-- For key_projects: Include __RUMINANT:groupname__ for the primary group driving each project
-- For priority_items: Include __RUMINANT:groupname__ for the group responsible for each critical issue
+- For activity: Include __RUMINANT:groupname__ for the primary group driving each activity or project
 - For notable_discussions: Include __RUMINANT:groupname__ for the group where each discussion is taking place
 - For emerging_trends: Include __RUMINANT:groupname__ when trends are specific to particular groups
 - This allows readers to quickly navigate to the detailed group context for any specific item mentioned
@@ -282,7 +285,18 @@ TONE AND LANGUAGE REQUIREMENTS:
 - Focus on quantifiable data: number of PRs, issues, contributors, lines changed
 - Let the links and specific references speak for themselves
 - Describe what happened, not how impressive or important it was
-- When describing priorities, reference the specific issues rather than characterizing urgency
+
+NEW FEATURES SECTION GUIDELINES:
+- Extract new_features from each group's summary
+- PRIORITIZE features in this order:
+  1. New code features, APIs, and functionality
+  2. Bug fixes that affect user experience
+  3. Performance improvements
+  4. Documentation updates and manual improvements (list these AFTER code features)
+- Format as: "- __RUMINANT:groupname__ Feature description [owner/repo#number](link) or [commit](link)"
+- Example: "- __RUMINANT:core__ Added **multicore runtime** improvements [ocaml/ocaml#1234](https://github.com/ocaml/ocaml/issues/1234)"
+- Group similar features together (all code features first, then documentation)
+- Include group reference for context
 
 The summary should be suitable for:
 - Developers wanting a quick overview of ecosystem activity
@@ -294,10 +308,10 @@ FINAL VERIFICATION STEP - ABSOLUTELY CRITICAL:
 Before writing your final JSON output to the file, you MUST perform this comprehensive link verification:
 
 1. **SCAN EVERY SECTION** of your generated content systematically:
+   - new_features
    - group_overview
    - cross_repository_work
-   - key_projects
-   - priority_items
+   - activity
    - notable_discussions
    - emerging_trends
 
@@ -316,7 +330,7 @@ Before writing your final JSON output to the file, you MUST perform this compreh
 
 4. **DOUBLE-CHECK THESE AREAS** (often missed):
    - Contributors mentioned in passing (not just main authors)
-   - Issue numbers in priority_items section
+   - Issue numbers and commits in new_features section
    - Repository references in cross_repository_work
    - PR numbers mentioned in emerging_trends
    - All usernames in notable_discussions
@@ -553,8 +567,8 @@ def summarize_week_main(
                     summary_data = json.loads(file_content)
                     
                     # Validate that it has the expected structure
-                    expected_fields = ['brief_summary', 'group_overview', 'cross_repository_work', 
-                                     'key_projects', 'priority_items', 'notable_discussions', 'emerging_trends']
+                    expected_fields = ['brief_summary', 'new_features_summary', 'new_features', 'group_overview', 'cross_repository_work',
+                                     'activity', 'notable_discussions', 'emerging_trends']
                     missing_fields = [field for field in expected_fields if field not in summary_data]
                     
                     if missing_fields:

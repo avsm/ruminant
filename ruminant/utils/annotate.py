@@ -264,14 +264,14 @@ def annotate_file(input_file: Path, output_file: Path, token: Optional[str]) -> 
             if 'short_summary' in data:
                 # Weekly summary fields
                 fields_to_process = [
-                    'short_summary', 'overall_activity', 'key_achievements', 'ongoing_initiatives',
-                    'priority_items', 'notable_discussions', 'emerging_patterns', 'ecosystem_health',
+                    'short_summary', 'new_features_summary', 'new_features', 'activity_summary', 'activity',
+                    'notable_discussions', 'emerging_patterns', 'ecosystem_health',
                     'contributors_spotlight'
                 ]
             else:
                 # Individual repository summary fields
                 fields_to_process = [
-                    'overall_activity', 'ongoing_projects', 'priority_items',
+                    'new_features_summary', 'new_features', 'activity_summary', 'activity',
                     'notable_discussions', 'emerging_trends', 'good_first_issues', 'contributors'
                 ]
             

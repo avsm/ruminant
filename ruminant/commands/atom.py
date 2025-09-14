@@ -80,22 +80,22 @@ def create_atom_feed(group_name: str, summaries: List[Dict[str, Any]], config: A
         
         # Build content from sections
         content_parts = []
-        
+
+        if summary.get('new_features'):
+            content_parts.append(f"<h2>New Features</h2>\n{markdown_to_html(summary['new_features'], users_data)}")
+
         if summary.get('group_overview'):
             content_parts.append(f"<h2>Group Overview</h2>\n{markdown_to_html(summary['group_overview'], users_data)}")
-        
+
         if summary.get('cross_repository_work'):
             content_parts.append(f"<h2>Cross-Repository Work</h2>\n{markdown_to_html(summary['cross_repository_work'], users_data)}")
-        
+
         if summary.get('key_projects'):
             content_parts.append(f"<h2>Key Projects and Initiatives</h2>\n{markdown_to_html(summary['key_projects'], users_data)}")
-        
-        if summary.get('priority_items'):
-            content_parts.append(f"<h2>Priority Items</h2>\n{markdown_to_html(summary['priority_items'], users_data)}")
-        
+
         if summary.get('notable_discussions'):
             content_parts.append(f"<h2>Notable Discussions</h2>\n{markdown_to_html(summary['notable_discussions'], users_data)}")
-        
+
         if summary.get('emerging_trends'):
             content_parts.append(f"<h2>Emerging Trends</h2>\n{markdown_to_html(summary['emerging_trends'], users_data)}")
         

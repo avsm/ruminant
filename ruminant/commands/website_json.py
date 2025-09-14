@@ -24,7 +24,7 @@ class WeekSummary:
     week_range: str
     repos_count: int
     groups: List[str]
-    has_priority_items: bool
+    has_new_features: bool
     summary: Optional[str]
 
 
@@ -168,11 +168,11 @@ def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict
                     summary_text = report['brief_summary']
                     break
         
-        # Check for priority items in weekly, group, and individual summaries
-        has_priority = (
-            (week_summary and bool(week_summary.get('priority_items'))) or
-            any(bool(report.get('priority_items')) for report in week_reports) or
-            any(bool(group.get('priority_items')) for group in week_groups)
+        # Check for new features in weekly, group, and individual summaries
+        has_new_features = (
+            (week_summary and bool(week_summary.get('new_features'))) or
+            any(bool(report.get('new_features')) for report in week_reports) or
+            any(bool(group.get('new_features')) for group in week_groups)
         )
         
         # Get week range - prefer weekly summary, then reports, then groups
@@ -193,7 +193,7 @@ def generate_week_index(weeks_data: Dict[str, List[Dict]], group_summaries: Dict
             'week_range': week_range,
             'repos_count': len(week_reports),
             'groups': [g['group'] for g in week_groups],
-            'has_priority_items': has_priority,
+            'has_new_features': has_new_features,
             'summary': summary_text,
             'activity_level': calculate_activity_level(week_reports, week_groups, week_summary),
             'has_weekly_summary': week_summary is not None
@@ -212,12 +212,10 @@ def calculate_activity_level(reports: List[Dict], groups: List[Dict], weekly_sum
     for report in reports:
         if report.get('new_features'):
             level += 4  # High value for new features
-        if report.get('overall_activity'):
+        if report.get('activity'):
+            level += 3
+        if report.get('new_features'):
             level += 2
-        if report.get('ongoing_projects'):
-            level += 3
-        if report.get('priority_items'):
-            level += 3
         if report.get('notable_contributors'):
             level += 1
         if report.get('emerging_trends'):
@@ -231,8 +229,8 @@ def calculate_activity_level(reports: List[Dict], groups: List[Dict], weekly_sum
             level += 3
         if group.get('key_projects'):
             level += 3
-        if group.get('priority_items'):
-            level += 3
+        if group.get('new_features'):
+            level += 2
         if group.get('notable_discussions'):
             level += 1
         if group.get('emerging_trends'):
@@ -246,8 +244,8 @@ def calculate_activity_level(reports: List[Dict], groups: List[Dict], weekly_sum
             level += 4
         if weekly_summary.get('key_projects'):
             level += 4
-        if weekly_summary.get('priority_items'):
-            level += 4
+        if weekly_summary.get('new_features'):
+            level += 3
         if weekly_summary.get('notable_discussions'):
             level += 2
         if weekly_summary.get('emerging_trends'):
@@ -288,7 +286,7 @@ def generate_week_detail(week_key: str, reports: List[Dict], groups: List[Dict],
             'total_groups': len(groups),
             'has_weekly_summary': weekly_summary is not None,
             'has_new_features': any(r.get('new_features') for r in reports),
-            'has_priority_items': any(r.get('priority_items') for r in reports) or any(g.get('priority_items') for g in groups) or (weekly_summary and weekly_summary.get('priority_items')),
+            'has_new_features': any(r.get('new_features') for r in reports) or any(g.get('new_features') for g in groups) or (weekly_summary and weekly_summary.get('new_features')),
             'has_emerging_trends': any(r.get('emerging_trends') for r in reports) or any(g.get('emerging_trends') for g in groups) or (weekly_summary and weekly_summary.get('emerging_trends')),
             'repos_with_commits': sum(1 for r in reports if r.get('start_commit') and r.get('end_commit'))
         }
@@ -319,9 +317,7 @@ def generate_repositories_index(repo_data: Dict[str, List[Dict]]) -> Dict[str, A
                 'week_key': f"{s['year']}-{s['week']:02d}",
                 'week_range': s.get('week_range'),
                 'has_new_features': bool(s.get('new_features')),
-                'has_activity': bool(s.get('overall_activity')),
-                'has_priority': bool(s.get('priority_items')),
-                'has_ongoing': bool(s.get('ongoing_projects')),
+                'has_activity': bool(s.get('activity')),
                 'start_commit': s.get('start_commit'),
                 'end_commit': s.get('end_commit')
             } for s in sorted_summaries]

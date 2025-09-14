@@ -262,12 +262,11 @@ IMPORTANT: These statistics are provided for your understanding of the week's sc
 The report should include the following sections:
 
 1. NEW FEATURES - User-facing changes introduced this week (MUST use bullet points, analyze git diff, prioritize code features over documentation)
-2. A concise summary of the overall activity and key themes (MUST use bullet points)
-3. The most important ongoing projects or initiatives based on the data (MUST use bullet points)
-4. Notable discussions that should be highlighted (MUST use bullet points)
-5. Identify any emerging trends or patterns in development (MUST use bullet points)
-6. Good first issues for new contributors (MUST use bullet points)
-7. Contributors - Factual description of who did what (code, reviews, comments, discussions) without competition or rankings
+2. ACTIVITY - Combined summary of overall themes, completed work, and ongoing initiatives (MUST use bullet points, focus on what's different and incomplete beyond the new features to minimize repetition)
+3. Notable discussions that should be highlighted (MUST use bullet points)
+4. Identify any emerging trends or patterns in development (MUST use bullet points)
+5. Good first issues for new contributors (MUST use bullet points)
+6. Contributors - Factual description of who did what (code, reviews, comments, discussions) without competition or rankings
 
 CRITICAL REQUIREMENTS:
 - NEW FEATURES section is now FIRST and REQUIRED when git repository is available
@@ -373,11 +372,8 @@ ACTION REQUIRED:
   "brief_summary": "A single sentence (max 150 chars) summarizing the most important activity this week - set to null if NO activity",
   "new_features_summary": "One sentence (max 150 chars) listing key new user-facing features - set to null if no new features",
   "new_features": "Markdown content listing new user-facing features from git diff analysis - MUST link to PR or commit - set to null if none",
-  "overall_activity": "Markdown content for overall activity summary - set to null if no activity exists",
-  "ongoing_summary": "One sentence (max 150 chars) summarizing ongoing projects - set to null if no ongoing projects exist",
-  "ongoing_projects": "Markdown content for key ongoing projects - set to null if no ongoing projects exist",
-  "priority_summary": "One sentence (max 150 chars) highlighting urgent items - set to null if no priority items exist",
-  "priority_items": "Markdown content for priority items - set to null if no priority items exist",
+  "activity_summary": "One sentence (max 150 chars) summarizing activity beyond new features - set to null if no activity exists",
+  "activity": "Markdown content combining overall themes, completed work, and ongoing initiatives - focus on what's different and incomplete beyond new features - set to null if no activity exists",
   "discussions_summary": "One sentence (max 150 chars) about discussions - set to null if no notable discussions exist",
   "notable_discussions": "Markdown content for notable discussions - set to null if no discussions exist",
   "trends_summary": "One sentence (max 150 chars) describing trends - set to null if no trends are identifiable",
@@ -453,7 +449,7 @@ Remember:
 - Set BOTH summary AND content fields to null for sections with no activity
 - ABSOLUTELY NEVER write phrases like "No activity recorded" - use null instead
 - If the entire repository had zero activity, set ALL fields to null (every single field)
-- Each section is independent - if ongoing_projects has no content, set both ongoing_summary AND ongoing_projects to null
+- Each section is independent - if activity has no content, set both activity_summary AND activity to null
 - Summary fields should be concise sentences (max 150 chars) that capture the essence of that section
 - Content fields have NO size limit - include ALL relevant activity with as many bullet points as needed
 - EVERY bullet point in the markdown content must include clickable PR/issue links for reader follow-up
@@ -470,8 +466,7 @@ Before writing your final JSON output to the file, you MUST perform this compreh
 
 1. **SCAN EVERY SECTION** of your generated content systematically:
    - new_features (PRIORITY - must link to PRs or commits)
-   - overall_activity
-   - ongoing_projects
+   - activity
    - notable_discussions
    - emerging_trends
    - good_first_issues
@@ -644,9 +639,8 @@ Generate a JSON report with the following structure:
   "short_summary": "A 1-2 sentence SPECIFIC summary mentioning actual features/fixes/changes suitable for calendar previews (max 200 chars)",
   "new_features_summary": "One sentence (max 150 chars) listing key new user-facing features across all repos - set to null if no new features",
   "new_features": "Markdown content listing new user-facing features from all repos - prioritize code features over docs - MUST link to PR or commit - set to null if none",
-  "overall_activity": "Comprehensive markdown summary of activity across all repos (MUST use bullet points with specific PR/issue references)",
-  "key_achievements": "Major accomplishments and milestones across repos (MUST use bullet points with specific PR/issue references)",
-  "ongoing_initiatives": "Cross-repository projects and coordinated efforts (MUST use bullet points with specific PR/issue references)",
+  "activity_summary": "One sentence (max 150 chars) summarizing activity beyond new features - set to null if no activity exists",
+  "activity": "Comprehensive markdown summary of activity combining completed work and ongoing initiatives across all repos (MUST use bullet points with specific PR/issue references)",
   "notable_discussions": "Important discussions that affect multiple repos or the ecosystem (MUST use bullet points with discussion/issue references)",
   "emerging_patterns": "Trends and patterns observed across repositories (MUST use bullet points with example PR/issue references)",
   "ecosystem_health": "Overall assessment of the ecosystem's development health (MUST use bullet points with supporting PR/issue references)",
@@ -659,6 +653,7 @@ FORMATTING REQUIREMENTS:
 - short_summary: Keep under 200 characters, no markdown, suitable for calendar previews
 - Content fields have NO size limit - include ALL relevant activity with as many bullet points as needed
 - Do not truncate or abbreviate - comprehensive coverage is the goal
+- There is NO word limit for the summaries - we want to capture as much activity as we can succinctly
 
 TONE AND LANGUAGE REQUIREMENTS:
 - Use factual, objective language throughout all sections
