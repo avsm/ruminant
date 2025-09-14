@@ -264,6 +264,32 @@ def summarize_week(
         summarize_week_main(year, week, claude_args, dry_run, prompt_only, lookback_weeks)
 
 
+@app.command(help="Run end-to-end generator pipeline (repo → group → weekly summaries)")
+def bake(
+    weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks back to process (defaults to config value)"),
+    year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
+    week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
+    force: bool = typer.Option(False, "--force", help="Force regeneration of existing summaries"),
+    claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
+    skip_repos: bool = typer.Option(False, "--skip-repos", help="Skip repository summaries stage"),
+    skip_groups: bool = typer.Option(False, "--skip-groups", help="Skip group summaries stage"),
+    skip_weekly: bool = typer.Option(False, "--skip-weekly", help="Skip weekly summaries stage"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without executing"),
+) -> None:
+    """
+    Run the complete end-to-end generator pipeline.
+    
+    Executes three stages in sequence:
+    1. Repository summaries (parallel within stage)
+    2. Group summaries (parallel within stage)
+    3. Weekly summaries (sequential for context building)
+    
+    Each stage runs in parallel internally but stages are sequential.
+    """
+    from .commands.bake import bake_main
+    bake_main(weeks, year, week, force, claude_args, skip_repos, skip_groups, skip_weekly, dry_run)
+
+
 @app.command()
 def config(
     show_keys: bool = typer.Option(False, "--show-keys", help="Show sensitive configuration (GitHub token)")
