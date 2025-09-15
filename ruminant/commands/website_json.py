@@ -540,18 +540,107 @@ def post_process_markdown_with_user_links(text: str, users_data: Dict[str, Any])
     return github_user_pattern.sub(replace_user_link, text)
 
 
-def post_process_data_with_user_links(data: Any, users_data: Dict[str, Any]) -> Any:
-    """Recursively process all data to replace user links with full names."""
+def group_bullet_points_by_internal_links(content: str, group_order: List[str]) -> Dict[str, List[str]]:
+    """Group bullet points by their internal group links and order by config."""
+    if not content:
+        return {}
+    
+    # Split content into bullet points (lines starting with -)
+    lines = content.split('\n')
+    bullet_points = []
+    current_bullet = ""
+    
+    for line in lines:
+        line = line.strip()
+        if line.startswith('- '):
+            if current_bullet:
+                bullet_points.append(current_bullet)
+            current_bullet = line
+        elif current_bullet and line:
+            current_bullet += '\n' + line
+    
+    if current_bullet:
+        bullet_points.append(current_bullet)
+    
+    # Group bullets by their first __RUMINANT:group__ tag
+    groups = {}
+    ungrouped = []
+    
+    for bullet in bullet_points:
+        # Find the first __RUMINANT:group__ pattern
+        import re
+        pattern = r'__RUMINANT:(\w+)__'
+        match = re.search(pattern, bullet)
+        
+        if match:
+            group_name = match.group(1)
+            # Only remove the __RUMINANT:group__ tag if it's at the beginning of the bullet
+            # (after the "- " marker)
+            clean_bullet = bullet
+            if bullet.strip().startswith('- __RUMINANT:'):
+                # Remove only the first occurrence at the beginning
+                clean_bullet = re.sub(r'^(\s*-\s*)__RUMINANT:\w+__\s*', r'\1', bullet)
+            elif bullet.strip().startswith('__RUMINANT:'):
+                # Handle case without the dash
+                clean_bullet = re.sub(r'^__RUMINANT:\w+__\s*', '', bullet.strip())
+                if clean_bullet and not clean_bullet.startswith('-'):
+                    clean_bullet = '- ' + clean_bullet
+            
+            # Clean up any double spaces at the beginning
+            clean_bullet = re.sub(r'^(\s*-\s*)\s+', r'\1', clean_bullet)
+            
+            if group_name not in groups:
+                groups[group_name] = []
+            groups[group_name].append(clean_bullet)
+        else:
+            ungrouped.append(bullet)
+    
+    # Order groups according to config order
+    ordered_groups = {}
+    for group in group_order:
+        if group in groups:
+            ordered_groups[group] = groups[group]
+    
+    # Add any ungrouped items at the end
+    if ungrouped:
+        ordered_groups['other'] = ungrouped
+    
+    return ordered_groups
+
+
+def post_process_data_with_user_links(data: Any, users_data: Dict[str, Any], config: Optional[Dict] = None) -> Any:
+    """Recursively process all data to replace user links with full names and group bullet points."""
     if isinstance(data, dict):
         processed = {}
         for key, value in data.items():
-            if isinstance(value, str) and any(field in key.lower() for field in ['summary', 'overview', 'body', 'description', 'content']):
-                processed[key] = post_process_markdown_with_user_links(value, users_data)
+            if isinstance(value, str):
+                # Check for __RUMINANT: tags in the ORIGINAL text before processing
+                has_group_tags = value and '__RUMINANT:' in value
+                
+                # Process markdown for all string fields that look like content
+                if any(field in key.lower() for field in ['summary', 'overview', 'body', 'description', 'content', 'features', 'activity', 'discussion', 'trend', 'project', 'work']):
+                    processed_text = post_process_markdown_with_user_links(value, users_data)
+                else:
+                    processed_text = value
+                
+                # For weekly summary sections with bullet points, also create grouped version
+                # Check for specific field names (regardless of where they appear)
+                if (key in ['new_features', 'group_overview', 'cross_repository_work', 'activity', 'notable_discussions', 'emerging_trends'] 
+                    and config and hasattr(config, 'groups') 
+                    and has_group_tags):
+                    
+                    group_order = list(config.groups.keys())
+                    # Pass the original value with __RUMINANT: tags intact
+                    grouped_bullets = group_bullet_points_by_internal_links(value, group_order)
+                    processed[key] = processed_text  # Keep original (with processed user links)
+                    processed[key + '_grouped'] = grouped_bullets  # Add grouped version
+                else:
+                    processed[key] = processed_text
             else:
-                processed[key] = post_process_data_with_user_links(value, users_data)
+                processed[key] = post_process_data_with_user_links(value, users_data, config)
         return processed
     elif isinstance(data, list):
-        return [post_process_data_with_user_links(item, users_data) for item in data]
+        return [post_process_data_with_user_links(item, users_data, config) for item in data]
     else:
         return data
 
@@ -698,12 +787,12 @@ def website_json_main(
         users_data = generate_users_data(all_users)
         info(f"Generated user data for {len(users_data)} users")
         
-        # Post-process all data to replace user links with full names
-        step("Post-processing data to replace user links with full names...")
-        weeks_data = post_process_data_with_user_links(weeks_data, users_data)
-        group_summaries = post_process_data_with_user_links(group_summaries, users_data)
-        weekly_summaries = post_process_data_with_user_links(weekly_summaries, users_data)
-        repo_data = post_process_data_with_user_links(repo_data, users_data)
+        # Post-process all data to replace user links with full names and group bullet points
+        step("Post-processing data to replace user links with full names and group bullet points...")
+        weeks_data = post_process_data_with_user_links(weeks_data, users_data, config)
+        group_summaries = post_process_data_with_user_links(group_summaries, users_data, config)
+        weekly_summaries = post_process_data_with_user_links(weekly_summaries, users_data, config)
+        repo_data = post_process_data_with_user_links(repo_data, users_data, config)
         
         # Generate and save week index
         step("Generating week index...")
