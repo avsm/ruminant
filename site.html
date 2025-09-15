@@ -487,6 +487,35 @@
             padding: 8px;
         }
         
+        .repo-dropdown-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+        
+        .repo-dropdown-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+        }
+        
+        .repo-dropdown-close {
+            font-size: 14px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        
+        .repo-dropdown-close:hover {
+            color: var(--text-primary);
+        }
+        
         .repo-org-group {
             margin-bottom: 12px;
         }
@@ -603,14 +632,30 @@
             position: relative;
         }
         
-        .week-tick.has-data {
-            background: var(--text-muted);
-            opacity: 0.4;
+        /* Activity-based coloring for timeline bars */
+        .week-tick.activity-very-low {
+            background: #2c5f2d;
+            opacity: 0.5;
         }
         
-        .week-tick.has-activity {
-            background: var(--text-muted);
+        .week-tick.activity-low {
+            background: #4a7c4e;
             opacity: 0.6;
+        }
+        
+        .week-tick.activity-medium {
+            background: #6fa34d;
+            opacity: 0.7;
+        }
+        
+        .week-tick.activity-high {
+            background: #97bc62;
+            opacity: 0.8;
+        }
+        
+        .week-tick.activity-very-high {
+            background: #c6e377;
+            opacity: 0.9;
         }
         
         .week-tick:hover {
@@ -790,11 +835,93 @@
             padding: 8px 0 12px 20px;
             margin-bottom: 16px;
             display: flex;
-            align-items: center;
+            flex-direction: column;
             gap: 12px;
             font-family: monospace;
             background: none;
             position: relative;
+        }
+        
+        .week-header-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .week-activity-visual {
+            display: flex;
+            align-items: flex-end;
+            gap: 1px;
+            height: 16px;
+            padding: 0;
+            position: relative;
+            cursor: help;
+            margin-left: auto;
+            flex-shrink: 0;
+            width: 30px;
+        }
+        
+        .week-activity-bar {
+            width: 2px;
+            background: var(--text-primary);
+            border-radius: 0.5px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .week-activity-bar.commit-bar {
+            background: linear-gradient(180deg, #97bc62, #4a7c4e);
+            opacity: 0.9;
+        }
+        
+        .week-activity-bar.repo-bar {
+            background: linear-gradient(180deg, #6fa34d, #2c5f2d);
+            opacity: 0.7;
+        }
+        
+        .week-activity-bar.activity-bar {
+            background: linear-gradient(180deg, #c6e377, #97bc62);
+            opacity: 0.8;
+        }
+        
+        .week-activity-bar:hover {
+            transform: scaleY(1.1);
+            opacity: 1;
+        }
+        
+        .week-activity-tooltip {
+            position: fixed;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-size: 10px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .week-activity-visual:hover .week-activity-tooltip {
+            opacity: 1;
+        }
+        
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 2px 0;
+        }
+        
+        .tooltip-label {
+            color: var(--text-muted);
+        }
+        
+        .tooltip-value {
+            color: var(--text-primary);
+            font-weight: 600;
         }
         
         .week-header-main::after {
@@ -954,7 +1081,150 @@
             display: flex;
             position: relative;
             align-items: center;
+            justify-content: space-between;
             gap: 6px;
+        }
+
+        .content-label-text {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Activity Sparkline Styles */
+        .activity-sparkline {
+            display: flex;
+            align-items: end;
+            gap: 1px;
+            height: 12px;
+            margin-left: auto;
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
+            position: relative;
+            cursor: help;
+        }
+
+        .activity-sparkline:hover {
+            opacity: 1;
+        }
+
+        /* Sparkline tooltip */
+        .sparkline-tooltip {
+            position: absolute;
+            bottom: 20px;
+            right: 0;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(5px);
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            min-width: 200px;
+        }
+
+        .activity-sparkline:hover .sparkline-tooltip {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .sparkline-tooltip-title {
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 1px;
+        }
+
+        .sparkline-tooltip-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .sparkline-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sparkline-legend-color {
+            width: 8px;
+            height: 8px;
+            border-radius: 1px;
+        }
+
+        .sparkline-legend-color.high {
+            background: #00ff88;
+        }
+
+        .sparkline-legend-color.medium {
+            background: #ffaa00;
+        }
+
+        .sparkline-legend-color.low {
+            background: #666;
+        }
+
+        .sparkline-legend-color.feature {
+            background: #ff6b6b;
+        }
+
+        .sparkline-legend-text {
+            font-size: 9px;
+            color: var(--text-muted);
+        }
+
+        .activity-bar {
+            width: 2px;
+            background: var(--text-muted);
+            transition: all 0.2s ease;
+            border-radius: 1px 1px 0 0;
+            min-height: 1px;
+        }
+
+        .activity-bar.high {
+            background: #00ff88;
+            box-shadow: 0 0 2px rgba(0, 255, 136, 0.3);
+        }
+
+        .activity-bar.medium {
+            background: #ffaa00;
+        }
+
+        .activity-bar.low {
+            background: #666;
+        }
+
+        .activity-bar.feature {
+            background: #ff6b6b;
+            position: relative;
+        }
+
+        .activity-bar.feature::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 0;
+            width: 2px;
+            height: 1px;
+            background: #ff6b6b;
+            border-radius: 50%;
+        }
+
+        /* Sparkline tooltip */
+        .activity-sparkline .activity-bar[title]:hover {
+            transform: scaleY(1.3);
+            filter: brightness(1.4);
         }
         
         .content-label::after {
@@ -1224,7 +1494,131 @@
             font-size: 10px;
         }
         
-        .content-text a {
+        /* Grouped content tree structure styling */
+        .grouped-content {
+            margin: 0;
+        }
+        
+        .group-tree {
+            margin-bottom: 8px;
+        }
+        
+        .group-label {
+            margin-bottom: 4px;
+            padding-left: 0;
+            position: relative;
+        }
+        
+        /* Override the default group-link styles for tree root labels */
+        .group-label .group-link {
+            color: var(--text-muted);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            text-decoration: none;
+            border: none !important;
+            background: none !important;
+            padding: 0 !important;
+            padding-left: 10px !important;
+            font-weight: 600;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+            position: relative;
+        }
+        
+        .group-label .group-link::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: var(--text-dim);
+            font-size: 9px;
+            opacity: 0.6;
+            transition: all 0.2s ease;
+        }
+        
+        .group-label .group-link:hover {
+            color: var(--text-primary);
+            opacity: 1;
+            background: none !important;
+            border: none !important;
+            text-decoration: none;
+        }
+        
+        .group-label .group-link:hover::before {
+            opacity: 1;
+            color: var(--text-primary);
+            transform: rotate(90deg);
+        }
+        
+        .group-items {
+            margin: 0 0 0 12px;
+            padding: 0;
+            list-style: none;
+        }
+        
+        .group-items li {
+            position: relative;
+            padding-left: 10px;
+            line-height: 1.3;
+            margin-bottom: 4px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        
+        .group-items li::before {
+            content: '›';
+            position: absolute;
+            left: 0;
+            color: var(--text-dim);
+            font-size: 10px;
+        }
+        
+        /* Links within grouped content */
+        .group-items a {
+            color: var(--link-color);
+            text-decoration: none;
+        }
+        
+        .group-items a:visited {
+            color: var(--link-color);
+        }
+        
+        .group-items a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Ensure achievements work in grouped content */
+        .group-items .achievement {
+            color: #00ffff;
+        }
+        
+        :root.light-mode .group-items .achievement {
+            color: #cc6600;
+            font-weight: 600;
+        }
+        
+        /* Ensure user links work in grouped content */
+        .group-items .user-link {
+            color: var(--link-color);
+            opacity: 0.85;
+        }
+        
+        .group-items .user-link:hover {
+            opacity: 1;
+            background: rgba(100, 149, 237, 0.1);
+        }
+        
+        /* Ensure repo links work in grouped content */
+        .group-items .repo-inline {
+            color: var(--link-color);
+        }
+        
+        .group-items .repo-inline:hover {
+            text-decoration: underline;
+        }
+        
+        .content-text a,
+        .grouped-content a {
             color: var(--link-color);
             text-decoration: none;
         }
@@ -1260,7 +1654,8 @@
         
         /* Special styling for issue/PR links */
         .content-text a.issue-link,
-        .section-summary a.issue-link {
+        .section-summary a.issue-link,
+        .group-items a.issue-link {
             font-weight: normal;
             font-style: italic;
             position: relative;
@@ -1270,7 +1665,8 @@
         }
         
         .content-text a.issue-link::after,
-        .section-summary a.issue-link::after {
+        .section-summary a.issue-link::after,
+        .group-items a.issue-link::after {
             content: '';
             position: absolute;
             right: 0;
@@ -1919,7 +2315,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                padding: 15px;
+                padding: 8px 12px;
                 border-bottom: 1px solid var(--border-color);
                 background: var(--bg-secondary);
                 position: sticky;
@@ -1928,17 +2324,19 @@
             }
             
             .repo-dropdown-title {
-                font-size: 16px;
+                font-size: 12px;
                 font-weight: 600;
                 color: var(--text-primary);
+                white-space: nowrap;
             }
             
             .repo-dropdown-close {
-                font-size: 24px;
+                font-size: 16px;
                 color: var(--text-muted);
                 cursor: pointer;
-                padding: 0 5px;
+                padding: 0 4px;
                 line-height: 1;
+                flex-shrink: 0;
             }
             
             .repo-dropdown-content {
@@ -2044,7 +2442,6 @@
             <div class="header-primary">
                 <div class="header-brand">
                     <div class="header-title">OCAML.SYS</div>
-                    <div id="repo-view-indicator" class="repo-view-indicator" style="display: none;"></div>
                 </div>
                 
                 <!-- Desktop/Tablet: Group tabs -->
@@ -2086,6 +2483,8 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <div id="repo-view-indicator" class="repo-view-indicator" style="display: none;"></div>
                 </div>
                 
                 <!-- Icons (RSS & Theme) -->
@@ -2204,6 +2603,7 @@
         let allWeekData = {}; // Cache for loaded week data
         let loadingWeeks = {}; // Track which weeks are currently being loaded
         let usersData = {};
+        let activityData = null;
         let currentEcosystem = 'all';
         let currentWeekKey = null;
         let currentYear = new Date().getFullYear();
@@ -2216,27 +2616,94 @@
             return 'dark';
         }
         
-        function setTheme(theme) {
+        function applyTheme(theme, updateIcon = true) {
             const root = document.documentElement;
             const iconBottom = document.getElementById('mode-icon-bottom');
             const iconTop = document.getElementById('mode-icon-top');
             
             if (theme === 'light') {
                 root.classList.add('light-mode');
-                if (iconBottom) iconBottom.textContent = '☀';
-                if (iconTop) iconTop.textContent = '☀';
-                localStorage.setItem('theme', 'light');
+                if (updateIcon) {
+                    if (iconBottom) iconBottom.textContent = '☀';
+                    if (iconTop) iconTop.textContent = '☀';
+                }
             } else {
                 root.classList.remove('light-mode');
-                if (iconBottom) iconBottom.textContent = '☾';
-                if (iconTop) iconTop.textContent = '☾';
-                localStorage.setItem('theme', 'dark');
+                if (updateIcon) {
+                    if (iconBottom) iconBottom.textContent = '☾';
+                    if (iconTop) iconTop.textContent = '☾';
+                }
+            }
+        }
+        
+        function setThemePreference(preference) {
+            localStorage.setItem('themePreference', preference);
+            updateTheme();
+        }
+        
+        function updateTheme() {
+            const preference = localStorage.getItem('themePreference') || 'system';
+            const iconBottom = document.getElementById('mode-icon-bottom');
+            const iconTop = document.getElementById('mode-icon-top');
+            
+            console.log('updateTheme called with preference:', preference);
+            
+            if (preference === 'system') {
+                // Show system indicator - use ◑ for Auto (half moon)
+                if (iconBottom) {
+                    iconBottom.textContent = '◑';
+                    iconBottom.title = 'Theme: Auto (System)';
+                }
+                if (iconTop) {
+                    iconTop.textContent = '◑';
+                    iconTop.title = 'Theme: Auto (System)';
+                }
+                // Apply the actual theme based on system preference
+                const theme = detectSystemTheme();
+                applyTheme(theme, false);  // Don't update icon
+            } else if (preference === 'light') {
+                if (iconBottom) {
+                    iconBottom.textContent = '☀';
+                    iconBottom.title = 'Theme: Light';
+                }
+                if (iconTop) {
+                    iconTop.textContent = '☀';
+                    iconTop.title = 'Theme: Light';
+                }
+                applyTheme('light', false);
+            } else if (preference === 'dark') {
+                if (iconBottom) {
+                    iconBottom.textContent = '☾';
+                    iconBottom.title = 'Theme: Dark';
+                }
+                if (iconTop) {
+                    iconTop.textContent = '☾';
+                    iconTop.title = 'Theme: Dark';
+                }
+                applyTheme('dark', false);
             }
         }
         
         function toggleTheme() {
-            const isLight = document.documentElement.classList.contains('light-mode');
-            setTheme(isLight ? 'dark' : 'light');
+            const currentPref = localStorage.getItem('themePreference') || 'system';
+            let nextPref;
+            
+            console.log('Current preference:', currentPref);
+            
+            // Cycle through: system -> light -> dark -> system
+            if (currentPref === 'system') {
+                nextPref = 'light';
+            } else if (currentPref === 'light') {
+                nextPref = 'dark';
+            } else if (currentPref === 'dark') {
+                nextPref = 'system';
+            } else {
+                // Handle any unexpected values
+                nextPref = 'system';
+            }
+            
+            console.log('Theme toggle:', currentPref, '->', nextPref);
+            setThemePreference(nextPref);
         }
         
         // Mobile menu functions
@@ -2258,15 +2725,23 @@
         
         // Initialize theme on page load
         function initTheme() {
-            const savedTheme = localStorage.getItem('theme');
-            const theme = savedTheme || detectSystemTheme();
-            setTheme(theme);
+            // Migrate old theme preference format if it exists
+            const oldTheme = localStorage.getItem('theme');
+            if (oldTheme) {
+                localStorage.setItem('themePreference', oldTheme);
+                localStorage.removeItem('theme');
+            }
+            
+            // Apply current theme based on preference
+            updateTheme();
             
             // Listen for system theme changes
             if (window.matchMedia) {
                 window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
-                    if (!localStorage.getItem('theme')) {
-                        setTheme(e.matches ? 'light' : 'dark');
+                    const preference = localStorage.getItem('themePreference') || 'system';
+                    // Only update if using system preference
+                    if (preference === 'system') {
+                        updateTheme();
                     }
                 });
             }
@@ -2528,6 +3003,49 @@
             return linkAchievements(html);
         }
         
+        function renderGroupedContent(groupedData) {
+            if (!groupedData || typeof groupedData !== 'object') {
+                return '';
+            }
+            
+            let html = '<div class="grouped-content">';
+            
+            // Iterate through groups in the order they appear
+            Object.keys(groupedData).forEach(groupName => {
+                const bullets = groupedData[groupName];
+                if (!bullets || bullets.length === 0) return;
+                
+                // Group header with icon
+                const groupDisplayName = {
+                    'core': 'core',
+                    'tools': 'tools', 
+                    'ecosystem': 'ecosystem',
+                    'oxcaml': 'oxcaml',
+                    'multicore': 'multicore',
+                    'other': 'other'
+                }[groupName] || groupName;
+                
+                html += `<div class="group-tree">
+                    <div class="group-label">
+                        <a href="javascript:void(0)" onclick="handleGroupClick('${groupName}')" class="group-link" data-group="${groupName}" title="View detailed ${groupDisplayName} group activity">${groupDisplayName}</a>
+                    </div>
+                    <ul class="group-items">`;
+                
+                // Render bullets for this group
+                bullets.forEach(bullet => {
+                    // Remove leading "- " from the bullet text since we're in a list
+                    const cleanBullet = bullet.replace(/^-\s*/, '');
+                    html += `<li>${renderMarkdown(cleanBullet)}</li>`;
+                });
+                
+                html += `</ul>
+                </div>`;
+            });
+            
+            html += '</div>';
+            return html;
+        }
+        
         function linkAchievements(html) {
             // Process achievements in list items to link them with the first issue link in the same item
             const tempDiv = document.createElement('div');
@@ -2727,6 +3245,153 @@
             return await loadingWeeks[weekKey];
         }
         
+        async function loadActivityData() {
+            if (activityData) return activityData;
+            
+            try {
+                const response = await fetch('activity_stats.json');
+                if (!response.ok) {
+                    console.warn('Activity stats not available');
+                    return null;
+                }
+                activityData = await response.json();
+                return activityData;
+            } catch (error) {
+                console.warn('Failed to load activity stats:', error);
+                return null;
+            }
+        }
+        
+        function generateActivitySparkline(sectionType = 'all', context = {}) {
+            if (!activityData || !activityData.sparkline_data) {
+                return '';
+            }
+            
+            const data = activityData.sparkline_data;
+            const maxActivity = activityData.max_activity;
+            const avgActivity = activityData.avg_activity;
+            
+            // Determine which data to show based on context
+            let recentData;
+            let tooltipTitle = 'Activity Trend';
+            
+            if (context.weekKey) {
+                // Show data centered around the specific week
+                const weekIndex = data.findIndex(w => w.week_key === context.weekKey);
+                if (weekIndex >= 0) {
+                    const startIdx = Math.max(0, weekIndex - 10);
+                    const endIdx = Math.min(data.length, weekIndex + 10);
+                    recentData = data.slice(startIdx, endIdx);
+                    tooltipTitle = `Activity around week ${context.weekKey}`;
+                } else {
+                    recentData = data.slice(-20);
+                }
+            } else if (context.repo) {
+                // For repo view, still show overall activity but highlight weeks where repo was active
+                // This would require repo-specific data which we'd need to load
+                recentData = data.slice(-20);
+                tooltipTitle = `Overall ecosystem activity (repo: ${context.repo})`;
+            } else {
+                // Default: show most recent 20 weeks
+                recentData = data.slice(-20);
+            }
+            
+            let bars = '';
+            let highCount = 0;
+            let mediumCount = 0;
+            let lowCount = 0;
+            let featureCount = 0;
+            
+            recentData.forEach((week, index) => {
+                const height = Math.max(1, Math.round((week.activity_level / maxActivity) * 12));
+                let className = 'activity-bar';
+                
+                // Classify activity level
+                if (week.activity_level > avgActivity * 1.5) {
+                    className += ' high';
+                    highCount++;
+                } else if (week.activity_level > avgActivity * 0.5) {
+                    className += ' medium';
+                    mediumCount++;
+                } else {
+                    className += ' low';
+                    lowCount++;
+                }
+                
+                // Mark weeks with features
+                if (week.has_features) {
+                    className += ' feature';
+                    featureCount++;
+                }
+                
+                const tooltip = `${week.week_key}: ${week.activity_level} activity points`;
+                
+                bars += `<div class="${className}" style="height: ${height}px;" title="${tooltip}"></div>`;
+            });
+            
+            // Create the tooltip with legend
+            const tooltip = `
+                <div class="sparkline-tooltip">
+                    <div class="sparkline-tooltip-title">${tooltipTitle} (${recentData.length} weeks)</div>
+                    <div style="font-size: 9px; color: var(--text-muted); margin-bottom: 4px;">
+                        Each bar = 1 week of activity<br>
+                        Height = activity level (${activityData.min_activity}-${maxActivity} points)<br>
+                        Average: ${Math.round(avgActivity)} points/week
+                    </div>
+                    <div class="sparkline-tooltip-legend">
+                        <div class="sparkline-legend-item">
+                            <div class="sparkline-legend-color high"></div>
+                            <div class="sparkline-legend-text">High activity (>${Math.round(avgActivity * 1.5)} pts) - ${highCount} weeks</div>
+                        </div>
+                        <div class="sparkline-legend-item">
+                            <div class="sparkline-legend-color medium"></div>
+                            <div class="sparkline-legend-text">Medium activity (${Math.round(avgActivity * 0.5)}-${Math.round(avgActivity * 1.5)} pts) - ${mediumCount} weeks</div>
+                        </div>
+                        <div class="sparkline-legend-item">
+                            <div class="sparkline-legend-color low"></div>
+                            <div class="sparkline-legend-text">Low activity (<${Math.round(avgActivity * 0.5)} pts) - ${lowCount} weeks</div>
+                        </div>
+                        ${featureCount > 0 ? `
+                        <div class="sparkline-legend-item">
+                            <div class="sparkline-legend-color feature"></div>
+                            <div class="sparkline-legend-text">Has new features - ${featureCount} weeks</div>
+                        </div>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            return `<div class="activity-sparkline">${bars}${tooltip}</div>`;
+        }
+
+        function generateContentLabel(iconType, labelText, sectionType = 'all', context = {}) {
+            // Removed sparkline from section headers
+            return `
+                <div class="content-label">
+                    <div class="content-label-text">
+                        ${getSectionIcon(iconType)}${labelText}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Helper to get current context
+        function getCurrentContext() {
+            const context = {};
+            
+            // Check if we're in a specific week view
+            const weekElement = document.querySelector('.week-section.active');
+            if (weekElement) {
+                context.weekKey = weekElement.dataset.weekKey;
+            }
+            
+            // Check if we're in repo view
+            if (currentView === 'repo' && currentRepo) {
+                context.repo = currentRepo;
+            }
+            
+            return context;
+        }
+        
         async function initInterface() {
             // Restore state from URL first
             const { ecosystem, week } = parseURL();
@@ -2747,6 +3412,9 @@
             
             // Load filter state from URL
             loadFiltersFromURL();
+            
+            // Load activity data
+            await loadActivityData();
             
             populateTimeline();
             setupGroupTabs();
@@ -2889,30 +3557,55 @@
                 });
             }
             
-            // Create tick for each week
+            // Create tick for each week with activity coloring
             allWeeksInYear.forEach(weekNum => {
                 const tick = document.createElement('div');
                 tick.className = 'week-tick';
                 tick.dataset.week = weekNum;
                 
-                if (weeksWithData.has(weekNum)) {
-                    tick.classList.add('has-data');
-                    if (weeksWithActivity.has(weekNum)) {
-                        tick.classList.add('has-activity');
+                // Find week data for activity level
+                const weekKey = `${currentYear}-${weekNum}`;
+                const weekInfo = indexData.weeks.find(w => w.week_key === weekKey);
+                
+                if (weekInfo && (weekInfo.has_weekly_summary || weekInfo.groups.length > 0)) {
+                    // Apply activity-based coloring
+                    const activityLevel = weekInfo.activity_level || 0;
+                    if (activityLevel >= 180) {
+                        tick.classList.add('activity-very-high');
+                    } else if (activityLevel >= 150) {
+                        tick.classList.add('activity-high');
+                    } else if (activityLevel >= 80) {
+                        tick.classList.add('activity-medium');
+                    } else if (activityLevel >= 40) {
+                        tick.classList.add('activity-low');
+                    } else {
+                        tick.classList.add('activity-very-low');
                     }
                     
                     // Make clickable
                     tick.onclick = () => {
-                        const weekKey = `${currentYear}-${weekNum}`;
                         scrollToWeek(weekKey);
                     };
+                    
+                    // Enhanced tooltip with activity info
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'week-tick-tooltip';
+                    const commitCount = weekInfo.stats?.total_commits || 0;
+                    const repoCount = weekInfo.repos_with_commits || 0;
+                    tooltip.innerHTML = `
+                        <div>Week ${weekNum}</div>
+                        <div style="font-size: 10px; opacity: 0.8;">
+                            ${commitCount} commits, ${repoCount} repos
+                        </div>
+                    `;
+                    tick.appendChild(tooltip);
+                } else {
+                    // No data for this week
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'week-tick-tooltip';
+                    tooltip.textContent = `Week ${weekNum} (no data)`;
+                    tick.appendChild(tooltip);
                 }
-                
-                // Add tooltip
-                const tooltip = document.createElement('div');
-                tooltip.className = 'week-tick-tooltip';
-                tooltip.textContent = `Week ${weekNum}`;
-                tick.appendChild(tooltip);
                 
                 weeksBar.appendChild(tick);
             });
@@ -3490,17 +4183,19 @@
                     html += `
                         <div class="week-section inactive-week" id="week-${weekKey}" data-week-key="${weekKey}">
                             <div class="week-header-main">
-                                <div class="week-title-main inactive-week">
-                                    <div class="week-icon">
-                                        <svg viewBox="0 0 24 24" style="opacity: 1;">
-                                            <!-- Circle with X - clear inactive indicator -->
-                                            <circle cx="12" cy="12" r="10" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
-                                            <path d="M8 8l8 8M16 8l-8 8" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
-                                        </svg>
+                                <div class="week-header-top">
+                                    <div class="week-title-main inactive-week">
+                                        <div class="week-icon">
+                                            <svg viewBox="0 0 24 24" style="opacity: 1;">
+                                                <!-- Circle with X - clear inactive indicator -->
+                                                <circle cx="12" cy="12" r="10" fill="none" stroke="var(--text-muted)" stroke-width="2"/>
+                                                <path d="M8 8l8 8M16 8l-8 8" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round"/>
+                                            </svg>
+                                        </div>
+                                        W${summary.week}.${summary.year}
                                     </div>
-                                    W${summary.week}.${summary.year}
+                                    <div class="week-date-range">${formattedRange}</div>
                                 </div>
-                                <div class="week-date-range">${formattedRange}</div>
                             </div>
                         </div>
                     `;
@@ -3508,18 +4203,67 @@
                 }
                 
                 // Active week with content
+                // Get week stats from indexData
+                const weekInfo = indexData.weeks.find(w => w.week_key === weekKey);
+                const commitCount = weekInfo?.stats?.total_commits || 0;
+                const repoCount = weekInfo?.repos_with_commits || 0;
+                const activityLevel = weekInfo?.activity_level || 0;
+                const maxCommits = 130; // Max commits from the data
+                const maxRepos = 13; // Max repos from the data
+                const maxActivity = 209; // Max activity from the data
+                
+                // Generate sparkgraph bars
+                const generateSparkgraph = () => {
+                    if (commitCount === 0 && repoCount === 0) return '';
+                    
+                    const bars = [];
+                    const numBars = 10;
+                    
+                    // Create varied height bars for visual interest
+                    for (let i = 0; i < numBars; i++) {
+                        let height = 0;
+                        let barClass = 'commit-bar';
+                        
+                        if (i < numBars / 3) {
+                            // Commit bars
+                            height = (commitCount / maxCommits) * (80 + Math.random() * 20);
+                            barClass = 'commit-bar';
+                        } else if (i < (numBars * 2) / 3) {
+                            // Repo activity bars
+                            height = (repoCount / maxRepos) * (70 + Math.random() * 30);
+                            barClass = 'repo-bar';
+                        } else {
+                            // Activity level bars
+                            height = (activityLevel / maxActivity) * (60 + Math.random() * 40);
+                            barClass = 'activity-bar';
+                        }
+                        
+                        height = Math.max(10, Math.min(100, height)); // Clamp between 10% and 100%
+                        bars.push(`<div class="week-activity-bar ${barClass}" style="height: ${height}%"></div>`);
+                    }
+                    
+                    return `
+                        <div class="week-activity-visual" onmouseenter="showTooltip(event, ${commitCount}, ${repoCount}, ${activityLevel})" onmouseleave="hideTooltip()">
+                            ${bars.join('')}
+                        </div>
+                    `;
+                };
+                
                 html += `
                     <div class="week-section" id="week-${weekKey}" data-week-key="${weekKey}">
                         <div class="week-header-main">
-                            <div class="week-title-main">
-                                <div class="week-icon">
-                                    <svg viewBox="0 0 24 24">
-                                        <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
-                                    </svg>
+                            <div class="week-header-top">
+                                <div class="week-title-main">
+                                    <div class="week-icon">
+                                        <svg viewBox="0 0 24 24">
+                                            <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                                        </svg>
+                                    </div>
+                                    W${summary.week}.${summary.year}
+                                    ${generateSparkgraph()}
                                 </div>
-                                W${summary.week}.${summary.year}
+                                <div class="week-date-range">${formattedRange}</div>
                             </div>
-                            <div class="week-date-range">${formattedRange}</div>
                         </div>
                         <div class="week-content">
                 `;
@@ -3530,7 +4274,7 @@
                 // New Features section (highest priority for left column)
                 if (summary.new_features || summary.new_features_summary) {
                     let sectionContent = `<div class="content-block">
-                        <div class="content-label">${getSectionIcon('new features')}new features</div>`;
+                        ${generateContentLabel('new features', 'new features', 'new features', {weekKey: weekKey})}`;
                     
                     let totalText = '';
                     if (summary.new_features_summary) {
@@ -3553,7 +4297,7 @@
                 // Overall activity section
                 if (summary.activity || summary.activity_summary) {
                     let sectionContent = `<div class="content-block">
-                        <div class="content-label">${getSectionIcon('activity')}activity</div>`;
+                        ${generateContentLabel('activity', 'activity', 'activity', {weekKey: weekKey})}`;
                     
                     let totalText = '';
                     if (summary.activity_summary) {
@@ -3576,7 +4320,7 @@
                 // Ongoing projects section
                 if (summary.ongoing_projects || summary.ongoing_summary) {
                     let sectionContent = `<div class="content-block">
-                        <div class="content-label">${getSectionIcon('ongoing')}ongoing projects</div>`;
+                        ${generateContentLabel('ongoing', 'ongoing projects', 'ongoing', {weekKey: weekKey})}`;
                     
                     let totalText = '';
                     if (summary.ongoing_summary) {
@@ -3599,7 +4343,7 @@
                 // Contributors section
                 if (summary.contributors || summary.contributors_summary) {
                     let sectionContent = `<div class="content-block">
-                        <div class="content-label">${getSectionIcon('contributors')}contributors</div>`;
+                        ${generateContentLabel('contributors', 'contributors', 'contributors', {weekKey: weekKey})}`;
                     
                     let totalText = '';
                     if (summary.contributors_summary) {
@@ -3622,7 +4366,7 @@
                 // Discussions section
                 if (summary.notable_discussions || summary.discussions_summary) {
                     let sectionContent = `<div class="content-block">
-                        <div class="content-label">${getSectionIcon('discussions')}discussions</div>`;
+                        ${generateContentLabel('discussions', 'discussions', 'discussions', {weekKey: weekKey})}`;
                     
                     let totalText = '';
                     if (summary.discussions_summary) {
@@ -3645,7 +4389,7 @@
                 // Good first issues section
                 if (summary.good_first_issues || summary.issues_summary) {
                     let sectionContent = `<div class="content-block">
-                        <div class="content-label">${getSectionIcon('good first issues')}good first issues</div>`;
+                        ${generateContentLabel('good first issues', 'good first issues', 'issues', {weekKey: weekKey})}`;
                     
                     let totalText = '';
                     if (summary.issues_summary) {
@@ -3668,7 +4412,7 @@
                 // Emerging trends section
                 if (summary.emerging_trends || summary.trends_summary) {
                     let sectionContent = `<div class="content-block">
-                        <div class="content-label">${getSectionIcon('emerging trends')}emerging trends</div>`;
+                        ${generateContentLabel('emerging trends', 'emerging trends', 'trends', {weekKey: weekKey})}`;
                     
                     let totalText = '';
                     if (summary.trends_summary) {
@@ -3866,6 +4610,54 @@
         }
         
         function renderWeekPlaceholder(week, weekInfo) {
+            // Get week stats for sparkgraph
+            const commitCount = week?.stats?.total_commits || weekInfo?.stats?.total_commits || 0;
+            const repoCount = week?.repos_with_commits || weekInfo?.repos_with_commits || 0;
+            const activityLevel = week?.activity_level || weekInfo?.activity_level || 0;
+            
+            // Debug: log the data to see what we're getting
+            console.log(`Week ${week.week_key}: commits=${commitCount}, repos=${repoCount}, activity=${activityLevel}`);
+            
+            // Generate sparkgraph bars
+            const generateSparkgraph = () => {
+                if (commitCount === 0 && repoCount === 0 && activityLevel === 0) return '';
+                
+                const bars = [];
+                const numBars = 10;
+                const maxCommits = 130;
+                const maxRepos = 13;
+                const maxActivity = 222;
+                
+                // Create varied height bars for visual interest
+                for (let i = 0; i < numBars; i++) {
+                    let height = 0;
+                    let barClass = 'commit-bar';
+                    
+                    if (i < 4) {
+                        // First few bars represent commits
+                        height = Math.floor((commitCount / maxCommits) * 80) + 20;
+                        barClass = 'commit-bar';
+                    } else if (i < 7) {
+                        // Middle bars represent active repos
+                        height = Math.floor((repoCount / maxRepos) * 70) + 25;
+                        barClass = 'repo-bar';
+                    } else {
+                        // Last bars represent general activity
+                        height = Math.floor((activityLevel / maxActivity) * 90) + 15;
+                        barClass = 'activity-bar';
+                    }
+                    
+                    height = Math.max(10, Math.min(100, height));
+                    bars.push(`<div class="week-activity-bar ${barClass}" style="height: ${height}%"></div>`);
+                }
+                
+                return `
+                    <div class="week-activity-visual" onmouseenter="showTooltip(event, ${commitCount}, ${repoCount}, ${activityLevel})" onmouseleave="hideTooltip()">
+                        ${bars.join('')}
+                    </div>
+                `;
+            };
+
             // Format the date range in words with year
             const formatWeekDate = (dateStr) => {
                 const date = new Date(dateStr);
@@ -3894,15 +4686,18 @@
             return `
                 <div class="week-section" id="week-${week.week_key}" data-week-key="${week.week_key}">
                     <div class="week-header-main">
-                        <div class="week-title-main">
-                            <div class="week-icon">
-                                <svg viewBox="0 0 24 24">
-                                    <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
-                                </svg>
+                        <div class="week-header-top">
+                            <div class="week-title-main">
+                                <div class="week-icon">
+                                    <svg viewBox="0 0 24 24">
+                                        <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.89-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
+                                    </svg>
+                                </div>
+                                W${week.week}.${week.year}
+                                ${generateSparkgraph()}
                             </div>
-                            W${week.week}.${week.year}
+                            <div class="week-date-range">${formattedRange}</div>
                         </div>
-                        <div class="week-date-range">${formattedRange}</div>
                     </div>
                     <div class="week-content">
                         <div class="loading-indicator">Loading week data...</div>
@@ -4015,7 +4810,7 @@
             const newFeaturesRepos = filteredRepos.filter(repo => repo.new_features || repo.new_features_summary);
             if (newFeaturesRepos.length > 0) {
                 let sectionContent = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('new features')}new features</div>`;
+                    ${generateContentLabel('new features', 'new features', 'new features', {weekKey: weekData.week_key})}`;
                 
                 if (singleRepo && newFeaturesRepos[0].new_features_summary) {
                     sectionContent += `<div class="section-summary">${newFeaturesRepos[0].new_features_summary}</div>`;
@@ -4049,7 +4844,7 @@
             const activityRepos = filteredRepos.filter(repo => repo.activity_summary || repo.activity);
             if (activityRepos.length > 0) {
                 let sectionContent = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('activity')}activity</div>`;
+                    ${generateContentLabel('activity', 'activity', 'activity', {weekKey: weekData.week_key})}`;
                 
                 if (singleRepo && activityRepos[0].activity_summary) {
                     sectionContent += `<div class="section-summary">${activityRepos[0].activity_summary}</div>`;
@@ -4083,7 +4878,7 @@
             const ongoingRepos = filteredRepos.filter(repo => repo.ongoing_projects || repo.ongoing_summary);
             if (ongoingRepos.length > 0) {
                 let sectionContent = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('ongoing')}ongoing</div>`;
+                    ${generateContentLabel('ongoing', 'ongoing', 'ongoing', {weekKey: weekData.week_key})}`;
                 
                 if (singleRepo && ongoingRepos[0].ongoing_summary) {
                     sectionContent += `<div class="section-summary">${ongoingRepos[0].ongoing_summary}</div>`;
@@ -4117,7 +4912,7 @@
             const contributorRepos = filteredRepos.filter(repo => repo.contributors || repo.contributors_summary);
             if (contributorRepos.length > 0) {
                 let sectionContent = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('contributors')}contributors</div>`;
+                    ${generateContentLabel('contributors', 'contributors', 'contributors', {weekKey: weekData.week_key})}`;
                 
                 if (singleRepo && contributorRepos[0].contributors_summary) {
                     sectionContent += `<div class="section-summary">${contributorRepos[0].contributors_summary}</div>`;
@@ -4151,7 +4946,7 @@
             const discussionRepos = filteredRepos.filter(repo => repo.notable_discussions || repo.discussions_summary);
             if (discussionRepos.length > 0) {
                 let sectionContent = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('discussions')}discussions</div>`;
+                    ${generateContentLabel('discussions', 'discussions', 'discussions', {weekKey: weekData.week_key})}`;
                 
                 if (singleRepo && discussionRepos[0].discussions_summary) {
                     sectionContent += `<div class="section-summary">${discussionRepos[0].discussions_summary}</div>`;
@@ -4246,7 +5041,7 @@
                 const allGroups = weekData.group_summaries || [];
                 if (allGroups.length > 0) {
                     leftColumn += `<div class="content-block">`;
-                    leftColumn += `<div class="content-label">${getSectionIcon('activity')}group activity</div>;`
+                    leftColumn += generateContentLabel('activity', 'group activity', 'activity', {weekKey: weekData.week_key});
                     
                     allGroups.forEach(group => {
                         if (group.activity_summary) {
@@ -4268,26 +5063,50 @@
             
             // New Features section - prominently placed after overview
             if (weeklySummary.new_features) {
+                let contentHtml;
+                let textForEstimate;
+                
+                // Check if we have grouped content
+                if (weeklySummary.new_features_grouped && Object.keys(weeklySummary.new_features_grouped).length > 0) {
+                    contentHtml = renderGroupedContent(weeklySummary.new_features_grouped);
+                    textForEstimate = JSON.stringify(weeklySummary.new_features_grouped);
+                } else {
+                    contentHtml = `<div class="content-text">${renderMarkdown(weeklySummary.new_features)}</div>`;
+                    textForEstimate = weeklySummary.new_features;
+                }
+                
                 const content = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('new features')}new features</div>
-                    <div class="content-text">${renderMarkdown(weeklySummary.new_features)}</div>
+                    ${generateContentLabel('new features', 'new features', 'new features', {weekKey: weekData.week_key})}
+                    ${contentHtml}
                 </div>`;
                 contentSections.push({
                     content: content,
-                    estimatedHeight: estimateContentHeight(weeklySummary.new_features),
+                    estimatedHeight: estimateContentHeight(textForEstimate),
                     priority: 2
                 });
             }
             
             // Cross-repository work section
             if (weeklySummary.cross_repository_work) {
+                let contentHtml;
+                let textForEstimate;
+                
+                // Check if we have grouped content
+                if (weeklySummary.cross_repository_work_grouped && Object.keys(weeklySummary.cross_repository_work_grouped).length > 0) {
+                    contentHtml = renderGroupedContent(weeklySummary.cross_repository_work_grouped);
+                    textForEstimate = JSON.stringify(weeklySummary.cross_repository_work_grouped);
+                } else {
+                    contentHtml = `<div class="content-text">${renderMarkdown(weeklySummary.cross_repository_work)}</div>`;
+                    textForEstimate = weeklySummary.cross_repository_work;
+                }
+                
                 const content = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('cross-repo work')}cross-repo work</div>
-                    <div class="content-text">${renderMarkdown(weeklySummary.cross_repository_work)}</div>
+                    ${generateContentLabel('cross-repo work', 'cross-repo work', 'cross-repo', {weekKey: weekData.week_key})}
+                    ${contentHtml}
                 </div>`;
                 contentSections.push({
                     content: content,
-                    estimatedHeight: estimateContentHeight(weeklySummary.cross_repository_work),
+                    estimatedHeight: estimateContentHeight(textForEstimate),
                     priority: 1
                 });
             }
@@ -4295,7 +5114,7 @@
             // Key projects section
             if (weeklySummary.key_projects) {
                 const content = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('key projects')}key projects</div>
+                    ${generateContentLabel('key projects', 'key projects', 'key projects', {weekKey: weekData.week_key})}
                     <div class="content-text">${renderMarkdown(weeklySummary.key_projects)}</div>
                 </div>`;
                 contentSections.push({
@@ -4307,26 +5126,50 @@
             
             // Discussions section
             if (weeklySummary.notable_discussions) {
+                let contentHtml;
+                let textForEstimate;
+                
+                // Check if we have grouped content
+                if (weeklySummary.notable_discussions_grouped && Object.keys(weeklySummary.notable_discussions_grouped).length > 0) {
+                    contentHtml = renderGroupedContent(weeklySummary.notable_discussions_grouped);
+                    textForEstimate = JSON.stringify(weeklySummary.notable_discussions_grouped);
+                } else {
+                    contentHtml = `<div class="content-text">${renderMarkdown(weeklySummary.notable_discussions)}</div>`;
+                    textForEstimate = weeklySummary.notable_discussions;
+                }
+                
                 const content = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('discussions')}discussions</div>
-                    <div class="content-text">${renderMarkdown(weeklySummary.notable_discussions)}</div>
+                    ${generateContentLabel('discussions', 'discussions', 'discussions', {weekKey: weekData.week_key})}
+                    ${contentHtml}
                 </div>`;
                 contentSections.push({
                     content: content,
-                    estimatedHeight: estimateContentHeight(weeklySummary.notable_discussions),
+                    estimatedHeight: estimateContentHeight(textForEstimate),
                     priority: 0
                 });
             }
             
             // Emerging trends section
             if (weeklySummary.emerging_trends) {
+                let contentHtml;
+                let textForEstimate;
+                
+                // Check if we have grouped content
+                if (weeklySummary.emerging_trends_grouped && Object.keys(weeklySummary.emerging_trends_grouped).length > 0) {
+                    contentHtml = renderGroupedContent(weeklySummary.emerging_trends_grouped);
+                    textForEstimate = JSON.stringify(weeklySummary.emerging_trends_grouped);
+                } else {
+                    contentHtml = `<div class="content-text">${renderMarkdown(weeklySummary.emerging_trends)}</div>`;
+                    textForEstimate = weeklySummary.emerging_trends;
+                }
+                
                 const content = `<div class="content-block">
-                    <div class="content-label">${getSectionIcon('emerging trends')}emerging trends</div>
-                    <div class="content-text">${renderMarkdown(weeklySummary.emerging_trends)}</div>
+                    ${generateContentLabel('emerging trends', 'emerging trends', 'trends', {weekKey: weekData.week_key})}
+                    ${contentHtml}
                 </div>`;
                 contentSections.push({
                     content: content,
-                    estimatedHeight: estimateContentHeight(weeklySummary.emerging_trends),
+                    estimatedHeight: estimateContentHeight(textForEstimate),
                     priority: 0
                 });
             }
@@ -4817,6 +5660,50 @@
             });
         }
         
+        // Tooltip functions for sparkgraphs
+        let tooltipElement = null;
+        
+        function showTooltip(event, commitCount, repoCount, activityLevel) {
+            hideTooltip(); // Hide any existing tooltip
+            
+            tooltipElement = document.createElement('div');
+            tooltipElement.className = 'week-activity-tooltip';
+            tooltipElement.style.opacity = '1';
+            tooltipElement.innerHTML = `
+                <div>Commits: ${commitCount} | Repos: ${repoCount} | Activity: ${activityLevel}</div>
+                <div style="font-size: 9px; color: var(--text-muted); margin-top: 2px;">
+                    Activity = Features(4) + Activity(3) + Trends(2) + Community(1)
+                </div>
+            `;
+            
+            document.body.appendChild(tooltipElement);
+            
+            // Position tooltip near cursor but avoid screen edges
+            const rect = event.target.getBoundingClientRect();
+            const tooltipRect = tooltipElement.getBoundingClientRect();
+            
+            let left = rect.right + 10;
+            let top = rect.top - tooltipRect.height - 5;
+            
+            // Adjust if tooltip would go off screen
+            if (left + tooltipRect.width > window.innerWidth) {
+                left = rect.left - tooltipRect.width - 10;
+            }
+            if (top < 0) {
+                top = rect.bottom + 5;
+            }
+            
+            tooltipElement.style.left = left + 'px';
+            tooltipElement.style.top = top + 'px';
+        }
+        
+        function hideTooltip() {
+            if (tooltipElement) {
+                tooltipElement.remove();
+                tooltipElement = null;
+            }
+        }
+
         // Initialize lazy avatars and system on page load
         window.addEventListener('DOMContentLoaded', () => {
             initSystem();
