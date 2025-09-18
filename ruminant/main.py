@@ -222,10 +222,20 @@ def json(
 def atom(
     output_dir: Optional[str] = typer.Option("website-atom", "--output", "-o", help="Output directory for Atom feeds"),
     pretty: bool = typer.Option(False, "--pretty", help="Pretty-print XML output"),
+    json_dir: Optional[str] = typer.Option(None, "--json-dir", help="Use existing JSON directory instead of generating"),
 ) -> None:
     """Generate Atom feeds for each group and an OPML container."""
     from .commands.atom import atom_main
-    atom_main(output_dir, pretty)
+    atom_main(output_dir, pretty, json_dir)
+
+
+@app.command("atom-info", help="Display metadata of generated Atom feeds")
+def atom_info(
+    feed_dir: Optional[str] = typer.Option(None, "--feed-dir", help="Directory containing Atom feeds (default: website-atom)"),
+) -> None:
+    """Display metadata information about generated Atom feeds."""
+    from .commands.atom import atom_info
+    atom_info(feed_dir)
 
 
 @app.command("summarize-week", help="Generate comprehensive weekly summary across all groups")

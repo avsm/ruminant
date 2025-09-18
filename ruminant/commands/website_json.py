@@ -519,24 +519,38 @@ def post_process_markdown_with_user_links(text: str, users_data: Dict[str, Any])
     """Replace GitHub user links with full names if available."""
     if not text:
         return text
-    
-    # Pattern to match [text](https://github.com/username) 
+
+    # Pattern to match [text](https://github.com/username)
     github_user_pattern = re.compile(r'\[([^\]]+)\]\(https://github\.com/([^)]+)\)')
-    
+
     def replace_user_link(match):
         link_text = match.group(1)
-        username = match.group(2)
-        
-        # Check if the link text is just the username (e.g., [@username])
-        if link_text == f'@{username}' or link_text == username:
+        username = match.group(2).rstrip('/')  # Remove trailing slash if present
+
+        # Check if the link text is a username reference (with or without @)
+        # Handle formats: @username, username, [@username], @username[bot]
+        clean_link_text = link_text.strip()
+
+        # Remove @ prefix if present
+        if clean_link_text.startswith('@'):
+            clean_username = clean_link_text[1:]
+        else:
+            clean_username = clean_link_text
+
+        # Remove [bot] suffix if present
+        if clean_username.endswith('[bot]'):
+            clean_username = clean_username[:-5]
+
+        # Check if this matches the GitHub username
+        if clean_username == username:
             # Replace with full name if available
             user_info = users_data.get(username, {})
             if user_info.get('name'):
                 return f'[{user_info["name"]}](https://github.com/{username})'
-        
+
         # Keep original link if link text is already customized or no full name available
         return match.group(0)
-    
+
     return github_user_pattern.sub(replace_user_link, text)
 
 
