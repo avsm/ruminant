@@ -29,16 +29,17 @@ def sync(
 ) -> None:
     """Fetch and cache GitHub repository data."""
     from .commands.sync import sync_main
-    
+
     # Use config default if weeks not specified
     # But if a specific week is given, default to 1 week
+    # If --current is used, default to 1 week (just the current week)
     if weeks is None:
-        if week is not None:
+        if week is not None or current:
             weeks = 1
         else:
             config = load_config()
             weeks = config.reporting.default_weeks
-    
+
     sync_main(repos, weeks, year, week, current, force, scan_only, releases_only)
 
 @app.command(help="Generate summaries using Claude CLI")
