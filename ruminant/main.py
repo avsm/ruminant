@@ -238,6 +238,36 @@ def atom_info(
     atom_info(feed_dir)
 
 
+@app.command("fetch-avatars", help="Fetch GitHub avatars and save locally to avoid rate limits")
+def fetch_avatars_command(
+    users_json: Optional[str] = typer.Option("website-json/users.json", "--users", help="Path to users.json file"),
+    output_dir: Optional[str] = typer.Option("website-json/thumbs", "--output", help="Directory to save avatar images"),
+    limit: int = typer.Option(0, "--limit", help="Maximum number of avatars to fetch (0 for all)"),
+) -> None:
+    """Fetch GitHub avatars from users data and save them locally."""
+    from .commands.fetch_avatars import fetch_avatars
+    fetch_avatars(users_json, output_dir, limit)
+
+
+@app.command("summarize-daily", help="Generate daily summary for current or specific date")
+def summarize_daily(
+    year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
+    week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
+    date: Optional[str] = typer.Option(None, "--date", help="Specific date (YYYY-MM-DD format)"),
+    claude_args: Optional[str] = typer.Option(None, "--claude-args", help="Additional arguments for Claude CLI"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without executing"),
+    force: bool = typer.Option(False, "--force", help="Regenerate even if summary exists"),
+) -> None:
+    """
+    Generate daily summaries for incremental week building.
+
+    Designed to be run daily to build up summaries throughout the week.
+    Defaults to today if no date is specified.
+    """
+    from .commands.summarize_daily import summarize_daily
+    summarize_daily(year, week, date, claude_args, dry_run, force)
+
+
 @app.command("summarize-week", help="Generate comprehensive weekly summary across all groups")
 def summarize_week(
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),

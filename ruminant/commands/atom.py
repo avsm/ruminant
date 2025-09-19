@@ -459,6 +459,102 @@ def link_achievements_in_html(html: str) -> str:
         return html
 
 
+def create_daily_atom_feed(daily_summaries: List[Dict], config: Any, users_data: Dict) -> FeedGenerator:
+    """Create an Atom feed for daily summaries."""
+    fg = FeedGenerator()
+
+    # Get atom config
+    atom_config = config.atom if hasattr(config, 'atom') else None
+    if not atom_config:
+        base_url = "https://ocaml.org/ruminant"
+        title = "OCaml Ecosystem Daily Updates"
+    else:
+        base_url = atom_config.base_url
+        title = "OCaml Ecosystem Daily Updates"
+
+    feed_url = f"{base_url}/feeds/daily.xml"
+
+    # Configure feed metadata
+    fg.id(feed_url)
+    fg.title(title)
+    fg.author({'name': atom_config.author if atom_config and hasattr(atom_config, 'author') else 'OCaml Community'})
+    fg.link(href=feed_url, rel='self')
+    fg.link(href=base_url, rel='alternate')
+    fg.subtitle('Daily activity summaries from the OCaml ecosystem')
+    fg.language('en')
+    fg.updated(datetime.now(pytz.UTC))
+
+    # Add each daily summary as an entry
+    for daily in sorted(daily_summaries, key=lambda x: x.get('date', ''), reverse=True):
+        fe = fg.add_entry()
+
+        date_str = daily.get('date', '')
+        day_name = daily.get('day_name', '')
+
+        # Create entry ID
+        entry_id = f"{base_url}/daily/{date_str}"
+        fe.id(entry_id)
+        fe.link(href=base_url, rel='alternate')
+
+        # Title
+        fe.title(f"{day_name} - {date_str}")
+
+        # Build content HTML
+        content_html = f"{get_feed_css()}\n"
+        content_html += '<div class="feed-content">\n'
+
+        # Highlights section
+        if daily.get('highlights'):
+            content_html += '<h3>Key Highlights</h3>\n<ul>\n'
+            for highlight in daily['highlights']:
+                content_html += f'<li>{highlight}</li>\n'
+            content_html += '</ul>\n\n'
+
+        # Notable commits section
+        if daily.get('commits'):
+            content_html += '<h3>Notable Commits</h3>\n<ul>\n'
+            for commit in daily['commits']:
+                repo = commit.get('repo', '')
+                desc = commit.get('description', '')
+                content_html += f'<li><strong>{repo}</strong>: {desc}</li>\n'
+            content_html += '</ul>\n\n'
+
+        # Active discussions section
+        if daily.get('discussions'):
+            content_html += '<h3>Active Discussions</h3>\n<ul>\n'
+            for discussion in daily['discussions']:
+                content_html += f'<li>{discussion}</li>\n'
+            content_html += '</ul>\n\n'
+
+        # Community activity
+        if daily.get('community'):
+            content_html += f'<h3>Community Activity</h3>\n<p>{daily["community"]}</p>\n\n'
+
+        # Overall summary
+        if daily.get('summary'):
+            content_html += f'<h3>Summary</h3>\n<p>{daily["summary"]}</p>\n'
+
+        content_html += '</div>'
+
+        # Process markdown and user links
+        content_html = markdown_to_html(content_html, config)
+        content_html = post_process_html_with_user_links(content_html, users_data)
+
+        fe.content(content_html, type='html')
+        fe.summary(daily.get('summary', 'Daily activity summary'))
+
+        # Set published date
+        try:
+            pub_date = datetime.strptime(date_str, '%Y-%m-%d')
+            pub_date = pub_date.replace(tzinfo=pytz.UTC)
+            fe.published(pub_date)
+            fe.updated(pub_date)
+        except:
+            fe.updated(datetime.now(pytz.UTC))
+
+    return fg
+
+
 def create_opml(feeds: Dict[str, str], config: Any) -> str:
     """Create an OPML file listing all the Atom feeds."""
     # Get atom config
@@ -1020,6 +1116,29 @@ def atom_main(output_dir: str, pretty: bool = False, json_dir: Optional[str] = N
                 success(f"Generated weekly summary feed: {weekly_feed_path}")
             except Exception as e:
                 warning(f"Failed to generate weekly summary feed: {e}")
+
+        # Generate daily feed for current week
+        current_year = datetime.now().year
+        current_week = datetime.now().isocalendar()[1]
+        daily_summaries = []
+
+        # Load daily summaries for current week
+        week_daily_file = Path(f"data/weekly_daily/{current_year}/week-{current_week:02d}-daily.json")
+        if week_daily_file.exists():
+            try:
+                with open(week_daily_file, 'r', encoding='utf-8') as f:
+                    daily_data = json.load(f)
+                    # Convert dict to list of summaries
+                    daily_summaries = list(daily_data.values())
+
+                if daily_summaries:
+                    daily_fg = create_daily_atom_feed(daily_summaries, config, users_data)
+                    daily_feed_path = feeds_dir / "daily.xml"
+                    daily_fg.atom_file(str(daily_feed_path), pretty=pretty)
+                    generated_feeds['daily'] = str(daily_feed_path)
+                    success(f"Generated daily feed with {len(daily_summaries)} entries: {daily_feed_path}")
+            except Exception as e:
+                warning(f"Failed to generate daily feed: {e}")
 
         # Generate OPML file
         if generated_feeds:

@@ -828,14 +828,31 @@ def website_json_main(
         # Generate and save individual week files
         step("Generating individual week files...")
         all_weeks = set(weeks_data.keys()) | set(group_summaries.keys()) | set(weekly_summaries.keys())
-        
+
         for week_key in all_weeks:
             week_reports = weeks_data.get(week_key, [])
             week_groups = group_summaries.get(week_key, [])
             week_summary = weekly_summaries.get(week_key)
-            
+
             week_detail = generate_week_detail(week_key, week_reports, week_groups, week_summary)
-            
+
+            # Add daily summaries if available (for current week)
+            try:
+                year, week_num = week_key.split('-')
+                week_daily_file = Path(f"data/weekly_daily/{year}/week-{week_num}-daily.json")
+                if week_daily_file.exists():
+                    with open(week_daily_file, 'r', encoding='utf-8') as f:
+                        daily_data = json.load(f)
+                        # Convert to list sorted by date
+                        daily_summaries_list = [
+                            daily_data[date] for date in sorted(daily_data.keys())
+                        ]
+                        week_detail['daily_summaries'] = daily_summaries_list
+                        info(f"Added {len(daily_summaries_list)} daily summaries to week {week_key}")
+            except Exception as e:
+                # Silently skip if daily summaries don't exist or can't be loaded
+                pass
+
             with open(weeks_dir / f"{week_key}.json", 'w', encoding='utf-8') as f:
                 json.dump(week_detail, f, indent=indent, ensure_ascii=False)
         
