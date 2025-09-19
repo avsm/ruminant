@@ -323,6 +323,7 @@ def sync_main(
     weeks: int = typer.Option(1, "--weeks", help="Number of weeks to sync"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
+    current: bool = typer.Option(False, "--current", help="Sync current week (instead of last complete week)"),
     force: bool = typer.Option(False, "--force", help="Force refresh cache"),
     scan_only: bool = typer.Option(False, "--scan-only", help="Only scan cached data for missing users"),
     releases_only: bool = typer.Option(False, "--releases-only", help="Only sync GitHub releases data"),
@@ -377,6 +378,9 @@ def sync_main(
         # Determine time range
         if year and week:
             target_year, target_week = year, week
+        elif current:
+            from ..utils.dates import get_current_week
+            target_year, target_week = get_current_week()
         else:
             target_year, target_week = get_last_complete_week()
         
