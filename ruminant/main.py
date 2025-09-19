@@ -22,6 +22,7 @@ def sync(
     weeks: Optional[int] = typer.Option(None, "--weeks", help="Number of weeks to sync (defaults to config value)"),
     year: Optional[int] = typer.Option(None, "--year", help="Year for the week"),
     week: Optional[int] = typer.Option(None, "--week", help="Week number (1-53)"),
+    current: bool = typer.Option(False, "--current", help="Sync current week (instead of last complete week)"),
     force: bool = typer.Option(False, "--force", help="Force refresh cache"),
     scan_only: bool = typer.Option(False, "--scan-only", help="Only scan cached data for missing users"),
     releases_only: bool = typer.Option(False, "--releases-only", help="Only sync GitHub releases data"),
@@ -38,7 +39,7 @@ def sync(
             config = load_config()
             weeks = config.reporting.default_weeks
     
-    sync_main(repos, weeks, year, week, force, scan_only, releases_only)
+    sync_main(repos, weeks, year, week, current, force, scan_only, releases_only)
 
 @app.command(help="Generate summaries using Claude CLI")
 def summarize(
